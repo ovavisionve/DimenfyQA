@@ -1,7 +1,8 @@
-import asyncio
 import logging
+import time
 
 from app.tasks.celery_app import celery_app
+from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
 from app.database import async_session
 from app.services.apify_service import apify_service
 from app.models.campaign import Campaign
@@ -9,23 +10,15 @@ from app.models.campaign import Campaign
 logger = logging.getLogger(__name__)
 
 
-def _run_async(coro):
-    """Helper to run async code in sync Celery tasks."""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
-@celery_app.task(bind=True, name="scrape_leads")
+@celery_app.task(bind=True, name="scrape_leads", **RETRY_KWARGS)
 def scrape_leads_task(self, campaign_id: str) -> list[str]:
     """Scrape leads for a campaign. Returns list of lead_ids."""
-    logger.info(f"Starting scrape for campaign {campaign_id}")
+    logger.info(f"Starting scrape for campaign {campaign_id} (attempt {self.request.retries + 1}/{self.max_retries + 1})")
 
     async def _scrape():
         async with async_session() as db:
             from sqlalchemy import select
+
             result = await db.execute(
                 select(Campaign).where(Campaign.id == campaign_id)
             )
@@ -45,7 +38,6 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             )
 
             # Poll until complete
-            import time
             max_attempts = 60
             for _ in range(max_attempts):
                 status_data = await apify_service.poll_scrape_status(
@@ -60,7 +52,12 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                     scrape_job.error_message = f"Apify run {status_data['status']}"
                     await db.commit()
                     raise RuntimeError(f"Apify run failed: {status_data['status']}")
-                time.sleep(5)  # noqa: ASYNC251 — sync sleep in sync context within event loop
+                time.sleep(5)
+            else:
+                scrape_job.status = "failed"
+                scrape_job.error_message = "Polling timeout"
+                await db.commit()
+                raise RuntimeError("Apify run polling timed out after 5 minutes")
 
             # Get results
             raw_profiles = await apify_service.get_scrape_results(
@@ -71,7 +68,6 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             if campaign.source_type in ("followers", "comments"):
                 usernames = [p.get("username", "") for p in raw_profiles if p.get("username")]
                 if usernames:
-                    # Batch in chunks of 50
                     detailed_profiles = []
                     for i in range(0, len(usernames), 50):
                         chunk = usernames[i:i + 50]
@@ -98,4 +94,18 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             logger.info(f"Scraped {saved} leads for campaign {campaign_id}")
             return lead_ids
 
-    return _run_async(_scrape())
+    try:
+        return _run_async(_scrape())
+    except ValueError as exc:
+        # Permanent error (campaign not found) — don't retry
+        fail_campaign(campaign_id, str(exc))
+        raise
+    except RuntimeError as exc:
+        # Apify run failed — mark campaign failed, don't retry
+        fail_campaign(campaign_id, str(exc))
+        raise
+    except Exception as exc:
+        # On final retry, mark campaign as failed
+        if self.request.retries >= self.max_retries:
+            fail_campaign(campaign_id, f"Scraping failed after {self.max_retries + 1} attempts: {exc}")
+        raise

@@ -45,6 +45,30 @@ COPYWRITING_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para
 ## Output:
 Responde SOLO con el texto del DM. Sin explicaciones, sin comillas, sin JSON."""
 
+VARIANT_B_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {client_business_type}.
+
+Necesito una SEGUNDA variante de un DM para A/B testing. Esta variante debe usar un ángulo DIFERENTE al DM original.
+
+## DM original (variante A):
+{variant_a}
+
+## Información del lead:
+- Nombre: {full_name}
+- Username: {username}
+- Bio: {bio}
+- Categoría: {category}
+- Research: {research_data}
+
+## Servicio que ofrecemos:
+{client_service_description}
+
+## Instrucciones para la variante B:
+- Usa un GANCHO diferente al de la variante A (si A usa cumplido, B usa curiosidad; si A es directo, B es más sutil)
+- Mantén las mismas 10 reglas del formato original
+- Máximo 4-5 oraciones
+- Tono natural, sin palabras de IA
+- SOLO texto plano del DM, nada más"""
+
 
 class CopywritingService:
     def __init__(self):
@@ -58,6 +82,29 @@ class CopywritingService:
             bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
             category=lead_data.get("lead_category", ""),
             website=lead_data.get("ig_website", ""),
+            research_data=lead_data.get("research_data", "No research available"),
+            client_business_type=client_config.get("business_type", "B2B automation"),
+            client_service_description=client_config.get(
+                "service_description", "B2B lead generation and automation services"
+            ),
+        )
+
+        message = self.client.messages.create(
+            model="claude-sonnet-4-5-20250514",
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        return message.content[0].text.strip()
+
+    def generate_dm_variant_b(self, lead_data: dict, client_config: dict, variant_a: str) -> str:
+        """Generate variant B of a DM for A/B testing."""
+        prompt = VARIANT_B_PROMPT.format(
+            variant_a=variant_a,
+            full_name=lead_data.get("ig_full_name", ""),
+            username=lead_data.get("ig_username", ""),
+            bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
+            category=lead_data.get("lead_category", ""),
             research_data=lead_data.get("research_data", "No research available"),
             client_business_type=client_config.get("business_type", "B2B automation"),
             client_service_description=client_config.get(
@@ -115,8 +162,15 @@ class CopywritingService:
                 }
 
                 dm_text = self.generate_dm(lead_data, client_config)
-
                 lead.dm_message = dm_text
+
+                # Generate variant B for A/B testing
+                try:
+                    dm_variant_b = self.generate_dm_variant_b(lead_data, client_config, dm_text)
+                    lead.dm_variant_b = dm_variant_b
+                except Exception:
+                    logger.warning(f"Could not generate variant B for {lead.ig_username}, using only variant A")
+
                 lead.status = "dm_ready"
                 lead.dm_generated_at = datetime.now(timezone.utc)
 

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.lead import Lead
+from app.utils.text_cleanup import clean_bio
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +82,13 @@ class ScoringService:
         scored_ids = []
         for lead in leads:
             try:
+                # Clean bio before sending to Claude
+                cleaned_bio = clean_bio(lead.ig_bio)
+
                 lead_data = {
                     "ig_username": lead.ig_username,
                     "ig_full_name": lead.ig_full_name,
-                    "ig_bio": lead.ig_bio,
+                    "ig_bio": cleaned_bio,
                     "ig_website": lead.ig_website,
                     "ig_category": lead.ig_category,
                     "ig_follower_count": lead.ig_follower_count,
@@ -96,7 +100,7 @@ class ScoringService:
                 lead.score = score_result.get("score", 0)
                 lead.score_reason = score_result.get("reason", "")
                 lead.lead_category = score_result.get("category", "other")
-                lead.ig_bio_clean = score_result.get("bio_clean", "")
+                lead.ig_bio_clean = score_result.get("bio_clean") or cleaned_bio
                 lead.status = "scored"
                 lead.scored_at = datetime.now(timezone.utc)
 

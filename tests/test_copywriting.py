@@ -75,3 +75,47 @@ class TestCopywritingService:
 
         for word in forbidden_words:
             assert word.lower() not in result.lower()
+
+    def test_generate_dm_variant_b(
+        self, copywriting_service, sample_lead_data, sample_client_config
+    ):
+        variant_a = "Hey Test, vi que tienes una agencia de marketing. Nosotros ayudamos a agencias a automatizar leads. Te interesa?"
+        variant_b_text = "Test, me llamo la atencion tu enfoque en growth marketing. Estamos trabajando con agencias similares en algo que les ha funcionado bien. Quieres que te cuente?"
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text=variant_b_text)]
+
+        lead_data = {**sample_lead_data, "research_data": "Marketing agency in Miami"}
+
+        with patch.object(
+            copywriting_service.client.messages, "create", return_value=mock_response
+        ):
+            result = copywriting_service.generate_dm_variant_b(
+                lead_data, sample_client_config, variant_a
+            )
+
+        assert isinstance(result, str)
+        assert len(result) > 0
+        assert result != variant_a
+
+    def test_variant_b_receives_variant_a_in_prompt(
+        self, copywriting_service, sample_lead_data, sample_client_config
+    ):
+        variant_a = "Original DM text here"
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text="Different DM text")]
+
+        lead_data = {**sample_lead_data, "research_data": "No research available"}
+
+        with patch.object(
+            copywriting_service.client.messages, "create", return_value=mock_response
+        ) as mock_create:
+            copywriting_service.generate_dm_variant_b(
+                lead_data, sample_client_config, variant_a
+            )
+
+            # Verify variant A text was included in the prompt
+            call_args = mock_create.call_args
+            prompt_content = call_args.kwargs["messages"][0]["content"]
+            assert variant_a in prompt_content

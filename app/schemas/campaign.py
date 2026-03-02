@@ -4,18 +4,20 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.schemas.enums import CampaignStatus, SourceType
+
 
 class CampaignCreate(BaseModel):
     client_id: uuid.UUID
     name: str
-    source_type: str  # "followers", "comments", "hashtag"
-    source_value: str  # username, post URL, or hashtag
+    source_type: SourceType
+    source_value: str
     settings: dict = {}
 
 
 class CampaignUpdate(BaseModel):
     name: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[CampaignStatus] = None
     settings: Optional[dict] = None
 
 
