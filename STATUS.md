@@ -1,138 +1,144 @@
 # IG DM Engine — Status del Proyecto
 
-> Última actualización: 27 de febrero de 2026
+> Última actualización: 2 de marzo de 2026
 
 ---
 
 ## Resumen General
 
-| Métrica | Valor |
-|---|---|
-| Archivos creados | 56 |
-| Líneas de Python | 2,274 |
-| Modelos de DB | 5 tablas |
-| Endpoints API | 14 |
-| Servicios | 5 |
-| Celery Tasks | 5 |
-| Tests | 4 archivos |
+| Métrica | Antes | Ahora |
+|---|---|---|
+| Archivos totales | 56 | 66 |
+| Archivos Python | 48 | 57 |
+| Líneas de Python | 2,274 | 3,235 |
+| Modelos de DB | 5 tablas | 5 tablas |
+| Endpoints API | 16 | **21** (+5 Client CRUD) |
+| Servicios | 5 | 5 (mejorados) |
+| Celery Tasks | 5 | 5 (con retry + error handling) |
+| Tests | 14 (4 archivos) | **54 (9 archivos)** |
 
 ---
 
 ## Estado por Sprint
 
-### Sprint 1 (Semana 1): Infraestructura Base
+### Sprint 1: Infraestructura Base — 85% completado
 
 | Tarea | Estado | Notas |
 |---|---|---|
-| Estructura del repositorio | HECHO | 56 archivos creados |
+| Estructura del repositorio | HECHO | 66 archivos creados |
 | Docker Compose (API + DB + Redis + Worker) | HECHO | `docker-compose.yml` con 4 servicios |
 | Modelos SQLAlchemy + setup Alembic | HECHO | 5 modelos + `alembic/env.py` async |
 | FastAPI app con health check | HECHO | `GET /health` funcionando |
 | Configuración Celery + task pipeline | HECHO | Pipeline encadenado de 4 fases |
-| Tests básicos | HECHO | 4 archivos de tests con mocks |
-| **Migración inicial de DB** | PENDIENTE | Falta ejecutar `alembic revision --autogenerate` |
-| **Probar Docker Compose end-to-end** | PENDIENTE | Falta levantar y verificar que todo conecta |
-
-**Sprint 1 progreso: ~85% completado**
+| Tests básicos | HECHO | 9 archivos de tests, 54 tests |
+| **Migración inicial de DB** | PENDIENTE | Falta ejecutar `alembic revision --autogenerate` (requiere DB corriendo) |
+| **Probar Docker Compose end-to-end** | PENDIENTE | Requiere instalar Docker |
 
 ---
 
-### Sprint 2 (Semana 2): Scraping + Scoring
+### Sprint 2: Scraping + Scoring — 75% completado
 
 | Tarea | Estado | Notas |
 |---|---|---|
-| `apify_service.py` — integración completa | HECHO (código) | 3 actors configurados, sync + async scraping |
-| `scoring_service.py` — scoring con Claude | HECHO (código) | Prompt completo, output JSON, scoring 0-100 |
-| Celery tasks para scrape + score | HECHO (código) | `scrape_leads_task`, `score_leads_task` |
-| Endpoints: crear campaña, iniciar scraping, ver leads | HECHO (código) | 8 endpoints de campaigns + leads + scraping |
+| `apify_service.py` — integración completa | HECHO | 3 actors configurados, sync + async scraping |
+| `scoring_service.py` — scoring con Claude | HECHO | Prompt completo, output JSON, scoring 0-100 |
+| Integración `text_cleanup` en scoring | HECHO | Bio se limpia antes de enviar a Claude |
+| Celery tasks para scrape + score | HECHO | Con retry logic (3 reintentos, backoff exponencial) |
+| Endpoints: crear campaña, iniciar scraping, ver leads | HECHO | 16 endpoints de campaigns + leads + scraping |
 | Deduplicación por (client_id, ig_username) | HECHO | Constraint UNIQUE + `utils/dedup.py` |
 | Tests de scoring con mocks | HECHO | 3 test cases en `test_scoring.py` |
-| **Probar con API key real de Apify** | PENDIENTE | Necesita token real para validar |
-| **Probar scoring con API key real de Claude** | PENDIENTE | Necesita key real para validar output JSON |
-| **Test de integración scrape → score** | PENDIENTE | Falta test end-to-end con DB real |
-
-**Sprint 2 progreso: ~60% completado** (código listo, falta validación con APIs reales)
+| **Probar con API key real de Apify** | PENDIENTE | Necesita token real |
+| **Probar scoring con API key real de Claude** | PENDIENTE | Necesita key real |
 
 ---
 
-### Sprint 3 (Semana 3): Research + Copywriting
+### Sprint 3: Research + Copywriting — 75% completado
 
 | Tarea | Estado | Notas |
 |---|---|---|
-| `research_service.py` — integración Perplexity | HECHO (código) | Prompt completo, modelo `sonar` |
-| `copywriting_service.py` — generación DMs | HECHO (código) | Prompt con 10 reglas, formato DM definido |
-| Pipeline completo: scrape → score → research → DM | HECHO (código) | `pipeline.py` con Celery chain |
-| Endpoint de export CSV/JSON | HECHO (código) | `GET /export/{id}/csv` y `/json` |
-| Tests del pipeline end-to-end | PARCIAL | Tests unitarios hechos, falta integration test |
+| `research_service.py` — integración Perplexity | HECHO | Prompt completo, modelo `sonar` |
+| `copywriting_service.py` — generación DMs | HECHO | Prompt con 10 reglas, formato DM definido |
+| **DM Variant B para A/B testing** | HECHO | Prompt separado con ángulo diferente |
+| Pipeline completo: scrape → score → research → DM | HECHO | `pipeline.py` con Celery chain |
+| Endpoint de export CSV/JSON | HECHO | `GET /export/{id}/csv` y `/json` |
+| Tests de research y copywriting | HECHO | 3 tests research + 5 tests copywriting |
 | **Probar con API key real de Perplexity** | PENDIENTE | Necesita key real |
-| **Probar DM generation con datos reales** | PENDIENTE | Necesita leads reales para validar calidad |
-| **Validar calidad de DMs generados** | PENDIENTE | Revisar que cumplan las 10 reglas |
-
-**Sprint 3 progreso: ~50% completado** (código listo, falta toda la validación)
+| **Probar DM generation con datos reales** | PENDIENTE | Necesita leads reales |
 
 ---
 
-### Sprint 4 (Semana 4): Polish + Deploy
+### Sprint 4: Hardening + Deploy — 60% completado
 
 | Tarea | Estado | Notas |
 |---|---|---|
-| Manejo de errores robusto (retry, fallback) | PARCIAL | Tasks tienen try/except, falta retry policy |
-| Logging estructurado | PARCIAL | Logger básico, falta formato JSON |
-| Stats por campaña (contadores en tiempo real) | HECHO | Endpoint `GET /campaigns/{id}/stats` |
+| Retry logic en Celery tasks | HECHO | `autoretry_for`, `max_retries=3`, `retry_backoff=True`, `retry_jitter=True` |
+| Error handling robusto | HECHO | Campaign se marca "failed" con error en stats |
+| Shared task base (`tasks/base.py`) | HECHO | Elimina duplicación de `_run_async`, helper `fail_campaign` |
+| Client CRUD endpoints | HECHO | 5 endpoints (POST/GET/LIST/PATCH/DELETE con soft delete) |
+| Validación con Enums | HECHO | `SourceType`, `CampaignStatus`, `LeadStatus`, `LeadCategory` |
+| Structured logging (JSON) | HECHO | `JSONFormatter` para prod, `DevFormatter` para dev |
+| Request tracing middleware | HECHO | `X-Request-ID` header, logging por request |
+| Stats por campaña | HECHO | Endpoint `GET /campaigns/{id}/stats` |
 | Documentación API (OpenAPI) | HECHO | Auto-generada por FastAPI en `/docs` |
-| Deploy inicial (Railway o Hetzner) | PENDIENTE | No iniciado |
-| Prueba con datos reales del cliente | PENDIENTE | No iniciado |
-
-**Sprint 4 progreso: ~20% completado**
+| **Deploy inicial** | PENDIENTE | No iniciado (requiere Docker + API keys) |
+| **Autenticación/autorización** | PENDIENTE | Endpoints abiertos, necesita API key o JWT |
+| **Rate limiting en API** | PENDIENTE | No implementado |
 
 ---
 
-## Lo que falta hacer (ordenado por prioridad)
+## Lo que falta (requiere tu participación)
 
-### Prioridad ALTA (bloqueantes)
+### Requiere Docker (instalar + correr)
 
 1. **Generar la migración inicial de Alembic**
-   - Ejecutar `alembic revision --autogenerate -m "initial tables"`
-   - Ejecutar `alembic upgrade head`
-   - Verificar que las 5 tablas se crean correctamente
+   ```bash
+   docker compose up db redis -d
+   alembic revision --autogenerate -m "initial tables"
+   alembic upgrade head
+   ```
 
 2. **Probar Docker Compose end-to-end**
-   - `docker compose up --build`
-   - Verificar que API responde en `localhost:8000`
-   - Verificar que Worker Celery conecta con Redis
-   - Verificar que la DB PostgreSQL acepta conexiones
+   ```bash
+   docker compose up --build
+   # Verificar: API en localhost:8000, Worker conectado, DB creada
+   ```
 
-3. **Validar con API keys reales**
-   - Poner keys reales en `.env`
-   - Probar scoring de un perfil real con Claude
-   - Probar research de un perfil real con Perplexity
-   - Probar scraping de una cuenta real con Apify
+### Requiere API Keys (registrarse + configurar)
 
-### Prioridad MEDIA (necesarios para producción)
+3. **Crear `.env` con keys reales**
+   ```bash
+   cp .env.example .env
+   # Llenar: ANTHROPIC_API_KEY, APIFY_API_TOKEN, PERPLEXITY_API_KEY
+   ```
 
-4. **Test de integración del pipeline completo**
-   - Crear campaña → scrape → score → research → write DM → export CSV
-   - Validar que cada paso pasa los datos correctos al siguiente
+4. **Probar scoring con Claude** — Verificar que el prompt devuelve JSON válido
+5. **Probar scraping con Apify** — Verificar que los perfiles se guardan correctamente
+6. **Probar research con Perplexity** — Verificar calidad del research
+7. **Probar pipeline completo** — Campaña real de 50-100 leads
 
-5. **Retry policy en Celery tasks**
-   - Agregar `autoretry_for`, `retry_backoff`, `max_retries` a cada task
-   - Manejar rate limits de Claude y Perplexity
+### Mejoras futuras (post-validación)
 
-6. **Endpoint CRUD de clientes**
-   - Actualmente no hay endpoints para crear/editar clientes
-   - Necesario para multi-tenant real
+8. **Autenticación** — API key o JWT para proteger endpoints
+9. **Rate limiting** — Limitar requests por IP/cliente
+10. **Webhooks de Apify** — Reemplazar polling por webhooks
+11. **Dashboard frontend** — Fuera de Fase 1
 
-7. **Logging estructurado (JSON)**
-   - Configurar logging con formato JSON para producción
-   - Agregar request_id para trazabilidad
+---
 
-### Prioridad BAJA (mejoras futuras)
+## Qué se puede hacer 100% sin APIs ni Docker
 
-8. **Variante B de DMs** para A/B testing
-9. **Webhooks de Apify** en vez de polling para jobs largos
-10. **Dashboard frontend** (fuera de Fase 1)
-11. **Rate limiting en la API**
-12. **Autenticación/autorización** en endpoints
+| Tarea | Estado |
+|---|---|
+| Retry logic en Celery tasks | HECHO |
+| Error handling con campaign "failed" | HECHO |
+| Client CRUD endpoints | HECHO |
+| Integrar text_cleanup en scoring | HECHO |
+| Enums de validación | HECHO |
+| Expandir tests (14 → 54) | HECHO |
+| DM Variant B para A/B testing | HECHO |
+| Structured logging + request tracing | HECHO |
+
+**Todo lo que se podía hacer sin APIs ni Docker está completado.**
 
 ---
 
@@ -145,12 +151,14 @@ POST /campaigns/{id}/start
 ┌─────────────────┐
 │  SCRAPE LEADS   │ → Apify API (followers/comments/profiles)
 │  scraping_tasks │ → Filtra privados, guarda en DB con dedup
+│  retry: 3x      │ → Campaign → "failed" si falla
 └────────┬────────┘
          │ lead_ids[]
          ▼
 ┌─────────────────┐
 │  SCORE LEADS    │ → Claude API (claude-sonnet-4-5-20250514)
 │  scoring_tasks  │ → Score 0-100 + categoría + razón
+│  text_cleanup   │ → Bio limpia antes de enviar a Claude
 └────────┬────────┘
          │ scored_lead_ids[]
          ▼
@@ -160,14 +168,16 @@ POST /campaigns/{id}/start
 └────────┬────────┘
          │ researched_lead_ids[]
          ▼
-┌─────────────────┐
-│  WRITE DMs      │ → Claude API (claude-sonnet-4-5-20250514)
-│ copywriting_tasks│ → Solo leads con score >= 70
-└────────┬────────┘
+┌─────────────────────┐
+│  WRITE DMs          │ → Claude API (claude-sonnet-4-5-20250514)
+│  copywriting_tasks  │ → Solo leads con score >= 70
+│  + Variant B (A/B)  │ → Genera 2 variantes con ángulo diferente
+└────────┬────────────┘
          │
          ▼
    Campaign status = "ready"
    GET /export/{id}/csv → CSV para JarveePro
+   GET /export/{id}/json → JSON con datos completos
 ```
 
 ---
@@ -180,11 +190,41 @@ POST /campaigns/{id}/start
 | Variables de entorno | `.env.example` |
 | Entry point de la API | `app/main.py` |
 | Configuración | `app/config.py` |
+| Logging configuración | `app/logging_config.py` |
 | Prompt de scoring | `app/services/scoring_service.py` |
-| Prompt de DMs | `app/services/copywriting_service.py` |
+| Prompt de DMs + Variant B | `app/services/copywriting_service.py` |
 | Prompt de research | `app/services/research_service.py` |
 | Pipeline Celery | `app/tasks/pipeline.py` |
+| Task base (retry/errors) | `app/tasks/base.py` |
 | Modelo de leads | `app/models/lead.py` |
+| Enums de validación | `app/schemas/enums.py` |
 | Endpoints de campañas | `app/api/endpoints/campaigns.py` |
-| Export CSV | `app/services/export_service.py` |
-| Tests | `tests/` |
+| Endpoints de clientes | `app/api/endpoints/clients.py` |
+| Export CSV/JSON | `app/services/export_service.py` |
+| Tests | `tests/` (9 archivos, 54 tests) |
+
+---
+
+## Nuevos Endpoints (Sesión 2 de marzo)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/clients/` | Crear cliente |
+| GET | `/api/v1/clients/` | Listar clientes (filtro por is_active) |
+| GET | `/api/v1/clients/{id}` | Ver detalle de cliente |
+| PATCH | `/api/v1/clients/{id}` | Actualizar cliente |
+| DELETE | `/api/v1/clients/{id}` | Soft delete (desactivar) |
+
+---
+
+## Tests Nuevos (Sesión 2 de marzo)
+
+| Archivo | Tests | Cobertura |
+|---|---|---|
+| `test_clients.py` | 10 | CRUD endpoints con mock DB |
+| `test_export.py` | 7 | CSV/JSON export, campos nulos, vacío |
+| `test_research.py` | 3 | Perplexity API mock, prompt, clean bio |
+| `test_enums.py` | 6 | Validación de enums + schema |
+| `test_tasks_config.py` | 11 | Retry config, excepciones, decorators |
+| `test_copywriting.py` | +2 | Variant B generation + prompt |
+| **Total nuevos** | **39** | — |
