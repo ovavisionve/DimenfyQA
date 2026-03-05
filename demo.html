@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IG DM Engine — Demo</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a26;
+            --border: #2a2a3a;
+            --text: #e4e4ed;
+            --text2: #8888a0;
+            --accent: #6c5ce7;
+            --accent2: #a29bfe;
+            --green: #00b894;
+            --green-bg: #00b89415;
+            --yellow: #fdcb6e;
+            --yellow-bg: #fdcb6e15;
+            --red: #e17055;
+            --red-bg: #e1705515;
+            --blue: #74b9ff;
+            --blue-bg: #74b9ff15;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .env-badge {
+            background: var(--yellow-bg);
+            color: var(--yellow);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .version {
+            color: var(--text2);
+            font-size: 13px;
+        }
+
+        /* Layout */
+        .app {
+            display: flex;
+            min-height: calc(100vh - 69px);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 20px 0;
+            flex-shrink: 0;
+        }
+
+        .nav-section {
+            padding: 0 16px;
+            margin-bottom: 24px;
+        }
+
+        .nav-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text2);
+            margin-bottom: 8px;
+            padding: 0 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text2);
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover { background: var(--surface2); color: var(--text); }
+        .nav-item.active { background: var(--accent)20; color: var(--accent2); font-weight: 500; }
+
+        .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+        .main {
+            flex: 1;
+            padding: 32px;
+            max-width: 1200px;
+        }
+
+        /* Pages */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: var(--text2);
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 4px 0;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-change.up { color: var(--green); }
+
+        /* Pipeline */
+        .pipeline-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 28px;
+        }
+
+        .pipeline-steps {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            position: relative;
+            padding: 0 20px;
+        }
+
+        .pipeline-line {
+            position: absolute;
+            top: 28px;
+            left: 60px;
+            right: 60px;
+            height: 3px;
+            background: var(--border);
+            z-index: 0;
+        }
+
+        .pipeline-line-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--accent));
+            width: 0%;
+            transition: width 0.8s ease;
+            border-radius: 2px;
+        }
+
+        .pipeline-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1;
+            width: 120px;
+        }
+
+        .step-circle {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--surface2);
+            border: 3px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 12px;
+            transition: all 0.4s;
+        }
+
+        .step-circle.active {
+            border-color: var(--accent);
+            background: var(--accent)20;
+            animation: pulse 1.5s infinite;
+        }
+
+        .step-circle.done {
+            border-color: var(--green);
+            background: var(--green-bg);
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.3); }
+            50% { box-shadow: 0 0 0 12px rgba(108, 92, 231, 0); }
+        }
+
+        .step-label {
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .step-detail {
+            font-size: 11px;
+            color: var(--text2);
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover { background: #5b4bd5; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover { background: var(--surface2); }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .btn-green { background: var(--green); color: white; }
+        .btn-green:hover { background: #00a382; }
+
+        /* Tables */
+        .table-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .table-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text2);
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+
+        td {
+            padding: 14px 20px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--surface2); }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-green { background: var(--green-bg); color: var(--green); }
+        .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+        .badge-red { background: var(--red-bg); color: var(--red); }
+        .badge-blue { background: var(--blue-bg); color: var(--blue); }
+        .badge-purple { background: var(--accent)20; color: var(--accent2); }
+
+        /* Score Bar */
+        .score-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-fill {
+            width: 60px;
+            height: 6px;
+            background: var(--surface2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .score-fill-inner {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s;
+        }
+
+        .score-num {
+            font-weight: 700;
+            font-size: 14px;
+            min-width: 28px;
+        }
+
+        /* DM Preview */
+        .dm-preview {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .dm-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .dm-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dm-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .dm-username {
+            font-weight: 600;
+        }
+
+        .dm-category {
+            font-size: 12px;
+            color: var(--text2);
+        }
+
+        .dm-bubble {
+            background: var(--surface2);
+            border-radius: 16px;
+            border-top-left-radius: 4px;
+            padding: 14px 18px;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            max-width: 85%;
+        }
+
+        .dm-variant-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text2);
+            margin-bottom: 6px;
+        }
+
+        .dm-variants {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .dm-variant-card {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--surface);
+            border-radius: 10px;
+            padding: 4px;
+            border: 1px solid var(--border);
+            width: fit-content;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text2);
+            transition: all 0.15s;
+            border: none;
+            background: none;
+            font-family: inherit;
+        }
+
+        .tab.active { background: var(--accent); color: white; font-weight: 600; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            width: 500px;
+            max-width: 90vw;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .form-input:focus, .form-select:focus {
+            border-color: var(--accent);
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        /* Log */
+        .log-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-line {
+            padding: 3px 0;
+            display: flex;
+            gap: 12px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        .log-time { color: var(--text2); min-width: 85px; }
+        .log-level { min-width: 55px; font-weight: 600; }
+        .log-level.info { color: var(--blue); }
+        .log-level.warn { color: var(--yellow); }
+        .log-level.ok { color: var(--green); }
+        .log-msg { color: var(--text); }
+
+        /* Export Preview */
+        .export-preview {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .export-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .export-body {
+            padding: 20px;
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 12px;
+            max-height: 350px;
+            overflow-y: auto;
+            white-space: pre;
+            color: var(--text2);
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main { padding: 20px; }
+            .pipeline-steps { flex-wrap: wrap; gap: 16px; justify-content: center; }
+            .pipeline-line { display: none; }
+            .dm-variants { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* Animations */
+        .typing-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">
+        <div class="logo-icon">IG</div>
+        <span>IG DM Engine</span>
+    </div>
+    <div class="header-right">
+        <span class="env-badge">DEMO MODE</span>
+        <span class="version">v0.1.0</span>
+    </div>
+</div>
+
+<div class="app">
+    <div class="sidebar">
+        <div class="nav-section">
+            <div class="nav-label">Principal</div>
+            <div class="nav-item active" onclick="showPage('dashboard')">
+                <span class="nav-icon">&#9633;</span> Dashboard
+            </div>
+            <div class="nav-item" onclick="showPage('campaigns')">
+                <span class="nav-icon">&#9654;</span> Campanas
+            </div>
+            <div class="nav-item" onclick="showPage('leads')">
+                <span class="nav-icon">&#9679;</span> Leads
+            </div>
+            <div class="nav-item" onclick="showPage('dms')">
+                <span class="nav-icon">&#9993;</span> DMs Preview
+            </div>
+            <div class="nav-item" onclick="showPage('export')">
+                <span class="nav-icon">&#8615;</span> Export
+            </div>
+        </div>
+        <div class="nav-section">
+            <div class="nav-label">Config</div>
+            <div class="nav-item" onclick="showPage('clients')">
+                <span class="nav-icon">&#9881;</span> Clientes
+            </div>
+            <div class="nav-item" onclick="showPage('pipeline')">
+                <span class="nav-icon">&#8634;</span> Pipeline Live
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+
+        <!-- DASHBOARD -->
+        <div id="page-dashboard" class="page active">
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Resumen de la campana activa: "Followers de @marketingguru"</p>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">Leads Scraped</div>
+                    <div class="stat-value">847</div>
+                    <div class="stat-change up">+847 esta campana</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Scored (60+)</div>
+                    <div class="stat-value">312</div>
+                    <div class="stat-change up">36.8% conversion</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Researched</div>
+                    <div class="stat-value">298</div>
+                    <div class="stat-change up">95.5% de scored</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">DMs Ready</div>
+                    <div class="stat-value">231</div>
+                    <div class="stat-change up">Con Variant A + B</div>
+                </div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">Score Promedio</div>
+                    <div class="stat-value" style="color: var(--green)">74.2</div>
+                    <div class="stat-change">De leads con score 60+</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Top Categoria</div>
+                    <div class="stat-value" style="font-size: 24px">Coach</div>
+                    <div class="stat-change">38% de leads calificados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Status Pipeline</div>
+                    <div class="stat-value" style="color: var(--green); font-size: 24px">Ready</div>
+                    <div class="stat-change up">Listo para exportar</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Tiempo Total</div>
+                    <div class="stat-value" style="font-size: 24px">12m 34s</div>
+                    <div class="stat-change">847 leads procesados</div>
+                </div>
+            </div>
+
+            <!-- Score Distribution Mini -->
+            <div class="table-container" style="padding: 20px;">
+                <div class="table-title" style="margin-bottom: 16px;">Distribucion de Scores</div>
+                <div style="display: flex; gap: 8px; align-items: flex-end; height: 120px; padding: 0 20px;">
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--red); width:100%; border-radius:4px 4px 0 0; height:90px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">0-20</span>
+                        <span style="font-size:12px; font-weight:600;">187</span>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--red); opacity:0.7; width:100%; border-radius:4px 4px 0 0; height:70px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">21-40</span>
+                        <span style="font-size:12px; font-weight:600;">142</span>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--yellow); width:100%; border-radius:4px 4px 0 0; height:60px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">41-59</span>
+                        <span style="font-size:12px; font-weight:600;">206</span>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--green); opacity:0.7; width:100%; border-radius:4px 4px 0 0; height:55px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">60-69</span>
+                        <span style="font-size:12px; font-weight:600;">81</span>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--green); width:100%; border-radius:4px 4px 0 0; height:80px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">70-84</span>
+                        <span style="font-size:12px; font-weight:600;">148</span>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="background:var(--accent); width:100%; border-radius:4px 4px 0 0; height:40px;"></div>
+                        <span style="font-size:11px; color:var(--text2);">85-100</span>
+                        <span style="font-size:12px; font-weight:600;">83</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CAMPAIGNS -->
+        <div id="page-campaigns" class="page">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px;">
+                <div>
+                    <h1 class="page-title">Campanas</h1>
+                    <p class="page-subtitle" style="margin-bottom:0">Gestiona tus campanas de prospecting</p>
+                </div>
+                <button class="btn btn-primary" onclick="showModal('new-campaign')">+ Nueva Campana</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Fuente</th>
+                            <th>Leads</th>
+                            <th>DMs Ready</th>
+                            <th>Status</th>
+                            <th>Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Followers de @marketingguru</strong></td>
+                            <td><span class="badge badge-blue">followers</span> @marketingguru</td>
+                            <td>847</td>
+                            <td>231</td>
+                            <td><span class="badge badge-green">ready</span></td>
+                            <td><button class="btn btn-outline btn-sm" onclick="showPage('export')">Exportar</button></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Comments en post viral</strong></td>
+                            <td><span class="badge badge-purple">comments</span> instagram.com/p/Cx...</td>
+                            <td>423</td>
+                            <td>98</td>
+                            <td><span class="badge badge-green">ready</span></td>
+                            <td><button class="btn btn-outline btn-sm" onclick="showPage('export')">Exportar</button></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Test coaching niche</strong></td>
+                            <td><span class="badge badge-blue">followers</span> @coachlife</td>
+                            <td>0</td>
+                            <td>0</td>
+                            <td><span class="badge badge-yellow">pending</span></td>
+                            <td><button class="btn btn-primary btn-sm" onclick="showPage('pipeline');startPipeline();">Iniciar</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- LEADS -->
+        <div id="page-leads" class="page">
+            <h1 class="page-title">Leads</h1>
+            <p class="page-subtitle">847 leads totales / 231 DM-ready</p>
+
+            <div class="tabs">
+                <button class="tab active" onclick="filterLeads('all', this)">Todos (847)</button>
+                <button class="tab" onclick="filterLeads('scored', this)">Scored (312)</button>
+                <button class="tab" onclick="filterLeads('dm_ready', this)">DM Ready (231)</button>
+                <button class="tab" onclick="filterLeads('low', this)">Descartados (535)</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Nombre</th>
+                            <th>Bio</th>
+                            <th>Followers</th>
+                            <th>Score</th>
+                            <th>Categoria</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leads-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- DMS PREVIEW -->
+        <div id="page-dms" class="page">
+            <h1 class="page-title">DMs Preview</h1>
+            <p class="page-subtitle">Vista previa de los DMs generados con A/B testing</p>
+
+            <div id="dm-previews"></div>
+        </div>
+
+        <!-- EXPORT -->
+        <div id="page-export" class="page">
+            <h1 class="page-title">Export</h1>
+            <p class="page-subtitle">Exporta leads DM-ready para JarveePro</p>
+
+            <div class="stats-row" style="margin-bottom: 24px;">
+                <div class="stat-card">
+                    <div class="stat-label">Leads para exportar</div>
+                    <div class="stat-value">231</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Formato</div>
+                    <div class="tabs" style="margin: 8px 0 0 0; border:none; padding:0;">
+                        <button class="tab active" onclick="showExportFormat('csv', this)">CSV</button>
+                        <button class="tab" onclick="showExportFormat('json', this)">JSON</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="export-preview">
+                <div class="export-header">
+                    <span class="table-title" id="export-format-title">export_campaign_followers_marketingguru.csv</span>
+                    <button class="btn btn-green btn-sm" onclick="downloadExport()">Descargar</button>
+                </div>
+                <div class="export-body" id="export-body"></div>
+            </div>
+        </div>
+
+        <!-- CLIENTS -->
+        <div id="page-clients" class="page">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px;">
+                <div>
+                    <h1 class="page-title">Clientes</h1>
+                    <p class="page-subtitle" style="margin-bottom:0">Multi-tenant: cada cliente tiene sus propias campanas</p>
+                </div>
+                <button class="btn btn-primary" onclick="showModal('new-client')">+ Nuevo Cliente</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Cuentas IG</th>
+                            <th>Campanas</th>
+                            <th>Status</th>
+                            <th>Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>BuyMod Agency</strong></td>
+                            <td>B2B Automation</td>
+                            <td>@buymod_agency</td>
+                            <td>3</td>
+                            <td><span class="badge badge-green">activo</span></td>
+                            <td><button class="btn btn-outline btn-sm">Editar</button></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coaching Pro</strong></td>
+                            <td>Coaching / Consulting</td>
+                            <td>@coachpro_mx</td>
+                            <td>1</td>
+                            <td><span class="badge badge-green">activo</span></td>
+                            <td><button class="btn btn-outline btn-sm">Editar</button></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Demo Client</strong></td>
+                            <td>E-commerce</td>
+                            <td>@demo_store</td>
+                            <td>0</td>
+                            <td><span class="badge badge-yellow">inactivo</span></td>
+                            <td><button class="btn btn-outline btn-sm">Editar</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-top: 20px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;">
+                <div style="font-size: 13px; color: var(--text2); margin-bottom: 8px;">API Endpoints disponibles:</div>
+                <code style="font-size: 12px; color: var(--accent2);">
+                    POST /api/v1/clients/ &nbsp;&bull;&nbsp;
+                    GET /api/v1/clients/ &nbsp;&bull;&nbsp;
+                    GET /api/v1/clients/{id} &nbsp;&bull;&nbsp;
+                    PATCH /api/v1/clients/{id} &nbsp;&bull;&nbsp;
+                    DELETE /api/v1/clients/{id}
+                </code>
+            </div>
+        </div>
+
+        <!-- PIPELINE LIVE -->
+        <div id="page-pipeline" class="page">
+            <h1 class="page-title">Pipeline Live</h1>
+            <p class="page-subtitle">Simulacion del pipeline completo para la campana "Test coaching niche"</p>
+
+            <div class="pipeline-container">
+                <div class="pipeline-steps">
+                    <div class="pipeline-line"><div class="pipeline-line-fill" id="pipeline-fill"></div></div>
+                    <div class="pipeline-step">
+                        <div class="step-circle" id="step-1">&#128269;</div>
+                        <div class="step-label">Scrape</div>
+                        <div class="step-detail" id="step-1-detail">Apify API</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="step-circle" id="step-2">&#129504;</div>
+                        <div class="step-label">Score</div>
+                        <div class="step-detail" id="step-2-detail">Claude AI</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="step-circle" id="step-3">&#128218;</div>
+                        <div class="step-label">Research</div>
+                        <div class="step-detail" id="step-3-detail">Perplexity</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="step-circle" id="step-4">&#9993;</div>
+                        <div class="step-label">Write DMs</div>
+                        <div class="step-detail" id="step-4-detail">Claude AI</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="step-circle" id="step-5">&#10003;</div>
+                        <div class="step-label">Export</div>
+                        <div class="step-detail" id="step-5-detail">CSV/JSON</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                <button class="btn btn-primary" id="btn-start-pipeline" onclick="startPipeline()">Iniciar Pipeline</button>
+                <button class="btn btn-outline" onclick="resetPipeline()">Resetear</button>
+            </div>
+
+            <div class="log-container" id="pipeline-log">
+                <div class="log-line">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-level info">INFO</span>
+                    <span class="log-msg">Pipeline listo. Haz click en "Iniciar Pipeline" para comenzar la simulacion.</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-new-campaign">
+    <div class="modal">
+        <div class="modal-title">Nueva Campana</div>
+        <div class="form-group">
+            <label class="form-label">Nombre</label>
+            <input class="form-input" placeholder="Ej: Followers de @usuario" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Tipo de fuente</label>
+            <select class="form-select">
+                <option value="followers">Followers de una cuenta</option>
+                <option value="comments">Comments en un post</option>
+                <option value="profiles">Perfiles directos</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Valor (username o URL)</label>
+            <input class="form-input" placeholder="@username o URL del post" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Cliente</label>
+            <select class="form-select">
+                <option>BuyMod Agency</option>
+                <option>Coaching Pro</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+            <button class="btn btn-primary" onclick="closeModal()">Crear Campana</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-new-client">
+    <div class="modal">
+        <div class="modal-title">Nuevo Cliente</div>
+        <div class="form-group">
+            <label class="form-label">Nombre de la empresa</label>
+            <input class="form-input" placeholder="Ej: Mi Agencia" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Tipo de negocio</label>
+            <input class="form-input" placeholder="Ej: B2B SaaS, Coaching, E-commerce" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Cuenta de Instagram</label>
+            <input class="form-input" placeholder="@mi_cuenta" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Descripcion del servicio</label>
+            <input class="form-input" placeholder="Que ofreces a tus clientes?" />
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+            <button class="btn btn-primary" onclick="closeModal()">Crear Cliente</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ MOCK DATA ============
+const LEADS = [
+    { username: "maria_coaching", name: "Maria Lopez", bio: "Coach de vida y negocios. Ayudo a emprendedoras a escalar.", followers: 23400, score: 92, category: "coach", status: "dm_ready", research: "Maria Lopez es una coach certificada ICF basada en CDMX. Recientemente lanzo su programa 'Escala tu Negocio' con 200+ alumnas." },
+    { username: "fitpro_carlos", name: "Carlos Martinez", bio: "Fitness Coach | Transformaciones reales | +500 clientes", followers: 45200, score: 88, category: "coach", status: "dm_ready", research: "Carlos Martinez dirige FitPro Academy, un programa de coaching fitness online con presencia en 5 paises de LATAM." },
+    { username: "digitalflow.agency", name: "Digital Flow Agency", bio: "Agencia de marketing digital. Resultados medibles.", followers: 12800, score: 85, category: "agency", status: "dm_ready", research: "Digital Flow es una agencia boutique en Bogota especializada en e-commerce, con clientes como RopaFit y NaturalGlow." },
+    { username: "sofia_mindset", name: "Sofia Ramirez", bio: "Mindset coach | Conferencias | Podcast 'Mentalidad Ganadora'", followers: 67300, score: 84, category: "coach", status: "dm_ready", research: "Sofia Ramirez tiene un podcast con 2M de descargas. Acaba de cerrar una gira de conferencias por Mexico y Colombia." },
+    { username: "ecom_master_mx", name: "Tienda Maestra", bio: "Ensenamos a vender en Amazon y MercadoLibre", followers: 18900, score: 81, category: "ecommerce", status: "dm_ready", research: "Ecom Master es una academia de e-commerce con sede en Monterrey, con un programa de mentoria de 12 semanas." },
+    { username: "creativostudio", name: "Creativo Studio", bio: "Diseno grafico | Branding | Social Media", followers: 8400, score: 76, category: "agency", status: "dm_ready", research: null },
+    { username: "nutricoach_ana", name: "Ana Gutierrez", bio: "Nutriologa certificada | Planes personalizados", followers: 31200, score: 73, category: "coach", status: "dm_ready", research: null },
+    { username: "techstartup_lat", name: "TechStartup LATAM", bio: "Aceleradora de startups tecnologicas", followers: 5600, score: 71, category: "saas", status: "dm_ready", research: null },
+    { username: "yoga_con_pau", name: "Paulina Flores", bio: "Yoga | Meditacion | Retiros en Tulum", followers: 42100, score: 68, category: "coach", status: "researched" },
+    { username: "lacocina.mx", name: "La Cocina MX", bio: "Recetas faciles | Blog de comida", followers: 95400, score: 45, category: "creator", status: "scored" },
+    { username: "juanito_memes", name: "Juan Perez", bio: "Memes y risas diarias", followers: 234000, score: 12, category: "other", status: "scored" },
+    { username: "selfie_queen_23", name: "", bio: "Living my best life", followers: 340, score: 5, category: "other", status: "scored" },
+    { username: "random_user_99", name: "User 99", bio: "", followers: 45, score: 3, category: "other", status: "scored" },
+];
+
+const DMS = [
+    {
+        lead: LEADS[0],
+        variant_a: "Maria, vi que tu programa Escala tu Negocio ya tiene mas de 200 alumnas, eso habla muy bien del trabajo que has hecho. Nosotros ayudamos a coaches como tu a automatizar la captacion de leads en Instagram para que puedas enfocarte en lo que mejor haces. Te gustaria saber como funciona?",
+        variant_b: "Hola Maria, me tope con tu perfil y me llamo la atencion el enfoque que tienes en emprendedoras. Estamos trabajando con coaches en LATAM en algo que les ha funcionado bien para conseguir clientes de forma constante sin depender de stories todos los dias. Quieres que te cuente mas?"
+    },
+    {
+        lead: LEADS[1],
+        variant_a: "Carlos, 500 clientes transformados es un numero que pocos fitness coaches logran. Nosotros ayudamos a coaches con audiencias grandes como la tuya a convertir seguidores en clientes de manera automatizada. Te interesaria saber como lo hacemos?",
+        variant_b: "Hey Carlos, me parecio interesante tu enfoque de transformaciones reales, se nota que no vendes humo. Trabajamos con coaches fitness que quieren escalar sin pasarse el dia en Instagram. Quieres que te mande un ejemplo de como funciona?"
+    },
+    {
+        lead: LEADS[2],
+        variant_a: "Vi que Digital Flow trabaja con e-commerce y se enfoca en resultados medibles, eso es exactamente lo que buscamos en partners. Nosotros automatizamos la generacion de leads en Instagram para agencias como la tuya. Te gustaria explorar como podria funcionar para sus clientes?",
+        variant_b: "Digital Flow, me llamo la atencion que trabajan con marcas de e-commerce en Colombia. Tenemos un sistema que varias agencias estan usando para conseguir leads calificados en IG de forma automatica. Les podria interesar para ampliar su oferta de servicios?"
+    },
+    {
+        lead: LEADS[3],
+        variant_a: "Sofia, tu podcast Mentalidad Ganadora con 2 millones de descargas es impresionante. Con una audiencia asi, hay mucho potencial para convertir seguidores de IG en clientes de programas premium. Nosotros ayudamos con eso de forma automatizada. Te gustaria saber mas?",
+        variant_b: "Hola Sofia, vi que acabas de cerrar tu gira de conferencias y me imagino que el siguiente paso es capitalizar toda esa atencion. Estamos ayudando a speakers y coaches a convertir su audiencia de Instagram en clientes sin esfuerzo manual. Quieres que te cuente como?"
+    },
+];
+
+// ============ NAVIGATION ============
+function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.add('active');
+    event.currentTarget.classList.add('active');
+
+    if (pageId === 'leads') renderLeads('all');
+    if (pageId === 'dms') renderDMs();
+    if (pageId === 'export') renderExport('csv');
+}
+
+function showModal(id) { document.getElementById('modal-' + id).classList.add('active'); }
+function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active')); }
+
+// ============ LEADS TABLE ============
+function renderLeads(filter) {
+    const tbody = document.getElementById('leads-table-body');
+    let filtered = LEADS;
+    if (filter === 'scored') filtered = LEADS.filter(l => l.score >= 60);
+    if (filter === 'dm_ready') filtered = LEADS.filter(l => l.status === 'dm_ready');
+    if (filter === 'low') filtered = LEADS.filter(l => l.score < 60);
+
+    tbody.innerHTML = filtered.map(l => {
+        const scoreColor = l.score >= 70 ? 'var(--green)' : l.score >= 60 ? 'var(--yellow)' : 'var(--red)';
+        const statusBadge = l.status === 'dm_ready' ? 'badge-green' : l.status === 'researched' ? 'badge-blue' : l.score >= 60 ? 'badge-yellow' : 'badge-red';
+        const catBadge = { coach: 'badge-purple', agency: 'badge-blue', ecommerce: 'badge-green', saas: 'badge-blue', creator: 'badge-yellow', other: 'badge-red' }[l.category] || 'badge-red';
+        return `<tr>
+            <td><strong>@${l.username}</strong></td>
+            <td>${l.name || '-'}</td>
+            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2);">${l.bio || '-'}</td>
+            <td>${(l.followers/1000).toFixed(1)}K</td>
+            <td>
+                <div class="score-bar">
+                    <span class="score-num" style="color:${scoreColor}">${l.score}</span>
+                    <div class="score-fill"><div class="score-fill-inner" style="width:${l.score}%; background:${scoreColor}"></div></div>
+                </div>
+            </td>
+            <td><span class="badge ${catBadge}">${l.category}</span></td>
+            <td><span class="badge ${statusBadge}">${l.status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function filterLeads(filter, el) {
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+    if (el) el.classList.add('active');
+    renderLeads(filter);
+}
+
+// ============ DM PREVIEWS ============
+function renderDMs() {
+    const container = document.getElementById('dm-previews');
+    container.innerHTML = DMS.map(dm => `
+        <div class="dm-preview">
+            <div class="dm-header">
+                <div class="dm-user">
+                    <div class="dm-avatar">${dm.lead.name.charAt(0)}</div>
+                    <div>
+                        <div class="dm-username">@${dm.lead.username}</div>
+                        <div class="dm-category">${dm.lead.name} &bull; Score: ${dm.lead.score} &bull; ${dm.lead.category}</div>
+                    </div>
+                </div>
+                <div class="score-bar">
+                    <span class="score-num" style="color:var(--green)">${dm.lead.score}</span>
+                    <div class="score-fill" style="width:80px"><div class="score-fill-inner" style="width:${dm.lead.score}%; background:var(--green)"></div></div>
+                </div>
+            </div>
+            ${dm.lead.research ? `<div style="background:var(--blue-bg); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--blue);">
+                <strong>Research:</strong> ${dm.lead.research}
+            </div>` : ''}
+            <div class="dm-variants">
+                <div class="dm-variant-card">
+                    <div class="dm-variant-label">Variante A</div>
+                    <div style="font-size:14px; line-height:1.6;">${dm.variant_a}</div>
+                </div>
+                <div class="dm-variant-card">
+                    <div class="dm-variant-label">Variante B (A/B Test)</div>
+                    <div style="font-size:14px; line-height:1.6;">${dm.variant_b}</div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============ EXPORT ============
+function renderExport(format) {
+    const title = document.getElementById('export-format-title');
+    const body = document.getElementById('export-body');
+    const dmLeads = LEADS.filter(l => l.status === 'dm_ready');
+
+    if (format === 'csv') {
+        title.textContent = 'export_campaign_followers_marketingguru.csv';
+        const header = 'ig_username,ig_full_name,ig_bio_clean,ig_website,ig_follower_count,score,lead_category,dm_message';
+        const rows = dmLeads.map(l =>
+            `${l.username},"${l.name}","${l.bio}","",${l.followers},${l.score},${l.category},"${DMS.find(d => d.lead.username === l.username)?.variant_a || 'DM generado por Claude AI...'}"`
+        );
+        body.textContent = header + '\n' + rows.join('\n');
+    } else {
+        title.textContent = 'export_campaign_followers_marketingguru.json';
+        const data = dmLeads.slice(0, 3).map(l => ({
+            ig_username: l.username,
+            ig_full_name: l.name,
+            score: l.score,
+            lead_category: l.category,
+            dm_message: DMS.find(d => d.lead.username === l.username)?.variant_a || "DM generado...",
+            dm_variant_b: DMS.find(d => d.lead.username === l.username)?.variant_b || null,
+            research_summary: l.research || null,
+        }));
+        body.textContent = JSON.stringify(data, null, 2) + '\n  // ... 228 leads mas';
+    }
+}
+
+function showExportFormat(format, el) {
+    el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    renderExport(format);
+}
+
+function downloadExport() {
+    alert('En produccion, esto descarga el archivo CSV/JSON real desde:\nGET /api/v1/export/{campaign_id}/csv');
+}
+
+// ============ PIPELINE SIMULATION ============
+let pipelineRunning = false;
+
+function startPipeline() {
+    if (pipelineRunning) return;
+    pipelineRunning = true;
+    document.getElementById('btn-start-pipeline').disabled = true;
+
+    const log = document.getElementById('pipeline-log');
+    log.innerHTML = '';
+
+    const steps = [
+        { step: 1, fill: 5, logs: [
+            { t: 0, level: 'info', msg: 'POST /api/v1/campaigns/c3a1.../start -> 200 (pipeline started)' },
+            { t: 300, level: 'info', msg: '[scrape_leads] Starting scrape for campaign c3a1... (attempt 1/4)' },
+            { t: 800, level: 'info', msg: '[scrape_leads] Apify actor "instagram-following-scraper" started, run_id=aX9k2...' },
+            { t: 2000, level: 'info', msg: '[scrape_leads] Polling... status=RUNNING' },
+            { t: 3500, level: 'info', msg: '[scrape_leads] Polling... status=RUNNING' },
+            { t: 5000, level: 'ok', msg: '[scrape_leads] Apify run SUCCEEDED. Dataset: dY7m3...' },
+            { t: 5500, level: 'info', msg: '[scrape_leads] Fetching profile details (3 chunks of 50)...' },
+            { t: 6500, level: 'ok', msg: '[scrape_leads] Saved 143 leads (7 duplicates skipped, 12 private filtered)' },
+        ]},
+        { step: 2, fill: 30, logs: [
+            { t: 0, level: 'info', msg: '[score_leads] Scoring 143 leads (attempt 1/4)' },
+            { t: 300, level: 'info', msg: '[score_leads] Campaign status -> "scoring"' },
+            { t: 800, level: 'info', msg: '[score_leads] Scoring @maria_coaching... -> 92 (coach)' },
+            { t: 1200, level: 'info', msg: '[score_leads] Scoring @fitpro_carlos... -> 88 (coach)' },
+            { t: 1500, level: 'info', msg: '[score_leads] Scoring @digitalflow.agency... -> 85 (agency)' },
+            { t: 1800, level: 'warn', msg: '[score_leads] Scoring @random_user_99... -> 3 (other) [below threshold]' },
+            { t: 2500, level: 'info', msg: '[score_leads] ... processing 139 more leads ...' },
+            { t: 4000, level: 'ok', msg: '[score_leads] Scored 143 leads. 52 above threshold (60+). Avg score: 74.2' },
+        ]},
+        { step: 3, fill: 55, logs: [
+            { t: 0, level: 'info', msg: '[research_leads] Researching 52 leads with score >= 60 (attempt 1/4)' },
+            { t: 500, level: 'info', msg: '[research_leads] Perplexity sonar: researching @maria_coaching...' },
+            { t: 1500, level: 'ok', msg: '[research_leads] @maria_coaching: "Coach certificada ICF, programa Escala tu Negocio, 200+ alumnas"' },
+            { t: 2000, level: 'info', msg: '[research_leads] Perplexity sonar: researching @fitpro_carlos...' },
+            { t: 3000, level: 'ok', msg: '[research_leads] @fitpro_carlos: "FitPro Academy, presencia en 5 paises LATAM"' },
+            { t: 3500, level: 'info', msg: '[research_leads] ... researching 48 more leads ...' },
+            { t: 5500, level: 'warn', msg: '[research_leads] @yoga_con_pau: no research found, skipping' },
+            { t: 6500, level: 'ok', msg: '[research_leads] Researched 49 of 52 leads (3 no results)' },
+        ]},
+        { step: 4, fill: 80, logs: [
+            { t: 0, level: 'info', msg: '[write_dms] Writing DMs for 38 leads with score >= 70 (attempt 1/4)' },
+            { t: 300, level: 'info', msg: '[write_dms] Campaign status -> "writing"' },
+            { t: 800, level: 'ok', msg: '[write_dms] @maria_coaching: Variant A generated (147 chars)' },
+            { t: 1200, level: 'ok', msg: '[write_dms] @maria_coaching: Variant B generated (162 chars)' },
+            { t: 1800, level: 'ok', msg: '[write_dms] @fitpro_carlos: Variant A generated (155 chars)' },
+            { t: 2200, level: 'ok', msg: '[write_dms] @fitpro_carlos: Variant B generated (143 chars)' },
+            { t: 2800, level: 'info', msg: '[write_dms] ... generating DMs for 34 more leads ...' },
+            { t: 4500, level: 'warn', msg: '[write_dms] @creativostudio: Variant B failed, using only Variant A' },
+            { t: 5500, level: 'ok', msg: '[write_dms] Generated DMs for 38 leads (37 with A/B, 1 only A)' },
+        ]},
+        { step: 5, fill: 100, logs: [
+            { t: 0, level: 'ok', msg: '[pipeline] Campaign status -> "ready"' },
+            { t: 300, level: 'info', msg: '[pipeline] Pipeline completed in 12m 34s' },
+            { t: 600, level: 'ok', msg: '[pipeline] 143 scraped -> 52 scored (60+) -> 49 researched -> 38 DMs ready' },
+            { t: 900, level: 'info', msg: '[export] CSV available at GET /api/v1/export/c3a1.../csv' },
+            { t: 1200, level: 'info', msg: '[export] JSON available at GET /api/v1/export/c3a1.../json' },
+        ]},
+    ];
+
+    let totalDelay = 0;
+    steps.forEach((s, si) => {
+        setTimeout(() => {
+            // Activate step
+            for (let i = 1; i <= 5; i++) {
+                const el = document.getElementById('step-' + i);
+                el.classList.remove('active', 'done');
+                if (i < s.step) el.classList.add('done');
+                if (i === s.step) el.classList.add('active');
+            }
+            document.getElementById('pipeline-fill').style.width = s.fill + '%';
+        }, totalDelay);
+
+        s.logs.forEach(l => {
+            setTimeout(() => {
+                const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+                const line = document.createElement('div');
+                line.className = 'log-line';
+                line.innerHTML = `<span class="log-time">${time}</span><span class="log-level ${l.level}">${l.level.toUpperCase()}</span><span class="log-msg">${l.msg}</span>`;
+                log.appendChild(line);
+                log.scrollTop = log.scrollHeight;
+            }, totalDelay + l.t);
+        });
+
+        const lastLog = s.logs[s.logs.length - 1];
+        totalDelay += lastLog.t + 1200;
+    });
+
+    // Mark final step as done
+    setTimeout(() => {
+        for (let i = 1; i <= 5; i++) {
+            document.getElementById('step-' + i).classList.remove('active');
+            document.getElementById('step-' + i).classList.add('done');
+        }
+        document.getElementById('pipeline-fill').style.width = '100%';
+        pipelineRunning = false;
+        document.getElementById('btn-start-pipeline').disabled = false;
+    }, totalDelay);
+}
+
+function resetPipeline() {
+    pipelineRunning = false;
+    document.getElementById('btn-start-pipeline').disabled = false;
+    for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById('step-' + i);
+        el.classList.remove('active', 'done');
+    }
+    document.getElementById('pipeline-fill').style.width = '0%';
+    document.getElementById('pipeline-log').innerHTML = `
+        <div class="log-line">
+            <span class="log-time">--:--:--</span>
+            <span class="log-level info">INFO</span>
+            <span class="log-msg">Pipeline reseteado. Listo para nueva simulacion.</span>
+        </div>`;
+}
+
+// ============ INIT ============
+renderLeads('all');
+renderExport('csv');
+</script>
+
+</body>
+</html>
