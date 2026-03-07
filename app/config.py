@@ -1,3 +1,6 @@
+import re
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -23,6 +26,14 @@ class Settings(BaseSettings):
     DEFAULT_SCORE_THRESHOLD: int = 60
     RESEARCH_SCORE_THRESHOLD: int = 60
     DM_SCORE_THRESHOLD: int = 70
+
+    @field_validator("DEFAULT_SCORE_THRESHOLD", "RESEARCH_SCORE_THRESHOLD", "DM_SCORE_THRESHOLD", mode="before")
+    @classmethod
+    def clean_int_value(cls, v: object) -> object:
+        if isinstance(v, str):
+            cleaned = re.sub(r"[^\d]", "", v)
+            return int(cleaned) if cleaned else v
+        return v
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
