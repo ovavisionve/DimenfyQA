@@ -88,8 +88,12 @@ Copy `.env.example` to `.env` and fill in real values. Required:
 - `DATABASE_URL` — PostgreSQL connection string (asyncpg)
 - `REDIS_URL` — Redis connection string
 - `ANTHROPIC_API_KEY` — Claude API key for scoring + copywriting
-- `PERPLEXITY_API_KEY` — Perplexity API key for lead research
 - `APIFY_API_TOKEN` — Apify API token for Instagram scraping
+
+Optional (research phase):
+- `GOOGLE_API_KEY` — Google Gemini API key (preferred for research)
+- `PERPLEXITY_API_KEY` — Perplexity API key (fallback if no Google key)
+- If neither is set, research phase is skipped automatically
 
 ## Key Conventions
 
@@ -111,16 +115,26 @@ Copy `.env.example` to `.env` and fill in real values. Required:
 - Alembic for all schema changes — never modify DB directly
 
 ### AI Services
-- **Scoring**: Claude claude-sonnet-4-5-20250514 — returns JSON with score 0-100, reason, category
-- **Copywriting**: Claude claude-sonnet-4-5-20250514 — returns plain text DM
-- **Research**: Perplexity sonar — only for leads with score >= 60
+- **Scoring**: Claude Haiku (`claude-haiku-4-5-20251001`) — batch mode, 20 leads per API call, returns JSON array with score 0-100, reason, category, bio_clean
+- **Copywriting**: Claude Sonnet (`claude-sonnet-4-5-20250514`) — batch mode, 5 leads per API call, generates variant A + B in one call
+- **Research**: Google Gemini (`gemini-2.0-flash`) preferred, Perplexity sonar fallback — only for leads with score >= 60. If no API key configured, research is skipped and leads marked as researched.
 - DMs only generated for leads with score >= 70
 
 ### Task Pipeline
 - Celery chains: scrape → score → research → write DMs
-- Each phase processes leads in parallel (Celery groups)
+- Scoring uses batch API calls (20 leads/call, 3 parallel batches) — NOT individual calls
+- DM generation uses batch API calls (5 leads/call, 3 parallel batches) — NOT individual calls
+- Research uses asyncio.Semaphore(8) for parallel async requests
 - `task_acks_late=True` for reliability
 - Campaign status updates at each phase transition
+- Progress tracked via `campaign.stats["progress"]` dict, polled by frontend
+
+### Known Issues & Lessons Learned
+- Celery workers run in forked processes — each task creates its own async event loop via `_run_async()`
+- DB sessions in workers use `create_worker_session()` with `NullPool` to avoid event loop conflicts
+- MUST `commit()` (not `flush()`) before calling `update_progress()` to avoid deadlocks (row lock held by session 1, update_progress opens session 2 on same row)
+- `sync_update_progress()` exists for ThreadPoolExecutor callbacks (creates its own event loop per thread)
+- Model names must be exact — wrong model name causes silent failures (errors caught by safe wrappers)
 
 ### Thresholds (configurable via env)
 - `DEFAULT_SCORE_THRESHOLD=60` — minimum score to keep a lead
@@ -143,3 +157,6 @@ Copy `.env.example` to `.env` and fill in real values. Required:
 - Apify rate limits must be respected per client plan
 - Profile scraping uses synchronous Apify endpoint (`run-sync-get-dataset-items`)
 - The n8n workflow reference is in `Instagram_DM_Engine_-_Step_1.json`
+- Frontend dashboard is in `static/` directory, served by FastAPI as static files
+- Campaign progress is polled by frontend via `/api/v1/campaigns/{id}` endpoint
+- Scripts: `scripts/seed_db.py` (test data), `scripts/clean_and_seed.py` (reset DB), `scripts/create_100_campaign.py` (100-lead test campaign)
