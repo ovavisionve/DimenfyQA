@@ -33,7 +33,7 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
                     campaign = campaign_result.scalar_one_or_none()
                     if campaign:
                         campaign.status = "researching"
-                        await db.flush()
+                        await db.commit()
 
             cid = str(campaign_id) if campaign_id else None
             if cid:

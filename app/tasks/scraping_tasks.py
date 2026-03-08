@@ -27,7 +27,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 raise ValueError(f"Campaign {campaign_id} not found")
 
             campaign.status = "scraping"
-            await db.flush()
+            await db.commit()
 
             # Start scrape job (use max_leads from campaign settings if set)
             max_leads = (campaign.settings or {}).get("max_leads", 0)
