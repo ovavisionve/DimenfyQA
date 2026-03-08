@@ -66,7 +66,7 @@ class ScoringService:
         )
 
         message = self.client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-5-20250514",
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -86,8 +86,11 @@ class ScoringService:
             result = self.score_lead(lead_data)
             logger.info(f"Scored lead {username}: {result.get('score', 0)}")
             return (username, result)
-        except Exception:
-            logger.exception(f"Error scoring lead {username}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON from Claude for {username}: {e}")
+            return (username, None)
+        except Exception as e:
+            logger.error(f"Error scoring lead {username}: {type(e).__name__}: {e}")
             return (username, None)
 
     async def score_leads_batch(
@@ -101,7 +104,10 @@ class ScoringService:
         leads = result.scalars().all()
 
         if not leads:
+            logger.warning(f"No leads with status='scraped' found for {len(lead_ids)} IDs")
             return []
+
+        logger.info(f"Found {len(leads)} scraped leads to score out of {len(lead_ids)} IDs")
 
         # Prepare lead data for parallel scoring
         lead_data_map: dict[str, tuple] = {}  # username -> (lead, lead_data, cleaned_bio)
@@ -129,16 +135,18 @@ class ScoringService:
                 executor.submit(self._score_lead_safe, data[1]): username
                 for username, data in lead_data_map.items()
             }
+            logger.info(f"Submitted {len(futures)} scoring futures to ThreadPoolExecutor")
             for future in as_completed(futures):
                 username = futures[future]
                 completed_count += 1
                 _, score_result = future.result()
+                logger.info(f"Scoring progress: {completed_count}/{len(leads)} (current: @{username}, success={score_result is not None})")
 
                 if progress_callback:
                     try:
                         progress_callback(completed_count, len(leads), username)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Progress callback failed: {e}")
 
                 if score_result is None:
                     continue
