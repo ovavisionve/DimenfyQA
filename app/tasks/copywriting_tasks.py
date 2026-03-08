@@ -49,7 +49,7 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                     sync_update_progress(cid, "writing_dms",
                                     f"Writing DM {cur}/{tot}: @{uname}",
                                     current=cur, total=tot,
-                                    detail="Generating Variant A + B with 8 parallel threads")
+                                    detail="Batch generation (5 leads/call, A+B variants)")
 
             dm_ready_ids = await copywriting_service.write_dms_batch(
                 lead_ids, db, progress_callback=_writing_progress

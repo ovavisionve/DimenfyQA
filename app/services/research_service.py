@@ -151,8 +151,8 @@ class ResearchService:
                     lead.research_data = research_text
                     lead.research_summary = research_text[:500]
                     logger.info(f"Researched lead {lead.ig_username}")
-                except Exception:
-                    logger.exception(f"Error researching lead {lead.ig_username}")
+                except Exception as e:
+                    logger.error(f"Error researching lead {lead.ig_username}: {type(e).__name__}: {e}")
                 # Mark as researched even on failure to not block pipeline
                 lead.status = "researched"
                 lead.researched_at = datetime.now(timezone.utc)

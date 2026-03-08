@@ -41,15 +41,15 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
                 await update_progress(cid, "scoring",
                                 f"Scoring {len(lead_ids)} leads with Claude AI...",
                                 current=0, total=len(lead_ids),
-                                detail="Preparing leads for parallel scoring")
+                                detail="Using batch scoring (20 leads per API call)")
 
             def _scoring_progress(cur, tot, uname):
                 """Sync callback — runs in ThreadPoolExecutor threads."""
                 if cid:
                     sync_update_progress(cid, "scoring",
-                                    f"Scoring lead {cur}/{tot}: @{uname}",
+                                    f"Scoring {cur}/{tot}: @{uname}",
                                     current=cur, total=tot,
-                                    detail="Using 10 parallel threads")
+                                    detail="Batch scoring with Claude Haiku")
 
             scored_ids = await scoring_service.score_leads_batch(
                 lead_ids, db, progress_callback=_scoring_progress

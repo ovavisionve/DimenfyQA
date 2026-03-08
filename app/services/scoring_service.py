@@ -13,22 +13,14 @@ from app.utils.text_cleanup import clean_bio
 
 logger = logging.getLogger(__name__)
 
-# Max parallel API calls (respect rate limits)
-MAX_PARALLEL_SCORING = 10
+# Batch size: how many leads per single API call
+BATCH_SIZE = 20
+# Max parallel batch API calls
+MAX_PARALLEL_BATCHES = 3
 
-SCORING_PROMPT = """Eres un asistente de calificación de leads para una agencia de automatización B2B.
+BATCH_SCORING_PROMPT = """Eres un asistente de calificación de leads para una agencia de automatización B2B.
 
-Evalúa este perfil de Instagram y asigna un score de 0 a 100.
-
-## Datos del lead:
-- Username: {username}
-- Nombre: {full_name}
-- Bio: {bio}
-- Website: {website}
-- Categoría IG: {category}
-- Followers: {follower_count}
-- Following: {following_count}
-- Perfil privado: {is_private}
+Evalúa cada perfil de Instagram y asigna un score de 0 a 100.
 
 ## Criterios de scoring:
 - Es un negocio o emprendedor (0-25 puntos)
@@ -38,36 +30,51 @@ Evalúa este perfil de Instagram y asigna un score de 0 a 100.
 - Tiene website (0-10 puntos)
 - Perfil público (0-5 puntos, 0 si es privado)
 
+## Leads a evaluar:
+{leads_json}
+
 ## Output:
-Responde SOLO en JSON válido, sin markdown ni backticks:
-{{
+Responde SOLO un JSON array válido, sin markdown ni backticks. Cada elemento debe tener:
+[
+  {{
+    "username": "<ig_username exacto>",
     "score": <número 0-100>,
     "reason": "<explicación de 1-2 oraciones>",
     "category": "<una de: coach, ecommerce, saas, agency, creator, local_business, other>",
     "bio_clean": "<bio limpia sin emojis ni line breaks>"
-}}"""
+  }}
+]
+
+IMPORTANTE: Devuelve EXACTAMENTE un resultado por cada lead de la lista. El JSON array debe tener {lead_count} elementos."""
 
 
 class ScoringService:
     def __init__(self):
         self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    def score_lead(self, lead_data: dict) -> dict:
-        """Score a single lead using Claude API. Returns dict with score, reason, category."""
-        prompt = SCORING_PROMPT.format(
-            username=lead_data.get("ig_username", ""),
-            full_name=lead_data.get("ig_full_name", ""),
-            bio=lead_data.get("ig_bio", ""),
-            website=lead_data.get("ig_website", ""),
-            category=lead_data.get("ig_category", ""),
-            follower_count=lead_data.get("ig_follower_count", 0),
-            following_count=lead_data.get("ig_following_count", 0),
-            is_private=lead_data.get("ig_is_private", False),
+    def score_batch(self, leads_data: list[dict]) -> list[dict]:
+        """Score a batch of leads in a single API call. Returns list of score dicts."""
+        leads_for_prompt = []
+        for ld in leads_data:
+            leads_for_prompt.append({
+                "username": ld.get("ig_username", ""),
+                "name": ld.get("ig_full_name", ""),
+                "bio": ld.get("ig_bio", ""),
+                "website": ld.get("ig_website", ""),
+                "ig_category": ld.get("ig_category", ""),
+                "followers": ld.get("ig_follower_count", 0),
+                "following": ld.get("ig_following_count", 0),
+                "is_private": ld.get("ig_is_private", False),
+            })
+
+        prompt = BATCH_SCORING_PROMPT.format(
+            leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
+            lead_count=len(leads_data),
         )
 
         message = self.client.messages.create(
-            model="claude-sonnet-4-5-20250514",
-            max_tokens=300,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
 
@@ -77,27 +84,40 @@ class ScoringService:
             response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
             if response_text.endswith("```"):
                 response_text = response_text[:-3].strip()
-        return json.loads(response_text)
 
-    def _score_lead_safe(self, lead_data: dict) -> tuple[str, dict | None]:
-        """Thread-safe scoring wrapper. Returns (username, result_or_None)."""
-        username = lead_data.get("ig_username", "unknown")
+        results = json.loads(response_text)
+        if not isinstance(results, list):
+            raise ValueError(f"Expected JSON array, got {type(results).__name__}")
+        return results
+
+    def _score_batch_safe(self, leads_data: list[dict]) -> list[tuple[str, dict | None]]:
+        """Thread-safe batch scoring. Returns list of (username, result_or_None)."""
+        usernames = [ld.get("ig_username", "unknown") for ld in leads_data]
         try:
-            result = self.score_lead(lead_data)
-            logger.info(f"Scored lead {username}: {result.get('score', 0)}")
-            return (username, result)
+            results = self.score_batch(leads_data)
+            # Map results by username
+            result_map = {r.get("username", ""): r for r in results}
+            output = []
+            for username in usernames:
+                if username in result_map:
+                    logger.info(f"Scored lead @{username}: {result_map[username].get('score', 0)}")
+                    output.append((username, result_map[username]))
+                else:
+                    logger.warning(f"No score returned for @{username} in batch response")
+                    output.append((username, None))
+            return output
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON from Claude for {username}: {e}")
-            return (username, None)
+            logger.error(f"Invalid JSON from Claude for batch of {len(leads_data)}: {e}")
+            return [(u, None) for u in usernames]
         except Exception as e:
-            logger.error(f"Error scoring lead {username}: {type(e).__name__}: {e}")
-            return (username, None)
+            logger.error(f"Error scoring batch of {len(leads_data)}: {type(e).__name__}: {e}")
+            return [(u, None) for u in usernames]
 
     async def score_leads_batch(
         self, lead_ids: list[str], db: AsyncSession,
         progress_callback=None,
     ) -> list[str]:
-        """Score a batch of leads in parallel. Returns list of lead_ids that meet the threshold."""
+        """Score leads in batches (multiple leads per API call). Returns list of scored lead_ids."""
         result = await db.execute(
             select(Lead).where(Lead.id.in_(lead_ids), Lead.status == "scraped")
         )
@@ -109,8 +129,9 @@ class ScoringService:
 
         logger.info(f"Found {len(leads)} scraped leads to score out of {len(lead_ids)} IDs")
 
-        # Prepare lead data for parallel scoring
+        # Prepare lead data
         lead_data_map: dict[str, tuple] = {}  # username -> (lead, lead_data, cleaned_bio)
+        all_lead_data: list[dict] = []
         for lead in leads:
             cleaned_bio = clean_bio(lead.ig_bio)
             lead_data = {
@@ -124,44 +145,52 @@ class ScoringService:
                 "ig_is_private": lead.ig_is_private,
             }
             lead_data_map[lead.ig_username] = (lead, lead_data, cleaned_bio)
+            all_lead_data.append(lead_data)
 
-        # Score in parallel using ThreadPoolExecutor
-        logger.info(f"Scoring {len(leads)} leads in parallel (max {MAX_PARALLEL_SCORING} concurrent)")
+        # Split into batches
+        batches = [all_lead_data[i:i + BATCH_SIZE] for i in range(0, len(all_lead_data), BATCH_SIZE)]
+        logger.info(f"Scoring {len(leads)} leads in {len(batches)} batches of ~{BATCH_SIZE} (max {MAX_PARALLEL_BATCHES} parallel)")
+
         scored_ids = []
         completed_count = 0
 
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_SCORING) as executor:
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_BATCHES) as executor:
             futures = {
-                executor.submit(self._score_lead_safe, data[1]): username
-                for username, data in lead_data_map.items()
+                executor.submit(self._score_batch_safe, batch): i
+                for i, batch in enumerate(batches)
             }
-            logger.info(f"Submitted {len(futures)} scoring futures to ThreadPoolExecutor")
             for future in as_completed(futures):
-                username = futures[future]
-                completed_count += 1
-                _, score_result = future.result()
-                logger.info(f"Scoring progress: {completed_count}/{len(leads)} (current: @{username}, success={score_result is not None})")
+                batch_idx = futures[future]
+                batch_results = future.result()
+                logger.info(f"Batch {batch_idx + 1}/{len(batches)} completed with {len(batch_results)} results")
 
-                if progress_callback:
-                    try:
-                        progress_callback(completed_count, len(leads), username)
-                    except Exception as e:
-                        logger.warning(f"Progress callback failed: {e}")
+                for username, score_result in batch_results:
+                    completed_count += 1
 
-                if score_result is None:
-                    continue
+                    if progress_callback:
+                        try:
+                            progress_callback(completed_count, len(leads), username)
+                        except Exception as e:
+                            logger.warning(f"Progress callback failed: {e}")
 
-                lead, _, cleaned_bio = lead_data_map[username]
-                lead.score = score_result.get("score", 0)
-                lead.score_reason = score_result.get("reason", "")
-                lead.lead_category = score_result.get("category", "other")
-                lead.ig_bio_clean = score_result.get("bio_clean") or cleaned_bio
-                lead.status = "scored"
-                lead.scored_at = datetime.now(timezone.utc)
-                scored_ids.append(str(lead.id))
+                    if score_result is None:
+                        continue
+
+                    if username not in lead_data_map:
+                        logger.warning(f"Score returned for unknown username @{username}")
+                        continue
+
+                    lead, _, cleaned_bio = lead_data_map[username]
+                    lead.score = score_result.get("score", 0)
+                    lead.score_reason = score_result.get("reason", "")
+                    lead.lead_category = score_result.get("category", "other")
+                    lead.ig_bio_clean = score_result.get("bio_clean") or cleaned_bio
+                    lead.status = "scored"
+                    lead.scored_at = datetime.now(timezone.utc)
+                    scored_ids.append(str(lead.id))
 
         await db.flush()
-        logger.info(f"Parallel scoring complete: {len(scored_ids)}/{len(leads)} leads scored")
+        logger.info(f"Batch scoring complete: {len(scored_ids)}/{len(leads)} leads scored")
         return scored_ids
 
 
