@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IG DM Engine</title>
+    <title>IG DM Engine — Live Pipeline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -30,6 +30,8 @@
             --blue-dim: rgba(96, 165, 250, 0.12);
             --cyan: #22d3ee;
             --cyan-dim: rgba(34, 211, 238, 0.12);
+            --orange: #fb923c;
+            --orange-dim: rgba(251, 146, 60, 0.12);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -42,7 +44,6 @@
             overflow-x: hidden;
         }
 
-        /* ===== HEADER ===== */
         .header {
             background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
             border-bottom: 1px solid var(--border);
@@ -50,1388 +51,998 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(20px);
         }
 
         .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
             font-size: 20px;
             font-weight: 800;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             letter-spacing: -0.5px;
-        }
-
-        .logo-icon {
-            width: 32px; height: 32px;
-            background: linear-gradient(135deg, var(--accent), var(--cyan));
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 20px;
         }
 
         .live-badge {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             font-size: 12px;
-            font-weight: 600;
             color: var(--green);
-            background: var(--green-dim);
-            padding: 4px 12px;
-            border-radius: 20px;
+            font-weight: 600;
         }
 
         .live-dot {
-            width: 7px; height: 7px;
+            width: 8px;
+            height: 8px;
             background: var(--green);
             border-radius: 50%;
-            animation: livePulse 2s infinite;
+            animation: pulse 1.5s ease-in-out infinite;
         }
 
-        @keyframes livePulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
-            50% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
         }
 
-        .container { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
-
-        /* ===== PIPELINE VISUALIZER ===== */
-        .pipeline-section {
-            margin-bottom: 32px;
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 32px;
         }
 
-        .section-title {
-            font-size: 13px;
+        /* Campaign selector */
+        .campaign-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .campaign-bar select {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
             font-weight: 600;
-            color: var(--text2);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
 
-        .pipeline-track {
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #6344e0 100%);
+            color: white;
+        }
+
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-danger {
+            background: var(--red-dim);
+            color: var(--red);
+            border: 1px solid rgba(248,113,113,0.2);
+        }
+
+        /* Pipeline steps */
+        .pipeline {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 32px;
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            align-items: center;
+        }
+
+        .pipe-step {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .pipe-step .step-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text3);
+            margin-bottom: 4px;
+        }
+
+        .pipe-step .step-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text3);
+        }
+
+        .pipe-step.active {
+            background: var(--accent-glow);
+        }
+
+        .pipe-step.active .step-label { color: var(--accent2); }
+        .pipe-step.active .step-value { color: var(--accent); }
+
+        .pipe-step.done .step-label { color: var(--green); }
+        .pipe-step.done .step-value { color: var(--green); }
+
+        .pipe-arrow {
+            color: var(--text3);
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .pipe-arrow.done { color: var(--green); }
+
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px 32px;
-            position: relative;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-card .stat-number {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 12px;
+            color: var(--text2);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Timer */
+        .timer {
+            font-size: 13px;
+            color: var(--text2);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Lead table */
+        .leads-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             overflow: hidden;
         }
 
-        .pipeline-track::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--accent), var(--cyan), var(--green));
-            opacity: 0.5;
-        }
-
-        .pipeline-steps {
+        .leads-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: relative;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .pipeline-connector {
-            flex: 1;
-            height: 3px;
-            background: var(--border);
-            margin: 0 -4px;
-            position: relative;
-            overflow: hidden;
-            border-radius: 2px;
+        .leads-header h2 {
+            font-size: 16px;
+            font-weight: 700;
         }
 
-        .pipeline-connector .fill {
-            height: 100%;
-            border-radius: 2px;
-            width: 0%;
-            transition: width 1s ease;
+        .leads-count {
+            font-size: 13px;
+            color: var(--text2);
         }
 
-        .pipeline-connector.done .fill {
+        .leads-table {
             width: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--green));
+            border-collapse: collapse;
         }
 
-        .pipeline-connector.active .fill {
-            width: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--blue));
-            animation: connectorPulse 2s infinite;
+        .leads-table thead th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text3);
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+            position: sticky;
+            top: 0;
         }
 
-        @keyframes connectorPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .leads-table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
         }
 
-        .pipeline-step {
+        .leads-table tbody tr:hover {
+            background: var(--surface2);
+        }
+
+        .leads-table tbody tr.new-row {
+            animation: rowAppear 0.6s ease-out;
+        }
+
+        @keyframes rowAppear {
+            0% { background: var(--accent-glow); transform: translateX(-10px); opacity: 0; }
+            50% { background: var(--accent-glow); }
+            100% { background: transparent; transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes scorePopIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            60% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .leads-table td {
+            padding: 12px 16px;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .lead-user {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            z-index: 2;
-            min-width: 90px;
+            gap: 2px;
         }
 
-        .step-circle {
-            width: 48px; height: 48px;
-            border-radius: 14px;
-            display: flex;
+        .lead-username {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .lead-fullname {
+            font-size: 12px;
+            color: var(--text2);
+        }
+
+        .lead-bio {
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text2);
+            font-size: 12px;
+        }
+
+        .score-badge {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
-            border: 2px solid var(--border);
-            background: var(--surface2);
-            transition: all 0.5s ease;
-            position: relative;
+            min-width: 42px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
         }
 
-        .step-circle.done {
-            border-color: var(--green);
+        .score-high {
             background: var(--green-dim);
+            color: var(--green);
+            border: 1px solid rgba(52, 211, 153, 0.2);
         }
 
-        .step-circle.active {
-            border-color: var(--accent);
-            background: var(--accent-glow);
-            box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(124, 92, 252, 0.08);
-            animation: stepGlow 2s infinite;
+        .score-mid {
+            background: var(--yellow-dim);
+            color: var(--yellow);
+            border: 1px solid rgba(251, 191, 36, 0.2);
         }
 
-        .step-circle.waiting {
-            opacity: 0.4;
+        .score-low {
+            background: var(--red-dim);
+            color: var(--red);
+            border: 1px solid rgba(248, 113, 113, 0.2);
         }
 
-        @keyframes stepGlow {
-            0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
-            50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(124, 92, 252, 0.12); }
+        .score-pending {
+            background: var(--surface3);
+            color: var(--text3);
+            border: 1px solid var(--border);
         }
 
-        .step-spinner {
-            position: absolute;
-            inset: -4px;
-            border-radius: 18px;
-            border: 2px solid transparent;
-            border-top-color: var(--accent);
-            animation: spin 1s linear infinite;
+        .score-badge.pop {
+            animation: scorePopIn 0.4s ease-out;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-scraped {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        .status-scoring {
+            background: var(--yellow-dim);
+            color: var(--yellow);
+        }
+
+        .status-scored {
+            background: var(--orange-dim);
+            color: var(--orange);
+        }
+
+        .status-researched {
+            background: var(--cyan-dim);
+            color: var(--cyan);
+        }
+
+        .status-dm_ready {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
 
-        .step-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text2);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .step-label.active { color: var(--accent2); }
-        .step-label.done { color: var(--green); }
-
-        .step-count {
+        .category-tag {
             font-size: 11px;
-            color: var(--text3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--surface3);
+            color: var(--text2);
             font-weight: 500;
         }
 
-        /* ===== STATS GRID ===== */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 14px;
-            margin-bottom: 28px;
-        }
-
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 18px 20px;
-            position: relative;
+        .dm-preview {
+            max-width: 200px;
             overflow: hidden;
-            transition: all 0.3s;
-        }
-
-        .stat-card:hover {
-            border-color: var(--border2);
-            transform: translateY(-2px);
-        }
-
-        .stat-card .icon {
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-
-        .stat-card .label {
-            font-size: 11px;
-            color: var(--text3);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            font-weight: 600;
-        }
-
-        .stat-card .value {
-            font-size: 32px;
-            font-weight: 800;
-            margin-top: 4px;
-            letter-spacing: -1px;
-            transition: all 0.5s;
-        }
-
-        .stat-card .sub {
-            font-size: 12px;
-            color: var(--text3);
-            margin-top: 4px;
-        }
-
-        .stat-card .glow {
-            position: absolute;
-            top: -40px;
-            right: -40px;
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            opacity: 0.06;
-            pointer-events: none;
-        }
-
-        /* ===== CAMPAIGN DETAIL ===== */
-        .campaign-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            transition: all 0.3s;
-        }
-
-        .campaign-card:hover { border-color: var(--border2); }
-
-        .campaign-header {
-            padding: 20px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-        }
-
-        .campaign-info { display: flex; align-items: center; gap: 16px; }
-
-        .campaign-avatar {
-            width: 44px; height: 44px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, var(--accent-glow), var(--blue-dim));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            border: 1px solid var(--border);
-        }
-
-        .campaign-meta h3 {
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        .campaign-meta .source {
+            text-overflow: ellipsis;
+            white-space: nowrap;
             font-size: 12px;
             color: var(--text2);
-            margin-top: 2px;
-        }
-
-        .campaign-actions { display: flex; gap: 10px; align-items: center; }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-pending { background: var(--yellow-dim); color: var(--yellow); }
-        .status-scraping, .status-scoring, .status-researching, .status-writing { background: var(--blue-dim); color: var(--blue); }
-        .status-ready { background: var(--green-dim); color: var(--green); }
-        .status-failed { background: var(--red-dim); color: var(--red); }
-
-        .status-dot-anim {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            animation: livePulse 2s infinite;
-        }
-
-        /* ===== BUTTONS ===== */
-        .btn {
-            padding: 9px 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .btn-glow {
-            background: linear-gradient(135deg, var(--accent), #5b3fd4);
-            color: white;
-            box-shadow: 0 4px 15px rgba(124, 92, 252, 0.3);
-        }
-
-        .btn-glow:hover {
-            box-shadow: 0 6px 25px rgba(124, 92, 252, 0.5);
-            transform: translateY(-1px);
-        }
-
-        .btn-ghost {
-            background: var(--surface2);
-            color: var(--text2);
-            border: 1px solid var(--border);
-        }
-
-        .btn-ghost:hover { border-color: var(--accent); color: var(--accent2); }
-
-        .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 8px; }
-
-        .btn-export {
-            background: var(--green-dim);
-            color: var(--green);
-            border: 1px solid rgba(52, 211, 153, 0.2);
-        }
-
-        .btn-export:hover { background: rgba(52, 211, 153, 0.2); }
-
-        /* ===== TABS ===== */
-        .tabs {
-            display: flex;
-            gap: 2px;
-            margin-bottom: 24px;
-            background: var(--surface);
-            border-radius: 12px;
-            padding: 4px;
-            border: 1px solid var(--border);
-            width: fit-content;
-        }
-
-        .tab {
-            padding: 8px 20px;
-            background: none;
-            border: none;
-            color: var(--text2);
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            border-radius: 8px;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .tab:hover { color: var(--text); }
-        .tab.active { color: var(--text); background: var(--surface3); }
-
-        .tab-content { display: none; animation: fadeIn 0.3s; }
-        .tab-content.active { display: block; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ===== TABLES ===== */
-        .table-wrap {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        table { width: 100%; border-collapse: collapse; }
-
-        th {
-            text-align: left;
-            padding: 14px 18px;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: var(--text3);
-            font-weight: 600;
-            background: var(--surface2);
-            border-bottom: 1px solid var(--border);
-        }
-
-        td {
-            padding: 14px 18px;
-            font-size: 13px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        tr:last-child td { border-bottom: none; }
-
-        tr { transition: background 0.15s; }
-        tr:hover td { background: rgba(124, 92, 252, 0.03); }
-
-        /* ===== SCORE ===== */
-        .score-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .score-ring {
-            width: 36px; height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 700;
-            border: 3px solid;
-        }
-
-        .score-high { border-color: var(--green); color: var(--green); background: var(--green-dim); }
-        .score-mid { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
-        .score-low { border-color: var(--red); color: var(--red); background: var(--red-dim); }
-
-        /* ===== CATEGORY BADGES ===== */
-        .cat-badge {
-            padding: 3px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .cat-coach { background: var(--blue-dim); color: var(--blue); }
-        .cat-ecommerce { background: var(--green-dim); color: var(--green); }
-        .cat-saas { background: var(--cyan-dim); color: var(--cyan); }
-        .cat-agency { background: var(--accent-glow); color: var(--accent2); }
-        .cat-creator { background: var(--yellow-dim); color: var(--yellow); }
-        .cat-local_business { background: var(--red-dim); color: var(--red); }
-        .cat-other { background: var(--surface3); color: var(--text2); }
-
-        /* ===== DM CARD ===== */
-        .dm-card {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            font-size: 13px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            max-height: 100px;
-            overflow: hidden;
-            position: relative;
-            transition: all 0.3s;
             cursor: pointer;
         }
 
-        .dm-card:hover {
-            max-height: 300px;
-            border-color: var(--accent);
-            background: var(--surface3);
+        .dm-preview:hover {
+            color: var(--accent2);
         }
 
-        .dm-card::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 30px;
-            background: linear-gradient(transparent, var(--surface2));
-            pointer-events: none;
-            transition: opacity 0.3s;
+        .table-scroll {
+            max-height: 520px;
+            overflow-y: auto;
         }
 
-        .dm-card:hover::after { opacity: 0; }
-
-        /* ===== MODALS ===== */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.75);
-            backdrop-filter: blur(8px);
-            z-index: 200;
-            align-items: center;
-            justify-content: center;
+        .table-scroll::-webkit-scrollbar {
+            width: 6px;
         }
 
-        .modal-overlay.active { display: flex; }
-
-        .modal {
+        .table-scroll::-webkit-scrollbar-track {
             background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px;
-            width: 440px;
-            max-width: 90vw;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         }
 
-        .modal h3 {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 20px;
+        .table-scroll::-webkit-scrollbar-thumb {
+            background: var(--border2);
+            border-radius: 3px;
         }
 
-        .form-group { margin-bottom: 16px; }
-
-        .form-group label {
-            display: block;
-            font-size: 12px;
-            color: var(--text2);
-            margin-bottom: 6px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 14px;
-            font-family: inherit;
-            transition: border 0.2s;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
+        /* Activity log */
+        .activity-section {
             margin-top: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
         }
 
-        /* ===== TOOLBAR ===== */
-        .toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .toolbar h2 {
+        .activity-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
             font-size: 16px;
             font-weight: 700;
         }
 
-        .toolbar-right {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .filter-select {
-            padding: 7px 12px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text2);
-            font-size: 12px;
-            font-family: inherit;
-            font-weight: 500;
-            cursor: pointer;
-        }
-
-        .filter-select:focus { outline: none; border-color: var(--accent); }
-
-        /* ===== ELAPSED TIMER ===== */
-        .timer {
-            font-family: 'Inter', monospace;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--blue);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        /* ===== PROGRESS BAR ===== */
-        .progress-bar {
-            height: 4px;
-            background: var(--border);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-top: 12px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            border-radius: 2px;
-            background: linear-gradient(90deg, var(--accent), var(--green));
-            transition: width 1s ease;
-        }
-
-        /* ===== EMPTY STATE ===== */
-        .empty {
-            text-align: center;
-            padding: 48px 24px;
-            color: var(--text3);
-        }
-
-        .empty-icon { font-size: 36px; margin-bottom: 12px; }
-        .empty p { font-size: 14px; }
-
-        /* ===== ACTIVITY LOG ===== */
         .activity-log {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 18px 20px;
-            margin-top: 20px;
+            padding: 12px 20px;
             max-height: 200px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+        }
+
+        .activity-log::-webkit-scrollbar { width: 6px; }
+        .activity-log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+        .log-entry {
+            padding: 4px 0;
+            display: flex;
+            gap: 12px;
+            animation: logIn 0.3s ease-out;
+        }
+
+        @keyframes logIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-time { color: var(--text3); flex-shrink: 0; }
+        .log-msg { color: var(--text2); }
+        .log-msg.success { color: var(--green); }
+        .log-msg.error { color: var(--red); }
+        .log-msg.info { color: var(--blue); }
+        .log-msg.warn { color: var(--yellow); }
+
+        /* DM Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: 16px;
+            padding: 28px;
+            max-width: 520px;
+            width: 90%;
+            max-height: 80vh;
             overflow-y: auto;
         }
 
-        .log-entry {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 6px 0;
+        .modal h3 {
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+
+        .modal .dm-text {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text);
+            white-space: pre-wrap;
+            margin-bottom: 12px;
+        }
+
+        .modal .dm-label {
             font-size: 12px;
+            font-weight: 600;
             color: var(--text2);
-            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .log-entry:last-child { border-bottom: none; }
+        .modal .close-btn {
+            margin-top: 16px;
+            width: 100%;
+            padding: 10px;
+            background: var(--surface3);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+        }
 
-        .log-time {
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
             color: var(--text3);
-            font-weight: 500;
-            white-space: nowrap;
-            font-family: monospace;
         }
 
-        .log-dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            margin-top: 5px;
-            flex-shrink: 0;
+        .empty-state .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+        @media (max-width: 900px) {
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+            .container { padding: 16px; }
+            .pipeline { flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="logo">
-            <div class="logo-icon">DM</div>
-            IG DM Engine
-        </div>
-        <div class="header-right">
-            <div class="timer" id="elapsedTimer" style="display:none"></div>
-            <div class="live-badge" id="liveBadge" style="display:none">
-                <span class="live-dot"></span> LIVE
-            </div>
-            <div class="live-badge" id="healthBadge" style="background:var(--surface2);color:var(--text3)">
-                <span class="live-dot" style="background:var(--text3);animation:none" id="healthDot"></span>
-                <span id="healthText">connecting...</span>
-            </div>
+        <div class="logo">IG DM Engine</div>
+        <div class="live-badge">
+            <span class="live-dot"></span>
+            LIVE <span class="timer" id="timer">00:00</span>
         </div>
     </div>
 
     <div class="container">
-        <!-- PIPELINE VISUALIZER -->
-        <div class="pipeline-section" id="pipelineSection">
-            <div class="section-title">Pipeline Status</div>
-            <div class="pipeline-track">
-                <div class="pipeline-steps">
-                    <div class="pipeline-step">
-                        <div class="step-circle waiting" id="step-collection">&#x1F50D;</div>
-                        <div class="step-label" id="step-label-collection">Collection</div>
-                        <div class="step-count" id="step-count-collection"></div>
-                    </div>
-                    <div class="pipeline-connector" id="conn-1"><div class="fill"></div></div>
-                    <div class="pipeline-step">
-                        <div class="step-circle waiting" id="step-scoring">&#x1F3AF;</div>
-                        <div class="step-label" id="step-label-scoring">Scoring</div>
-                        <div class="step-count" id="step-count-scoring"></div>
-                    </div>
-                    <div class="pipeline-connector" id="conn-2"><div class="fill"></div></div>
-                    <div class="pipeline-step">
-                        <div class="step-circle waiting" id="step-research">&#x1F9EA;</div>
-                        <div class="step-label" id="step-label-research">Research</div>
-                        <div class="step-count" id="step-count-research"></div>
-                    </div>
-                    <div class="pipeline-connector" id="conn-3"><div class="fill"></div></div>
-                    <div class="pipeline-step">
-                        <div class="step-circle waiting" id="step-writing">&#x270D;&#xFE0F;</div>
-                        <div class="step-label" id="step-label-writing">Copywriting</div>
-                        <div class="step-count" id="step-count-writing"></div>
-                    </div>
-                    <div class="pipeline-connector" id="conn-4"><div class="fill"></div></div>
-                    <div class="pipeline-step">
-                        <div class="step-circle waiting" id="step-export">&#x1F4E6;</div>
-                        <div class="step-label" id="step-label-export">Export</div>
-                        <div class="step-count" id="step-count-export"></div>
-                    </div>
-                </div>
-                <div class="progress-bar" id="pipelineProgress" style="margin-top:20px">
-                    <div class="progress-fill" id="pipelineFill" style="width:0%"></div>
-                </div>
+        <div class="campaign-bar">
+            <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
+            <button class="btn btn-primary" id="startBtn" onclick="startPipeline()">Start Pipeline</button>
+            <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
+        </div>
+
+        <!-- Pipeline visualization -->
+        <div class="pipeline" id="pipeline">
+            <div class="pipe-step" data-step="scraping">
+                <div class="step-label">Scraping</div>
+                <div class="step-value" id="step-scraping">-</div>
+            </div>
+            <div class="pipe-arrow">&#x2192;</div>
+            <div class="pipe-step" data-step="scoring">
+                <div class="step-label">Scoring</div>
+                <div class="step-value" id="step-scoring">-</div>
+            </div>
+            <div class="pipe-arrow">&#x2192;</div>
+            <div class="pipe-step" data-step="researching">
+                <div class="step-label">Research</div>
+                <div class="step-value" id="step-research">-</div>
+            </div>
+            <div class="pipe-arrow">&#x2192;</div>
+            <div class="pipe-step" data-step="writing">
+                <div class="step-label">DM Copy</div>
+                <div class="step-value" id="step-dms">-</div>
+            </div>
+            <div class="pipe-arrow">&#x2192;</div>
+            <div class="pipe-step" data-step="ready">
+                <div class="step-label">Ready</div>
+                <div class="step-value" id="step-ready">-</div>
             </div>
         </div>
 
-        <!-- STATS -->
-        <div class="stats-grid" id="statsGrid">
+        <!-- Stats -->
+        <div class="stats-row">
             <div class="stat-card">
-                <div class="icon">&#x1F465;</div>
-                <div class="label">Total Leads</div>
-                <div class="value" id="statTotal" style="color:var(--accent2)">0</div>
-                <div class="glow" style="background:var(--accent)"></div>
+                <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
+                <div class="stat-label">Total Leads</div>
             </div>
             <div class="stat-card">
-                <div class="icon">&#x1F3AF;</div>
-                <div class="label">Scored</div>
-                <div class="value" id="statScored" style="color:var(--blue)">0</div>
-                <div class="glow" style="background:var(--blue)"></div>
+                <div class="stat-number" style="color: var(--accent)" id="avgScore">-</div>
+                <div class="stat-label">Avg Score</div>
             </div>
             <div class="stat-card">
-                <div class="icon">&#x1F50E;</div>
-                <div class="label">Researched</div>
-                <div class="value" id="statResearched" style="color:var(--cyan)">0</div>
-                <div class="glow" style="background:var(--cyan)"></div>
+                <div class="stat-number" style="color: var(--green)" id="qualified">0</div>
+                <div class="stat-label">Qualified (70+)</div>
             </div>
             <div class="stat-card">
-                <div class="icon">&#x2709;&#xFE0F;</div>
-                <div class="label">DM Ready</div>
-                <div class="value" id="statDM" style="color:var(--green)">0</div>
-                <div class="glow" style="background:var(--green)"></div>
+                <div class="stat-number" style="color: var(--cyan)" id="dmsGenerated">0</div>
+                <div class="stat-label">DMs Generated</div>
             </div>
             <div class="stat-card">
-                <div class="icon">&#x1F4CA;</div>
-                <div class="label">Avg Score</div>
-                <div class="value" id="statAvg" style="color:var(--yellow)">-</div>
-                <div class="glow" style="background:var(--yellow)"></div>
+                <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
+                <div class="stat-label">Status</div>
             </div>
         </div>
 
-        <!-- TABS -->
-        <div class="tabs">
-            <button class="tab active" data-tab="campaigns">Campaigns</button>
-            <button class="tab" data-tab="leads">Leads</button>
-            <button class="tab" data-tab="dms">DMs Ready</button>
-            <button class="tab" data-tab="clients">Clients</button>
-        </div>
-
-        <!-- CAMPAIGNS TAB -->
-        <div class="tab-content active" id="tab-campaigns">
-            <div class="toolbar">
-                <h2>Campaigns</h2>
-                <button class="btn btn-glow" onclick="showModal('newCampaign')">+ New Campaign</button>
+        <!-- Leads table -->
+        <div class="leads-section">
+            <div class="leads-header">
+                <h2>Leads Pipeline</h2>
+                <span class="leads-count" id="leadsCount">0 leads</span>
             </div>
-            <div id="campaignsList"></div>
-
-            <!-- Activity Log -->
-            <div class="section-title" style="margin-top:28px">Activity Log</div>
-            <div class="activity-log" id="activityLog">
-                <div class="log-entry">
-                    <div class="log-time">--:--:--</div>
-                    <div class="log-dot" style="background:var(--text3)"></div>
-                    <div>Waiting for activity...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- LEADS TAB -->
-        <div class="tab-content" id="tab-leads">
-            <div class="toolbar">
-                <h2>Leads</h2>
-                <div class="toolbar-right">
-                    <select class="filter-select" id="leadsFilter" onchange="loadLeads()">
-                        <option value="">All campaigns</option>
-                    </select>
-                    <select class="filter-select" id="leadsMinScore" onchange="loadLeads()">
-                        <option value="0">All scores</option>
-                        <option value="60">60+ qualified</option>
-                        <option value="70">70+ high value</option>
-                        <option value="80">80+ top tier</option>
-                    </select>
-                </div>
-            </div>
-            <div class="table-wrap">
-                <table>
+            <div class="table-scroll" id="tableScroll">
+                <table class="leads-table">
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Username</th>
-                            <th>Name</th>
                             <th>Bio</th>
-                            <th>Category</th>
+                            <th>Followers</th>
                             <th>Score</th>
+                            <th>Category</th>
                             <th>Status</th>
+                            <th>DM</th>
                         </tr>
                     </thead>
-                    <tbody id="leadsBody"></tbody>
+                    <tbody id="leadsBody">
+                        <tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F50D;</div>Select a campaign and start the pipeline</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- DMS TAB -->
-        <div class="tab-content" id="tab-dms">
-            <div class="toolbar">
-                <h2>DMs Ready to Send</h2>
-                <div class="toolbar-right">
-                    <select class="filter-select" id="dmsFilter" onchange="loadDMs()">
-                        <option value="">All campaigns</option>
-                    </select>
-                    <button class="btn btn-export btn-sm" onclick="exportCSV()">&#x2B07; CSV</button>
-                    <button class="btn btn-export btn-sm" onclick="exportJSON()">&#x2B07; JSON</button>
-                </div>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Score</th>
-                            <th>Category</th>
-                            <th>DM Message</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dmsBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- CLIENTS TAB -->
-        <div class="tab-content" id="tab-clients">
-            <div class="toolbar">
-                <h2>Clients</h2>
-                <button class="btn btn-glow" onclick="showModal('newClient')">+ New Client</button>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Business Type</th>
-                            <th>IG Accounts</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody id="clientsBody"></tbody>
-                </table>
-            </div>
+        <!-- Activity log -->
+        <div class="activity-section">
+            <div class="activity-header">Activity Log</div>
+            <div class="activity-log" id="activityLog"></div>
         </div>
     </div>
 
-    <!-- MODALS -->
-    <div class="modal-overlay" id="modal-newClient">
+    <!-- DM Modal -->
+    <div class="modal-overlay" id="dmModal" onclick="if(event.target===this)closeDM()">
         <div class="modal">
-            <h3>New Client</h3>
-            <div class="form-group">
-                <label>Client Name</label>
-                <input class="form-input" type="text" id="clientName" placeholder="e.g. Nike Digital">
-            </div>
-            <div class="form-group">
-                <label>Business Type</label>
-                <input class="form-input" type="text" id="clientType" placeholder="e.g. ecommerce, agency, coach">
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-ghost" onclick="hideModals()">Cancel</button>
-                <button class="btn btn-glow" onclick="createClient()">Create Client</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="modal-newCampaign">
-        <div class="modal">
-            <h3>New Campaign</h3>
-            <div class="form-group">
-                <label>Client</label>
-                <select class="form-input" id="campaignClient"></select>
-            </div>
-            <div class="form-group">
-                <label>Campaign Name</label>
-                <input class="form-input" type="text" id="campaignName" placeholder="e.g. March Outreach Wave 1">
-            </div>
-            <div class="form-group">
-                <label>Source Type</label>
-                <select class="form-input" id="campaignSourceType">
-                    <option value="followers">Followers of account</option>
-                    <option value="comments">Commenters on post</option>
-                    <option value="profiles">Profile list</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Source Value</label>
-                <input class="form-input" type="text" id="campaignSourceValue" placeholder="Instagram username or post URL">
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-ghost" onclick="hideModals()">Cancel</button>
-                <button class="btn btn-glow" onclick="createCampaign()">Launch Campaign</button>
-            </div>
+            <h3 id="dmModalTitle">DM Preview</h3>
+            <div class="dm-label">Variant A</div>
+            <div class="dm-text" id="dmTextA"></div>
+            <div class="dm-label" id="dmLabelB" style="display:none">Variant B</div>
+            <div class="dm-text" id="dmTextB" style="display:none"></div>
+            <button class="close-btn" onclick="closeDM()">Cerrar</button>
         </div>
     </div>
 
     <script>
         const API = '/api/v1';
-        let campaigns = [];
-        let clients = [];
-        let activityLogs = [];
-        let pipelineStartTime = null;
+        let activeCampaignId = null;
+        let previousLeads = {};
+        let timerStart = null;
         let timerInterval = null;
-        let prevStats = {};
+        let pollInterval = null;
+        let pipelineRunning = false;
 
-        // ===== TABS =====
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-                if (tab.dataset.tab === 'leads') loadLeads();
-                if (tab.dataset.tab === 'dms') loadDMs();
-                if (tab.dataset.tab === 'clients') loadClients();
-            });
-        });
-
-        // ===== HEALTH =====
-        async function checkHealth() {
-            try {
-                const r = await fetch('/health');
-                const d = await r.json();
-                document.getElementById('healthDot').style.background = 'var(--green)';
-                document.getElementById('healthDot').style.animation = 'livePulse 2s infinite';
-                document.getElementById('healthText').textContent = 'v' + d.version;
-                document.getElementById('healthBadge').style.background = 'var(--green-dim)';
-                document.getElementById('healthBadge').style.color = 'var(--green)';
-            } catch {
-                document.getElementById('healthDot').style.background = 'var(--red)';
-                document.getElementById('healthDot').style.animation = 'none';
-                document.getElementById('healthText').textContent = 'offline';
-                document.getElementById('healthBadge').style.background = 'var(--red-dim)';
-                document.getElementById('healthBadge').style.color = 'var(--red)';
-            }
-        }
-
-        // ===== PIPELINE VISUALIZER =====
-        const PIPELINE_STAGES = ['collection', 'scoring', 'research', 'writing', 'export'];
-        const STATUS_TO_STAGE = {
-            'pending': -1,
-            'scraping': 0,
-            'scoring': 1,
-            'researching': 2,
-            'writing': 3,
-            'ready': 4,
-            'failed': -2
-        };
-
-        function updatePipeline(status, stats) {
-            const stageIdx = STATUS_TO_STAGE[status] ?? -1;
-            const isRunning = ['scraping','scoring','researching','writing'].includes(status);
-            const isDone = status === 'ready';
-
-            // Show/hide live badge
-            document.getElementById('liveBadge').style.display = isRunning ? 'flex' : 'none';
-
-            // Timer
-            if (isRunning && !pipelineStartTime) {
-                pipelineStartTime = Date.now();
-                startTimer();
-            } else if (!isRunning) {
-                pipelineStartTime = null;
-                stopTimer();
-            }
-
-            PIPELINE_STAGES.forEach((stage, i) => {
-                const circle = document.getElementById('step-' + stage);
-                const label = document.getElementById('step-label-' + stage);
-                const conn = document.getElementById('conn-' + (i + 1));
-
-                circle.className = 'step-circle';
-                label.className = 'step-label';
-
-                if (i < stageIdx || isDone) {
-                    circle.classList.add('done');
-                    label.classList.add('done');
-                    if (conn) { conn.className = 'pipeline-connector done'; }
-                    circle.innerHTML = getStepEmoji(stage);
-                } else if (i === stageIdx && isRunning) {
-                    circle.classList.add('active');
-                    label.classList.add('active');
-                    circle.innerHTML = getStepEmoji(stage) + '<div class="step-spinner"></div>';
-                    if (conn) { conn.className = 'pipeline-connector active'; }
-                } else {
-                    circle.classList.add('waiting');
-                    circle.innerHTML = getStepEmoji(stage);
-                    if (conn) { conn.className = 'pipeline-connector'; }
-                }
-            });
-
-            // Update step counts
-            if (stats) {
-                document.getElementById('step-count-collection').textContent = stats.total_leads ? stats.total_leads + ' leads' : '';
-                document.getElementById('step-count-scoring').textContent = stats.scored_leads ? stats.scored_leads + ' scored' : '';
-                document.getElementById('step-count-research').textContent = stats.researched_leads ? stats.researched_leads + ' done' : '';
-                document.getElementById('step-count-writing').textContent = stats.dm_ready_leads ? stats.dm_ready_leads + ' DMs' : '';
-                document.getElementById('step-count-export').textContent = isDone ? 'ready' : '';
-            }
-
-            // Progress bar
-            let progress = 0;
-            if (isDone) progress = 100;
-            else if (stageIdx >= 0) progress = ((stageIdx + 0.5) / PIPELINE_STAGES.length) * 100;
-            document.getElementById('pipelineFill').style.width = progress + '%';
-        }
-
-        function getStepEmoji(stage) {
-            const emojis = { collection: '\u{1F50D}', scoring: '\u{1F3AF}', research: '\u{1F9EA}', writing: '\u{270D}\u{FE0F}', export: '\u{1F4E6}' };
-            return emojis[stage] || '';
-        }
-
-        function startTimer() {
-            document.getElementById('elapsedTimer').style.display = 'flex';
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (!pipelineStartTime) return;
-                const elapsed = Math.floor((Date.now() - pipelineStartTime) / 1000);
-                const m = Math.floor(elapsed / 60);
-                const s = elapsed % 60;
-                document.getElementById('elapsedTimer').innerHTML =
-                    '\u{23F1}\u{FE0F} ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-            }, 1000);
-        }
-
-        function stopTimer() {
-            document.getElementById('elapsedTimer').style.display = 'none';
-            if (timerInterval) clearInterval(timerInterval);
+        // ===== INIT =====
+        async function init() {
+            await loadCampaigns();
+            log('Dashboard initialized', 'info');
         }
 
         // ===== CAMPAIGNS =====
         async function loadCampaigns() {
             try {
-                const r = await fetch(API + '/campaigns/');
-                campaigns = await r.json();
-                updateCampaignFilters();
-                renderCampaigns();
-                loadAllStats();
-            } catch (e) { console.error('loadCampaigns', e); }
+                const res = await fetch(`${API}/campaigns/`);
+                const campaigns = await res.json();
+                const sel = document.getElementById('campaignSelect');
+                sel.innerHTML = '<option value="">-- Select campaign --</option>';
+                campaigns.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `${c.name} (${c.status})`;
+                    sel.appendChild(opt);
+                });
+                sel.onchange = () => {
+                    activeCampaignId = sel.value;
+                    if (activeCampaignId) {
+                        previousLeads = {};
+                        refreshAll();
+                        startPolling();
+                    }
+                };
+                // Auto-select last campaign
+                if (campaigns.length > 0) {
+                    const last = campaigns[campaigns.length - 1];
+                    sel.value = last.id;
+                    activeCampaignId = last.id;
+                    previousLeads = {};
+                    refreshAll();
+                    startPolling();
+                }
+            } catch (e) {
+                log('Error loading campaigns: ' + e.message, 'error');
+            }
         }
 
-        function renderCampaigns() {
-            const list = document.getElementById('campaignsList');
-            if (!campaigns.length) {
-                list.innerHTML = '<div class="empty"><div class="empty-icon">\u{1F4CB}</div><p>No campaigns yet. Create one to get started.</p></div>';
+        // ===== PIPELINE CONTROL =====
+        async function startPipeline() {
+            if (!activeCampaignId) return;
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/start`, { method: 'POST' });
+                if (res.ok) {
+                    log('Pipeline started!', 'success');
+                    pipelineRunning = true;
+                    startTimer();
+                    previousLeads = {};
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not start'), 'error');
+                }
+            } catch (e) {
+                log('Error starting pipeline: ' + e.message, 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = 'Start Pipeline';
+        }
+
+        async function resetCampaign() {
+            if (!activeCampaignId) return;
+            if (!confirm('Reset this campaign? All lead scores and DMs will be cleared.')) return;
+            try {
+                // We just restart polling — actual reset happens via DB
+                previousLeads = {};
+                pipelineRunning = false;
+                stopTimer();
+                document.getElementById('leadsBody').innerHTML = '<tr><td colspan="8" class="empty-state">Campaign reset. Click Start Pipeline to begin.</td></tr>';
+                log('Campaign reset', 'warn');
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        // ===== POLLING =====
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(refreshAll, 2000);
+        }
+
+        async function refreshAll() {
+            if (!activeCampaignId) return;
+            try {
+                const [campRes, leadsRes] = await Promise.all([
+                    fetch(`${API}/campaigns/${activeCampaignId}`),
+                    fetch(`${API}/leads/?campaign_id=${activeCampaignId}&limit=500`)
+                ]);
+                const campaign = await campRes.json();
+                const leads = await leadsRes.json();
+
+                updateCampaignStatus(campaign);
+                updatePipeline(campaign, leads);
+                updateStats(leads);
+                updateLeadsTable(leads);
+            } catch(e) {
+                // silent retry
+            }
+        }
+
+        // ===== UI UPDATES =====
+        function updateCampaignStatus(campaign) {
+            const statusEl = document.getElementById('campaignStatus');
+            statusEl.textContent = campaign.status.toUpperCase();
+
+            const statusMap = {
+                'pending': 'var(--text3)',
+                'ready': 'var(--blue)',
+                'scraping': 'var(--yellow)',
+                'scoring': 'var(--accent)',
+                'researching': 'var(--cyan)',
+                'writing_dms': 'var(--orange)',
+                'completed': 'var(--green)',
+                'failed': 'var(--red)'
+            };
+            statusEl.style.color = statusMap[campaign.status] || 'var(--text2)';
+
+            // Auto-start timer when pipeline is active
+            if (['scraping','scoring','researching','writing_dms'].includes(campaign.status)) {
+                if (!pipelineRunning) {
+                    pipelineRunning = true;
+                    startTimer();
+                }
+            }
+            if (['completed','ready','failed'].includes(campaign.status) && pipelineRunning) {
+                pipelineRunning = false;
+                if (campaign.status === 'completed') {
+                    log('Pipeline completed!', 'success');
+                }
+            }
+        }
+
+        function updatePipeline(campaign, leads) {
+            const counts = { scraped: 0, scored: 0, researched: 0, dm_ready: 0 };
+            leads.forEach(l => {
+                if (l.status === 'scraped') counts.scraped++;
+                if (l.status === 'scored') { counts.scored++; counts.scraped++; }
+                if (l.status === 'researched') { counts.researched++; counts.scored++; counts.scraped++; }
+                if (l.status === 'dm_ready') { counts.dm_ready++; counts.researched++; counts.scored++; counts.scraped++; }
+            });
+
+            // Actually count all that passed each phase
+            let totalScraped = leads.length;
+            let totalScored = leads.filter(l => l.score !== null && l.score !== undefined).length;
+            let totalResearched = leads.filter(l => ['researched','dm_ready'].includes(l.status)).length;
+            let totalDMReady = leads.filter(l => l.status === 'dm_ready').length;
+
+            document.getElementById('step-scraping').textContent = totalScraped || '-';
+            document.getElementById('step-scoring').textContent = totalScored || '-';
+            document.getElementById('step-research').textContent = totalResearched || '-';
+            document.getElementById('step-dms').textContent = totalDMReady || '-';
+            document.getElementById('step-ready').textContent = totalDMReady || '-';
+
+            // Highlight active step
+            const status = campaign.status;
+            const steps = document.querySelectorAll('.pipe-step');
+            const arrows = document.querySelectorAll('.pipe-arrow');
+
+            steps.forEach(s => { s.classList.remove('active', 'done'); });
+            arrows.forEach(a => { a.classList.remove('done'); });
+
+            const phaseOrder = ['scraping', 'scoring', 'researching', 'writing', 'ready'];
+            const statusToPhase = {
+                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'completed': 4, 'ready': -1
+            };
+
+            const currentIdx = statusToPhase[status] ?? -1;
+            steps.forEach((s, i) => {
+                if (i < currentIdx) { s.classList.add('done'); }
+                if (i === currentIdx) { s.classList.add('active'); }
+            });
+            arrows.forEach((a, i) => {
+                if (i < currentIdx) { a.classList.add('done'); }
+            });
+
+            if (status === 'completed') {
+                steps.forEach(s => s.classList.add('done'));
+                arrows.forEach(a => a.classList.add('done'));
+            }
+        }
+
+        function updateStats(leads) {
+            document.getElementById('totalLeads').textContent = leads.length;
+
+            const scored = leads.filter(l => l.score !== null && l.score !== undefined);
+            const avg = scored.length > 0 ? Math.round(scored.reduce((a,l) => a + l.score, 0) / scored.length) : '-';
+            document.getElementById('avgScore').textContent = avg;
+
+            const qualified = scored.filter(l => l.score >= 70).length;
+            document.getElementById('qualified').textContent = qualified;
+
+            const dms = leads.filter(l => l.dm_message).length;
+            document.getElementById('dmsGenerated').textContent = dms;
+
+            document.getElementById('leadsCount').textContent = `${leads.length} leads`;
+        }
+
+        function updateLeadsTable(leads) {
+            const body = document.getElementById('leadsBody');
+
+            if (leads.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">&#128269;</div>No leads yet. Start the pipeline.</td></tr>';
                 return;
             }
-            list.innerHTML = campaigns.map(c => `
-                <div class="campaign-card">
-                    <div class="campaign-header">
-                        <div class="campaign-info">
-                            <div class="campaign-avatar">\u{1F4E1}</div>
-                            <div class="campaign-meta">
-                                <h3>${esc(c.name)}</h3>
-                                <div class="source">${esc(c.source_type)} \u{2192} @${esc(c.source_value)}</div>
-                            </div>
-                        </div>
-                        <div class="campaign-actions">
-                            <span id="campaign-stats-${c.id}" style="font-size:12px;color:var(--text3)"></span>
-                            <span class="status-pill status-${c.status}">
-                                ${['scraping','scoring','researching','writing'].includes(c.status) ? '<span class="status-dot-anim"></span>' : ''}
-                                ${c.status}
-                            </span>
-                            ${c.status === 'pending' ? `<button class="btn btn-glow btn-sm" onclick="startPipeline('${c.id}')">Start Pipeline</button>` : ''}
-                            ${c.status === 'ready' ? `<button class="btn btn-export btn-sm" onclick="exportCSVFor('${c.id}')">\u{2B07} Export</button>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-        }
 
-        async function loadAllStats() {
-            let totalLeads = 0, totalScored = 0, totalResearched = 0, totalDM = 0, avgScores = [];
+            // Sort: dm_ready first, then by score desc, then scraped at bottom
+            leads.sort((a, b) => {
+                const order = { dm_ready: 0, researched: 1, scored: 2, scraped: 3 };
+                const oa = order[a.status] ?? 5;
+                const ob = order[b.status] ?? 5;
+                if (oa !== ob) return oa - ob;
+                return (b.score || 0) - (a.score || 0);
+            });
 
-            for (const c of campaigns) {
-                try {
-                    const r = await fetch(API + '/campaigns/' + c.id + '/stats');
-                    const s = await r.json();
-                    totalLeads += s.total_leads;
-                    totalScored += s.scored_leads;
-                    totalResearched += s.researched_leads;
-                    totalDM += s.dm_ready_leads;
-                    if (s.avg_score) avgScores.push(s.avg_score);
+            const newHTML = leads.map((lead, i) => {
+                const isNew = !previousLeads[lead.id];
+                const wasUpdated = previousLeads[lead.id] && previousLeads[lead.id].status !== lead.status;
+                const scoreChanged = previousLeads[lead.id] && previousLeads[lead.id].score !== lead.score && lead.score !== null;
+                const rowClass = (isNew || wasUpdated) ? 'new-row' : '';
 
-                    const statsEl = document.getElementById('campaign-stats-' + c.id);
-                    if (statsEl) {
-                        statsEl.textContent = `${s.total_leads} leads \u{2022} ${s.scored_leads} scored \u{2022} ${s.dm_ready_leads} DMs`;
-                    }
-
-                    // Update pipeline for first active campaign
-                    updatePipeline(s.status, s);
-
-                    // Detect changes for activity log
-                    detectChanges(c.name, s);
-                    prevStats[c.id] = { ...s };
-                } catch (e) { console.error('loadStats', e); }
-            }
-
-            animateValue('statTotal', totalLeads);
-            animateValue('statScored', totalScored);
-            animateValue('statResearched', totalResearched);
-            animateValue('statDM', totalDM);
-
-            const avg = avgScores.length ? Math.round(avgScores.reduce((a, b) => a + b, 0) / avgScores.length) : null;
-            document.getElementById('statAvg').textContent = avg !== null ? avg : '-';
-        }
-
-        function animateValue(id, newVal) {
-            const el = document.getElementById(id);
-            const current = parseInt(el.textContent) || 0;
-            if (current === newVal) return;
-            el.textContent = newVal;
-            el.style.transform = 'scale(1.15)';
-            setTimeout(() => { el.style.transform = 'scale(1)'; }, 300);
-        }
-
-        function detectChanges(name, stats) {
-            const prev = prevStats[stats.campaign_id] || {};
-            if (prev.status && prev.status !== stats.status) {
-                addLog('Status changed to ' + stats.status, stats.status === 'ready' ? 'var(--green)' : 'var(--blue)');
-            }
-            if (prev.total_leads !== undefined && stats.total_leads > prev.total_leads) {
-                addLog((stats.total_leads - prev.total_leads) + ' new leads scraped', 'var(--accent2)');
-            }
-            if (prev.scored_leads !== undefined && stats.scored_leads > prev.scored_leads) {
-                addLog((stats.scored_leads - prev.scored_leads) + ' leads scored', 'var(--blue)');
-            }
-            if (prev.researched_leads !== undefined && stats.researched_leads > prev.researched_leads) {
-                addLog((stats.researched_leads - prev.researched_leads) + ' leads researched', 'var(--cyan)');
-            }
-            if (prev.dm_ready_leads !== undefined && stats.dm_ready_leads > prev.dm_ready_leads) {
-                addLog((stats.dm_ready_leads - prev.dm_ready_leads) + ' DMs generated', 'var(--green)');
-            }
-        }
-
-        function addLog(msg, color) {
-            const now = new Date();
-            const time = now.toTimeString().split(' ')[0];
-            activityLogs.unshift({ time, msg, color });
-            if (activityLogs.length > 50) activityLogs.pop();
-            renderLogs();
-        }
-
-        function renderLogs() {
-            const el = document.getElementById('activityLog');
-            el.innerHTML = activityLogs.map(l => `
-                <div class="log-entry">
-                    <div class="log-time">${l.time}</div>
-                    <div class="log-dot" style="background:${l.color}"></div>
-                    <div>${esc(l.msg)}</div>
-                </div>
-            `).join('') || '<div class="log-entry"><div class="log-time">--:--:--</div><div class="log-dot" style="background:var(--text3)"></div><div>Waiting for activity...</div></div>';
-        }
-
-        async function startPipeline(id) {
-            try {
-                const r = await fetch(API + '/campaigns/' + id + '/start', { method: 'POST' });
-                const d = await r.json();
-                pipelineStartTime = Date.now();
-                startTimer();
-                addLog('Pipeline started', 'var(--accent)');
-                loadCampaigns();
-            } catch (e) { addLog('Error: ' + e.message, 'var(--red)'); }
-        }
-
-        // ===== LEADS =====
-        async function loadLeads() {
-            try {
-                const cid = document.getElementById('leadsFilter').value;
-                const minScore = document.getElementById('leadsMinScore').value;
-                let url = API + '/leads/scored?min_score=' + minScore + '&limit=200';
-                if (cid) url += '&campaign_id=' + cid;
-                const r = await fetch(url);
-                const leads = await r.json();
-                const tbody = document.getElementById('leadsBody');
-                if (!leads.length) {
-                    tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">\u{1F465}</div><p>No leads found</p></div></td></tr>';
-                    return;
+                // Log new events
+                if (isNew && Object.keys(previousLeads).length > 0) {
+                    log(`New lead scraped: @${lead.ig_username || 'unknown'}`, 'info');
                 }
-                tbody.innerHTML = leads.map(l => `
-                    <tr>
-                        <td><strong>@${esc(l.ig_username)}</strong></td>
-                        <td style="color:var(--text2)">${esc(l.ig_full_name || '-')}</td>
-                        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" title="${esc(l.ig_bio_clean || '')}">${esc(l.ig_bio_clean || '-')}</td>
-                        <td>${catBadge(l.lead_category)}</td>
-                        <td>${scoreRing(l.score)}</td>
-                        <td>${statusPill(l.status)}</td>
-                    </tr>
-                `).join('');
-            } catch (e) { console.error('loadLeads', e); }
-        }
-
-        // ===== DMS =====
-        async function loadDMs() {
-            try {
-                const cid = document.getElementById('dmsFilter').value;
-                let url = API + '/leads/dm-ready?limit=200';
-                if (cid) url += '&campaign_id=' + cid;
-                const r = await fetch(url);
-                const dms = await r.json();
-                const tbody = document.getElementById('dmsBody');
-                if (!dms.length) {
-                    tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><div class="empty-icon">\u{2709}\u{FE0F}</div><p>No DMs ready yet. Run the pipeline first.</p></div></td></tr>';
-                    return;
+                if (scoreChanged) {
+                    const scoreLabel = lead.score >= 70 ? 'QUALIFIED' : lead.score >= 40 ? 'medium' : 'low';
+                    log(`Scored @${lead.ig_username}: ${lead.score}/100 (${scoreLabel})`, lead.score >= 70 ? 'success' : 'warn');
                 }
-                tbody.innerHTML = dms.map(d => `
-                    <tr>
-                        <td><strong>@${esc(d.ig_username)}</strong></td>
-                        <td>${scoreRing(d.score)}</td>
-                        <td>${catBadge(d.lead_category)}</td>
-                        <td><div class="dm-card">${esc(d.dm_message || '-')}</div></td>
-                    </tr>
-                `).join('');
-            } catch (e) { console.error('loadDMs', e); }
-        }
-
-        // ===== CLIENTS =====
-        async function loadClients() {
-            try {
-                const r = await fetch(API + '/clients/');
-                clients = await r.json();
-                const tbody = document.getElementById('clientsBody');
-                if (!clients.length) {
-                    tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">\u{1F3E2}</div><p>No clients yet. Create one to start.</p></div></td></tr>';
-                    return;
+                if (wasUpdated && lead.status === 'dm_ready') {
+                    log(`DM generated for @${lead.ig_username}`, 'success');
                 }
-                tbody.innerHTML = clients.map(c => `
-                    <tr>
-                        <td><strong>${esc(c.name)}</strong></td>
-                        <td style="color:var(--text2)">${esc(c.business_type || '-')}</td>
-                        <td style="color:var(--accent2)">${(c.ig_accounts || []).map(a => '@' + esc(a)).join(', ') || '-'}</td>
-                        <td>${c.is_active ? '<span style="color:var(--green);font-weight:600">Active</span>' : '<span style="color:var(--red)">Inactive</span>'}</td>
-                        <td style="color:var(--text3)">${new Date(c.created_at).toLocaleDateString()}</td>
-                    </tr>
-                `).join('');
-                updateClientSelects();
-            } catch (e) { console.error('loadClients', e); }
-        }
 
-        // ===== CRUD =====
-        async function createClient() {
-            const name = document.getElementById('clientName').value.trim();
-            const btype = document.getElementById('clientType').value.trim();
-            if (!name) return;
-            await fetch(API + '/clients/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, business_type: btype || null }) });
-            hideModals();
-            document.getElementById('clientName').value = '';
-            document.getElementById('clientType').value = '';
-            addLog('Client "' + name + '" created', 'var(--green)');
-            loadClients();
-        }
+                const scoreHTML = lead.score !== null && lead.score !== undefined
+                    ? `<span class="score-badge ${lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low'} ${scoreChanged ? 'pop' : ''}">${lead.score}</span>`
+                    : `<span class="score-badge score-pending"><span class="spinner"></span></span>`;
 
-        async function createCampaign() {
-            const client_id = document.getElementById('campaignClient').value;
-            const name = document.getElementById('campaignName').value.trim();
-            const source_type = document.getElementById('campaignSourceType').value;
-            const source_value = document.getElementById('campaignSourceValue').value.trim();
-            if (!client_id || !name || !source_value) return;
-            await fetch(API + '/campaigns/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, name, source_type, source_value }) });
-            hideModals();
-            document.getElementById('campaignName').value = '';
-            document.getElementById('campaignSourceValue').value = '';
-            addLog('Campaign "' + name + '" created', 'var(--accent2)');
-            loadCampaigns();
-        }
+                const statusHTML = `<span class="status-pill status-${lead.status}">${lead.status === 'scraped' ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
 
-        // ===== EXPORT =====
-        function exportCSVFor(id) { window.open(API + '/export/' + id + '/csv'); }
-        function exportJSON() { const cid = document.getElementById('dmsFilter').value; if (cid) window.open(API + '/export/' + cid + '/json'); }
-        function exportCSV() { const cid = document.getElementById('dmsFilter').value; if (cid) window.open(API + '/export/' + cid + '/csv'); }
+                const catHTML = lead.lead_category ? `<span class="category-tag">${lead.lead_category}</span>` : '-';
+
+                const dmHTML = lead.dm_message
+                    ? `<span class="dm-preview" onclick='showDM(${JSON.stringify(lead.ig_username || "")}, ${JSON.stringify(lead.dm_message || "")}, ${JSON.stringify(lead.dm_variant_b || "")})'>${truncate(lead.dm_message, 40)}</span>`
+                    : '<span style="color:var(--text3)">-</span>';
+
+                const followers = lead.ig_follower_count != null ? formatNum(lead.ig_follower_count) : '-';
+
+                return `<tr class="${rowClass}">
+                    <td style="color:var(--text3)">${i + 1}</td>
+                    <td><div class="lead-user">
+                        <span class="lead-username">@${lead.ig_username || '—'}</span>
+                        <span class="lead-fullname">${lead.ig_full_name || ''}</span>
+                    </div></td>
+                    <td><div class="lead-bio" title="${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '')}">${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '-')}</div></td>
+                    <td>${followers}</td>
+                    <td>${scoreHTML}</td>
+                    <td>${catHTML}</td>
+                    <td>${statusHTML}</td>
+                    <td>${dmHTML}</td>
+                </tr>`;
+            }).join('');
+
+            body.innerHTML = newHTML;
+
+            // Save state for diff
+            previousLeads = {};
+            leads.forEach(l => { previousLeads[l.id] = { status: l.status, score: l.score }; });
+        }
 
         // ===== HELPERS =====
-        function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
-        function scoreRing(score) {
-            if (score === null || score === undefined) return '<span style="color:var(--text3)">-</span>';
-            const s = Math.round(score);
-            const cls = s >= 70 ? 'score-high' : s >= 50 ? 'score-mid' : 'score-low';
-            return `<div class="score-ring ${cls}">${s}</div>`;
+        function formatNum(n) {
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return n.toString();
         }
 
-        function catBadge(cat) {
-            if (!cat) return '<span style="color:var(--text3)">-</span>';
-            return `<span class="cat-badge cat-${cat}">${cat.replace('_', ' ')}</span>`;
+        function truncate(s, len) {
+            if (!s) return '';
+            return s.length > len ? s.substring(0, len) + '...' : s;
         }
 
-        function statusPill(status) {
-            const running = ['scraping','scoring','researching','writing'].includes(status);
-            return `<span class="status-pill status-${status}">${running ? '<span class="status-dot-anim"></span>' : ''}${status}</span>`;
+        function escapeHTML(s) {
+            if (!s) return '';
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
-        function updateCampaignFilters() {
-            ['leadsFilter', 'dmsFilter'].forEach(id => {
-                const sel = document.getElementById(id);
-                const val = sel.value;
-                sel.innerHTML = '<option value="">All campaigns</option>' + campaigns.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-                sel.value = val;
-            });
+        function log(msg, type = '') {
+            const logEl = document.getElementById('activityLog');
+            const now = new Date().toLocaleTimeString('es-ES');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type}">${msg}</span>`;
+            logEl.prepend(entry);
+            // Keep max 50 entries
+            while (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
         }
 
-        function updateClientSelects() {
-            document.getElementById('campaignClient').innerHTML = clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        function startTimer() {
+            if (timerInterval) return;
+            timerStart = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }, 1000);
         }
 
-        function showModal(id) {
-            if (id === 'newCampaign') loadClients();
-            document.getElementById('modal-' + id).classList.add('active');
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
         }
 
-        function hideModals() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active')); }
-        document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if (e.target === m) hideModals(); }); });
+        function showDM(username, dmA, dmB) {
+            document.getElementById('dmModalTitle').textContent = `DM for @${username}`;
+            document.getElementById('dmTextA').textContent = dmA;
+            if (dmB) {
+                document.getElementById('dmLabelB').style.display = 'block';
+                document.getElementById('dmTextB').style.display = 'block';
+                document.getElementById('dmTextB').textContent = dmB;
+            } else {
+                document.getElementById('dmLabelB').style.display = 'none';
+                document.getElementById('dmTextB').style.display = 'none';
+            }
+            document.getElementById('dmModal').classList.add('show');
+        }
 
-        // ===== AUTO REFRESH =====
-        setInterval(() => {
-            const activeTab = document.querySelector('.tab.active').dataset.tab;
-            if (activeTab === 'campaigns') loadCampaigns();
-            else if (activeTab === 'leads') loadLeads();
-            else if (activeTab === 'dms') loadDMs();
-            checkHealth();
-        }, 3000);
+        function closeDM() {
+            document.getElementById('dmModal').classList.remove('show');
+        }
 
-        // ===== INIT =====
-        checkHealth();
-        loadCampaigns();
-        loadClients();
-        addLog('Dashboard initialized', 'var(--accent)');
+        // Start
+        init();
     </script>
 </body>
 </html>
