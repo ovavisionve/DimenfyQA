@@ -90,7 +90,7 @@ class CopywritingService:
         )
 
         message = self.client.messages.create(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=500,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -113,7 +113,7 @@ class CopywritingService:
         )
 
         message = self.client.messages.create(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=500,
             messages=[{"role": "user", "content": prompt}],
         )
