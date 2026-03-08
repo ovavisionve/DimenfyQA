@@ -773,14 +773,33 @@
 
         async function resetCampaign() {
             if (!activeCampaignId) return;
-            if (!confirm('Reset this campaign? All lead scores and DMs will be cleared.')) return;
+            if (!confirm('Reset this campaign? All leads will be deleted.')) return;
             try {
-                // We just restart polling — actual reset happens via DB
-                previousLeads = {};
-                pipelineRunning = false;
-                stopTimer();
-                document.getElementById('leadsBody').innerHTML = '<tr><td colspan="8" class="empty-state">Campaign reset. Click Start Pipeline to begin.</td></tr>';
-                log('Campaign reset', 'warn');
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/reset`, { method: 'POST' });
+                if (res.ok) {
+                    previousLeads = {};
+                    pipelineRunning = false;
+                    stopTimer();
+                    document.getElementById('timer').textContent = '00:00';
+                    document.getElementById('leadsBody').innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F680;</div>Campaign reset. Click Start Pipeline to begin.</td></tr>';
+                    document.getElementById('totalLeads').textContent = '0';
+                    document.getElementById('avgScore').textContent = '-';
+                    document.getElementById('qualified').textContent = '0';
+                    document.getElementById('dmsGenerated').textContent = '0';
+                    document.getElementById('campaignStatus').textContent = 'PENDING';
+                    document.getElementById('campaignStatus').style.color = 'var(--text3)';
+                    ['step-scraping','step-scoring','step-research','step-dms','step-ready'].forEach(id => {
+                        document.getElementById(id).textContent = '-';
+                    });
+                    document.querySelectorAll('.pipe-step').forEach(s => s.classList.remove('active','done'));
+                    document.querySelectorAll('.pipe-arrow').forEach(a => a.classList.remove('done'));
+                    document.getElementById('activityLog').innerHTML = '';
+                    log('Campaign reset — ready to start fresh', 'warn');
+                    await loadCampaigns();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not reset'), 'error');
+                }
             } catch(e) {
                 log('Error: ' + e.message, 'error');
             }

@@ -59,14 +59,33 @@ async def start_campaign_pipeline(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status not in ("pending", "ready"):
+    if campaign.status not in ("pending", "ready", "failed"):
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is currently '{campaign.status}', cannot start",
+            detail=f"Campaign is currently '{campaign.status}', cannot start. Reset first.",
         )
 
     task_id = run_campaign_pipeline(str(campaign_id))
     return {"message": "Pipeline started", "task_id": task_id, "campaign_id": str(campaign_id)}
+
+
+@router.post("/{campaign_id}/reset")
+async def reset_campaign(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Reset a campaign: delete all leads and set status back to pending."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from sqlalchemy import delete
+    await db.execute(delete(Lead).where(Lead.campaign_id == campaign_id))
+    campaign.status = "pending"
+    campaign.stats = {}
+    await db.flush()
+
+    return {"message": "Campaign reset", "campaign_id": str(campaign_id)}
 
 
 @router.get("/{campaign_id}/stats", response_model=CampaignStats)
