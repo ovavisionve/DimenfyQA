@@ -134,12 +134,24 @@ class ApifyService:
                 logger.info(f"Skipping private profile: {username}")
                 continue
 
-            # Handle externalUrl - can be string or list (externalUrls)
-            website = profile.get("externalUrl") or ""
+            # Handle externalUrl - can be string, dict, or list
+            website = ""
+            raw_url = profile.get("externalUrl")
+            if isinstance(raw_url, str) and raw_url:
+                website = raw_url
+            elif isinstance(raw_url, dict):
+                website = raw_url.get("url", "") or raw_url.get("lynx_url", "") or ""
             if not website:
                 ext_urls = profile.get("externalUrls") or []
-                if ext_urls and isinstance(ext_urls, list):
-                    website = ext_urls[0]
+                if isinstance(ext_urls, list):
+                    for eu in ext_urls:
+                        if isinstance(eu, str) and eu:
+                            website = eu
+                            break
+                        elif isinstance(eu, dict):
+                            website = eu.get("url", "") or eu.get("lynx_url", "") or ""
+                            if website:
+                                break
 
             # Handle profile pic - try multiple field names
             profile_pic = (
