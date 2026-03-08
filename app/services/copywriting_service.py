@@ -13,10 +13,47 @@ from app.models.client import Client
 
 logger = logging.getLogger(__name__)
 
-# Batch size for DM generation (fewer than scoring because output is longer)
+# Batch size for DM generation
 DM_BATCH_SIZE = 5
 # Max parallel batch API calls
 MAX_PARALLEL_BATCHES = 3
+
+SINGLE_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {client_business_type}.
+
+## Información del lead:
+- Nombre: {full_name}
+- Username: {username}
+- Bio: {bio}
+- Categoría: {category}
+- Website: {website}
+- Research: {research_data}
+
+## Servicio que ofrecemos:
+{client_service_description}
+
+## Formato de cada DM:
+[Saludo personal con nombre si disponible]
+[Cumplido específico basado en research/bio — 1 oración]
+[Transición natural a nuestra propuesta de valor — 1-2 oraciones]
+[Pregunta de cierre suave — 1 oración]
+
+## Reglas:
+1. SOLO texto plano, sin formateo
+2. Máximo 4-5 oraciones por DM
+3. Nunca uses palabras que suenen a IA: "journey", "game-changer", "impressive", "amplify", "transformation"
+4. Tono: conversación natural entre profesionales, no formal ni robótico
+5. Si no sabes el nombre, omítelo
+6. NUNCA pidas una llamada o reunión directamente
+7. No uses paréntesis, comillas dobles, ni caracteres especiales
+8. Evita: emojis, exclamaciones excesivas, ALL CAPS
+9. El DM debe sentirse como si un amigo profesional te escribiera
+
+## Output:
+Responde SOLO en JSON válido, sin markdown ni backticks:
+{{
+  "dm_a": "<texto del DM variante A>",
+  "dm_b": "<texto del DM variante B con ángulo diferente>"
+}}"""
 
 BATCH_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {client_business_type}.
 
@@ -57,9 +94,55 @@ Responde SOLO un JSON array válido, sin markdown ni backticks. Para cada lead g
 IMPORTANTE: Devuelve EXACTAMENTE {lead_count} elementos, uno por cada lead."""
 
 
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences from API response."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    return text
+
+
 class CopywritingService:
     def __init__(self):
         self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    def _call_claude(self, prompt: str, max_tokens: int = 4096) -> str:
+        """Make a Claude API call and return the text response."""
+        message = self.client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text.strip()
+
+    def generate_single_dm(self, lead_data: dict, client_config: dict) -> tuple[str | None, str | None]:
+        """Generate DM for a single lead. Returns (dm_a, dm_b) or (None, None) on failure."""
+        username = lead_data.get("ig_username", "unknown")
+        try:
+            prompt = SINGLE_DM_PROMPT.format(
+                full_name=lead_data.get("ig_full_name", ""),
+                username=username,
+                bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
+                category=lead_data.get("lead_category", ""),
+                website=lead_data.get("ig_website", ""),
+                research_data=lead_data.get("research_data", "No research available"),
+                client_business_type=client_config.get("business_type", "B2B automation"),
+                client_service_description=client_config.get(
+                    "service_description", "B2B lead generation and automation services"
+                ),
+            )
+            raw = self._call_claude(prompt, max_tokens=1024)
+            result = json.loads(_strip_code_fences(raw))
+            dm_a = result.get("dm_a")
+            dm_b = result.get("dm_b")
+            if dm_a:
+                logger.info(f"Generated DM for @{username} (individual fallback)")
+            return (dm_a, dm_b)
+        except Exception as e:
+            logger.error(f"Individual DM generation failed for @{username}: {type(e).__name__}: {e}")
+            return (None, None)
 
     def generate_dms_batch(self, leads_data: list[dict], client_config: dict) -> list[dict]:
         """Generate DMs for a batch of leads in a single API call."""
@@ -83,51 +166,52 @@ class CopywritingService:
             ),
         )
 
-        message = self.client.messages.create(
-            model="claude-sonnet-4-5-20250514",
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        response_text = message.content[0].text.strip()
-        if response_text.startswith("```"):
-            response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3].strip()
-
-        results = json.loads(response_text)
+        raw = self._call_claude(prompt, max_tokens=8192)
+        results = json.loads(_strip_code_fences(raw))
         if not isinstance(results, list):
             raise ValueError(f"Expected JSON array, got {type(results).__name__}")
         return results
 
     def _generate_dms_batch_safe(self, leads_data: list[dict], client_config: dict) -> list[tuple[str, str | None, str | None]]:
-        """Thread-safe batch DM generation. Returns list of (username, dm_a, dm_b)."""
+        """Thread-safe batch DM generation with individual fallback."""
         usernames = [ld.get("ig_username", "unknown") for ld in leads_data]
+        output = []
+
+        # Try batch first
         try:
             results = self.generate_dms_batch(leads_data, client_config)
             result_map = {r.get("username", ""): r for r in results}
-            output = []
-            for username in usernames:
+            failed_leads = []
+
+            for i, username in enumerate(usernames):
                 if username in result_map:
                     r = result_map[username]
-                    logger.info(f"Generated DMs for @{username}")
+                    logger.info(f"Generated DMs for @{username} (batch)")
                     output.append((username, r.get("dm_a"), r.get("dm_b")))
                 else:
-                    logger.warning(f"No DM returned for @{username} in batch")
-                    output.append((username, None, None))
+                    logger.warning(f"No DM for @{username} in batch — will retry individually")
+                    failed_leads.append((i, username, leads_data[i]))
+
+            # Retry missing leads individually
+            for i, username, lead_data in failed_leads:
+                dm_a, dm_b = self.generate_single_dm(lead_data, client_config)
+                output.append((username, dm_a, dm_b))
+
             return output
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON from Claude for DM batch of {len(leads_data)}: {e}")
-            return [(u, None, None) for u in usernames]
+
         except Exception as e:
-            logger.error(f"Error generating DM batch of {len(leads_data)}: {type(e).__name__}: {e}")
-            return [(u, None, None) for u in usernames]
+            logger.error(f"Batch DM failed ({type(e).__name__}: {e}) — falling back to individual calls")
+            # Fallback: generate each DM individually
+            for i, username in enumerate(usernames):
+                dm_a, dm_b = self.generate_single_dm(leads_data[i], client_config)
+                output.append((username, dm_a, dm_b))
+            return output
 
     async def write_dms_batch(
         self, lead_ids: list[str], db: AsyncSession,
         progress_callback=None,
     ) -> list[str]:
-        """Generate DMs for leads with score >= threshold using batch API calls."""
+        """Generate DMs for leads with score >= threshold using batch API calls with individual fallback."""
         threshold = settings.DM_SCORE_THRESHOLD
 
         result = await db.execute(
@@ -140,8 +224,10 @@ class CopywritingService:
         leads = result.scalars().all()
 
         if not leads:
-            logger.info(f"No leads with score >= {threshold} to generate DMs for")
+            logger.warning(f"No leads with status in (scored, researched) and score >= {threshold} found")
             return []
+
+        logger.info(f"Found {len(leads)} leads with score >= {threshold} for DM generation")
 
         # Get client config
         first_lead = leads[0]
@@ -188,7 +274,7 @@ class CopywritingService:
             for future in as_completed(futures):
                 batch_idx = futures[future]
                 batch_results = future.result()
-                logger.info(f"DM batch {batch_idx + 1}/{len(batches)} completed")
+                logger.info(f"DM batch {batch_idx + 1}/{len(batches)} completed with {len(batch_results)} results")
 
                 for username, dm_a, dm_b in batch_results:
                     completed_count += 1
@@ -200,6 +286,7 @@ class CopywritingService:
                             pass
 
                     if dm_a is None:
+                        logger.warning(f"No DM generated for @{username} (both batch and individual failed)")
                         continue
 
                     if username not in lead_data_map:

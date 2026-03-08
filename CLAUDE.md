@@ -115,8 +115,8 @@ Optional (research phase):
 - Alembic for all schema changes — never modify DB directly
 
 ### AI Services
-- **Scoring**: Claude Haiku (`claude-haiku-4-5-20251001`) — batch mode, 20 leads per API call, returns JSON array with score 0-100, reason, category, bio_clean
-- **Copywriting**: Claude Sonnet (`claude-sonnet-4-5-20250514`) — batch mode, 5 leads per API call, generates variant A + B in one call
+- **Scoring**: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — batch mode, 20 leads per API call, returns JSON array with score 0-100, reason, category, bio_clean. Leads with no data (no bio, no followers, no name) are auto-scored 0 without API call.
+- **Copywriting**: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — batch mode (5 leads/call) with individual fallback if batch fails. Generates variant A + B in one call.
 - **Research**: Google Gemini (`gemini-2.0-flash`) preferred, Perplexity sonar fallback — only for leads with score >= 60. If no API key configured, research is skipped and leads marked as researched.
 - DMs only generated for leads with score >= 70
 

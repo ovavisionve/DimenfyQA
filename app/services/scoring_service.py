@@ -73,8 +73,8 @@ class ScoringService:
         )
 
         message = self.client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=4096,
+            model="claude-sonnet-4-6",
+            max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
         )
 
@@ -129,10 +129,25 @@ class ScoringService:
 
         logger.info(f"Found {len(leads)} scraped leads to score out of {len(lead_ids)} IDs")
 
-        # Prepare lead data
+        # Prepare lead data — skip leads with no useful data (saves API calls)
         lead_data_map: dict[str, tuple] = {}  # username -> (lead, lead_data, cleaned_bio)
         all_lead_data: list[dict] = []
+        skipped_count = 0
         for lead in leads:
+            has_bio = bool(lead.ig_bio and lead.ig_bio.strip())
+            has_followers = bool(lead.ig_follower_count and lead.ig_follower_count > 0)
+            has_name = bool(lead.ig_full_name and lead.ig_full_name.strip())
+
+            if not has_bio and not has_followers and not has_name:
+                # No data to score — mark as scored with 0
+                lead.score = 0
+                lead.score_reason = "No profile data available (empty bio, no followers)"
+                lead.lead_category = "other"
+                lead.status = "scored"
+                lead.scored_at = datetime.now(timezone.utc)
+                skipped_count += 1
+                continue
+
             cleaned_bio = clean_bio(lead.ig_bio)
             lead_data = {
                 "ig_username": lead.ig_username,
@@ -146,6 +161,9 @@ class ScoringService:
             }
             lead_data_map[lead.ig_username] = (lead, lead_data, cleaned_bio)
             all_lead_data.append(lead_data)
+
+        if skipped_count:
+            logger.info(f"Skipped {skipped_count} leads with no profile data (auto-scored 0)")
 
         # Split into batches
         batches = [all_lead_data[i:i + BATCH_SIZE] for i in range(0, len(all_lead_data), BATCH_SIZE)]
