@@ -97,6 +97,9 @@ class ApifyService:
             if results:
                 logger.info(f"First item keys: {list(results[0].keys())[:15]}")
                 logger.info(f"First item sample: username={results[0].get('username')}, fullName={results[0].get('fullName')}")
+                # Log error messages from Apify actors
+                if len(results) == 1 and "message" in results[0] and "username" not in results[0]:
+                    logger.error(f"Apify actor returned error: {results[0].get('message', 'unknown error')}")
             return results
 
     async def scrape_profiles_sync(self, usernames: list[str]) -> list[dict]:
@@ -109,7 +112,7 @@ class ApifyService:
                 f"{APIFY_BASE_URL}/acts/{actor_id}/run-sync-get-dataset-items",
                 headers=self.headers,
                 json=input_data,
-                timeout=120,
+                timeout=300,
             )
             response.raise_for_status()
             return response.json()
