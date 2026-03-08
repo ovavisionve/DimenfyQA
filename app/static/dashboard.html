@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IG DM Engine</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a26;
+            --border: #2a2a3a;
+            --text: #e4e4ed;
+            --text2: #8888a0;
+            --accent: #6c5ce7;
+            --accent2: #a29bfe;
+            --green: #00b894;
+            --yellow: #fdcb6e;
+            --red: #e17055;
+            --blue: #74b9ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo { font-size: 18px; font-weight: 700; }
+        .logo span { color: var(--accent2); }
+
+        .health-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--red);
+            display: inline-block;
+        }
+        .health-dot.ok { background: var(--green); }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: var(--text2);
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .stat-card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; }
+        .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+        .stat-card .value.green { color: var(--green); }
+        .stat-card .value.blue { color: var(--blue); }
+        .stat-card .value.yellow { color: var(--yellow); }
+        .stat-card .value.accent { color: var(--accent2); }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text2);
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 12px 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--surface2); }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-pending { background: #fdcb6e22; color: var(--yellow); }
+        .badge-scraping, .badge-scoring, .badge-researching, .badge-writing { background: #74b9ff22; color: var(--blue); }
+        .badge-ready, .badge-dm_ready, .badge-scored, .badge-researched { background: #00b89422; color: var(--green); }
+        .badge-failed { background: #e1705522; color: var(--red); }
+        .badge-scraped { background: #a29bfe22; color: var(--accent2); }
+        .badge-sent { background: #00b89422; color: var(--green); }
+
+        /* Score bar */
+        .score-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--surface2);
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent2); }
+        .btn-sm { padding: 4px 12px; font-size: 12px; }
+        .btn-outline { background: none; border: 1px solid var(--border); color: var(--text2); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent2); }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+        }
+
+        .toolbar h2 { font-size: 18px; }
+
+        /* Forms */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            width: 420px;
+            max-width: 90vw;
+        }
+
+        .modal h3 { margin-bottom: 16px; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+        /* DM preview */
+        .dm-preview {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 120px;
+            overflow-y: auto;
+            cursor: pointer;
+        }
+
+        .dm-preview:hover { border-color: var(--accent); }
+
+        /* Empty state */
+        .empty {
+            text-align: center;
+            padding: 48px;
+            color: var(--text2);
+        }
+
+        .empty p { margin-top: 8px; font-size: 14px; }
+
+        /* Refresh indicator */
+        .refreshing { opacity: 0.5; pointer-events: none; }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text2);
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">IG DM <span>Engine</span></div>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <div class="auto-refresh">
+                <input type="checkbox" id="autoRefresh" checked>
+                <label for="autoRefresh">Auto-refresh 5s</label>
+            </div>
+            <div><span class="health-dot" id="healthDot"></span> <span id="healthText" style="font-size:12px;color:var(--text2)">...</span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" data-tab="campaigns">Campaigns</button>
+            <button class="tab" data-tab="leads">Leads</button>
+            <button class="tab" data-tab="dms">DMs Ready</button>
+            <button class="tab" data-tab="clients">Clients</button>
+        </div>
+
+        <!-- CAMPAIGNS TAB -->
+        <div class="tab-content active" id="tab-campaigns">
+            <div id="campaignStats" class="stats-grid"></div>
+            <div class="toolbar">
+                <h2>Campaigns</h2>
+                <button class="btn btn-primary" onclick="showModal('newCampaign')">+ New Campaign</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>Leads</th>
+                        <th>Avg Score</th>
+                        <th>DM Ready</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="campaignsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- LEADS TAB -->
+        <div class="tab-content" id="tab-leads">
+            <div class="toolbar">
+                <h2>Leads</h2>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="leadsFilter" onchange="loadLeads()" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+                        <option value="">All campaigns</option>
+                    </select>
+                    <select id="leadsMinScore" onchange="loadLeads()" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+                        <option value="0">All scores</option>
+                        <option value="60">Score 60+</option>
+                        <option value="70">Score 70+</option>
+                        <option value="80">Score 80+</option>
+                    </select>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Name</th>
+                        <th>Bio</th>
+                        <th>Category</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="leadsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- DMS TAB -->
+        <div class="tab-content" id="tab-dms">
+            <div class="toolbar">
+                <h2>DMs Ready to Send</h2>
+                <div style="display:flex;gap:8px;">
+                    <select id="dmsFilter" onchange="loadDMs()" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+                        <option value="">All campaigns</option>
+                    </select>
+                    <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export CSV</button>
+                    <button class="btn btn-outline btn-sm" onclick="exportJSON()">Export JSON</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Score</th>
+                        <th>Category</th>
+                        <th>DM Message</th>
+                    </tr>
+                </thead>
+                <tbody id="dmsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- CLIENTS TAB -->
+        <div class="tab-content" id="tab-clients">
+            <div class="toolbar">
+                <h2>Clients</h2>
+                <button class="btn btn-primary" onclick="showModal('newClient')">+ New Client</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Business Type</th>
+                        <th>IG Accounts</th>
+                        <th>Active</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="clientsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- New Client Modal -->
+    <div class="modal-overlay" id="modal-newClient">
+        <div class="modal">
+            <h3>New Client</h3>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="clientName" placeholder="Business name">
+            </div>
+            <div class="form-group">
+                <label>Business Type</label>
+                <input type="text" id="clientType" placeholder="e.g. ecommerce, agency, coach">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-outline" onclick="hideModals()">Cancel</button>
+                <button class="btn btn-primary" onclick="createClient()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Campaign Modal -->
+    <div class="modal-overlay" id="modal-newCampaign">
+        <div class="modal">
+            <h3>New Campaign</h3>
+            <div class="form-group">
+                <label>Client</label>
+                <select id="campaignClient"></select>
+            </div>
+            <div class="form-group">
+                <label>Campaign Name</label>
+                <input type="text" id="campaignName" placeholder="e.g. March outreach">
+            </div>
+            <div class="form-group">
+                <label>Source Type</label>
+                <select id="campaignSourceType">
+                    <option value="followers">Followers</option>
+                    <option value="comments">Comments</option>
+                    <option value="profiles">Profiles</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Source Value</label>
+                <input type="text" id="campaignSourceValue" placeholder="Instagram username or URL">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-outline" onclick="hideModals()">Cancel</button>
+                <button class="btn btn-primary" onclick="createCampaign()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/v1';
+        let campaigns = [];
+        let clients = [];
+        let refreshInterval = null;
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+
+                if (tab.dataset.tab === 'leads') loadLeads();
+                if (tab.dataset.tab === 'dms') loadDMs();
+                if (tab.dataset.tab === 'clients') loadClients();
+            });
+        });
+
+        // Health
+        async function checkHealth() {
+            try {
+                const r = await fetch('/health');
+                const d = await r.json();
+                document.getElementById('healthDot').className = 'health-dot ok';
+                document.getElementById('healthText').textContent = 'v' + d.version;
+            } catch {
+                document.getElementById('healthDot').className = 'health-dot';
+                document.getElementById('healthText').textContent = 'offline';
+            }
+        }
+
+        // Campaigns
+        async function loadCampaigns() {
+            try {
+                const r = await fetch(API + '/campaigns/');
+                campaigns = await r.json();
+                updateCampaignFilters();
+                renderCampaigns();
+                loadAllStats();
+            } catch (e) { console.error('loadCampaigns', e); }
+        }
+
+        function renderCampaigns() {
+            const tbody = document.getElementById('campaignsBody');
+            if (!campaigns.length) {
+                tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><p>No campaigns yet</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = campaigns.map(c => `
+                <tr>
+                    <td><strong>${esc(c.name)}</strong></td>
+                    <td><span style="color:var(--text2)">${esc(c.source_type)}:</span> ${esc(c.source_value)}</td>
+                    <td><span class="badge badge-${c.status}">${c.status}</span></td>
+                    <td id="stat-leads-${c.id}">-</td>
+                    <td id="stat-avg-${c.id}">-</td>
+                    <td id="stat-dm-${c.id}">-</td>
+                    <td>
+                        ${c.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="startPipeline('${c.id}')">Start</button>` : ''}
+                        ${c.status === 'ready' ? `<button class="btn btn-outline btn-sm" onclick="exportCSVFor('${c.id}')">CSV</button>` : ''}
+                        ${['scraping','scoring','researching','writing'].includes(c.status) ? '<span class="pulse" style="color:var(--blue)">running...</span>' : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadAllStats() {
+            for (const c of campaigns) {
+                try {
+                    const r = await fetch(API + '/campaigns/' + c.id + '/stats');
+                    const s = await r.json();
+                    const el = (id) => document.getElementById(id);
+                    if (el('stat-leads-' + c.id)) el('stat-leads-' + c.id).textContent = s.total_leads;
+                    if (el('stat-avg-' + c.id)) el('stat-avg-' + c.id).innerHTML = s.avg_score !== null ? scoreHTML(s.avg_score) : '-';
+                    if (el('stat-dm-' + c.id)) el('stat-dm-' + c.id).textContent = s.dm_ready_leads;
+
+                    // Update top stats
+                    updateTopStats(s, c);
+                } catch (e) { console.error('loadStats', e); }
+            }
+        }
+
+        function updateTopStats() {
+            // Aggregate stats from all campaigns
+            let total = 0, scored = 0, researched = 0, dmReady = 0;
+            const statsDiv = document.getElementById('campaignStats');
+            // We'll set it after loading all
+            fetch(API + '/campaigns/').then(r => r.json()).then(async cList => {
+                for (const c of cList) {
+                    try {
+                        const r = await fetch(API + '/campaigns/' + c.id + '/stats');
+                        const s = await r.json();
+                        total += s.total_leads;
+                        scored += s.scored_leads;
+                        researched += s.researched_leads;
+                        dmReady += s.dm_ready_leads;
+                    } catch {}
+                }
+                statsDiv.innerHTML = `
+                    <div class="stat-card"><div class="label">Total Leads</div><div class="value accent">${total}</div></div>
+                    <div class="stat-card"><div class="label">Scored</div><div class="value blue">${scored}</div></div>
+                    <div class="stat-card"><div class="label">Researched</div><div class="value yellow">${researched}</div></div>
+                    <div class="stat-card"><div class="label">DM Ready</div><div class="value green">${dmReady}</div></div>
+                `;
+            });
+        }
+
+        async function startPipeline(id) {
+            try {
+                const r = await fetch(API + '/campaigns/' + id + '/start', { method: 'POST' });
+                const d = await r.json();
+                alert('Pipeline started! Task: ' + d.task_id);
+                loadCampaigns();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // Leads
+        async function loadLeads() {
+            try {
+                const cid = document.getElementById('leadsFilter').value;
+                const minScore = document.getElementById('leadsMinScore').value;
+                let url = API + '/leads/scored?min_score=' + minScore + '&limit=200';
+                if (cid) url += '&campaign_id=' + cid;
+                const r = await fetch(url);
+                const leads = await r.json();
+                const tbody = document.getElementById('leadsBody');
+                if (!leads.length) {
+                    tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><p>No leads found</p></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = leads.map(l => `
+                    <tr>
+                        <td><strong>@${esc(l.ig_username)}</strong></td>
+                        <td>${esc(l.ig_full_name || '-')}</td>
+                        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(l.ig_bio_clean || '')}">${esc(l.ig_bio_clean || '-')}</td>
+                        <td>${l.lead_category ? `<span class="badge badge-scored">${l.lead_category}</span>` : '-'}</td>
+                        <td>${l.score !== null ? scoreHTML(l.score) : '-'}</td>
+                        <td><span class="badge badge-${l.status}">${l.status}</span></td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('loadLeads', e); }
+        }
+
+        // DMs
+        async function loadDMs() {
+            try {
+                const cid = document.getElementById('dmsFilter').value;
+                let url = API + '/leads/dm-ready?limit=200';
+                if (cid) url += '&campaign_id=' + cid;
+                const r = await fetch(url);
+                const dms = await r.json();
+                const tbody = document.getElementById('dmsBody');
+                if (!dms.length) {
+                    tbody.innerHTML = '<tr><td colspan="4"><div class="empty"><p>No DMs ready yet</p></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = dms.map(d => `
+                    <tr>
+                        <td><strong>@${esc(d.ig_username)}</strong></td>
+                        <td>${d.score !== null ? scoreHTML(d.score) : '-'}</td>
+                        <td>${d.lead_category ? `<span class="badge badge-scored">${d.lead_category}</span>` : '-'}</td>
+                        <td><div class="dm-preview" title="Click to see variant B">${esc(d.dm_message || '-')}</div></td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('loadDMs', e); }
+        }
+
+        // Clients
+        async function loadClients() {
+            try {
+                const r = await fetch(API + '/clients/');
+                clients = await r.json();
+                const tbody = document.getElementById('clientsBody');
+                if (!clients.length) {
+                    tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><p>No clients yet. Create one to start.</p></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = clients.map(c => `
+                    <tr>
+                        <td><strong>${esc(c.name)}</strong></td>
+                        <td>${esc(c.business_type || '-')}</td>
+                        <td>${(c.ig_accounts || []).map(a => '@' + esc(a)).join(', ') || '-'}</td>
+                        <td>${c.is_active ? '<span style="color:var(--green)">Yes</span>' : '<span style="color:var(--red)">No</span>'}</td>
+                        <td style="color:var(--text2)">${new Date(c.created_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('');
+                updateClientSelects();
+            } catch (e) { console.error('loadClients', e); }
+        }
+
+        async function createClient() {
+            const name = document.getElementById('clientName').value.trim();
+            const btype = document.getElementById('clientType').value.trim();
+            if (!name) return alert('Name is required');
+            try {
+                await fetch(API + '/clients/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, business_type: btype || null })
+                });
+                hideModals();
+                document.getElementById('clientName').value = '';
+                document.getElementById('clientType').value = '';
+                loadClients();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function createCampaign() {
+            const client_id = document.getElementById('campaignClient').value;
+            const name = document.getElementById('campaignName').value.trim();
+            const source_type = document.getElementById('campaignSourceType').value;
+            const source_value = document.getElementById('campaignSourceValue').value.trim();
+            if (!client_id || !name || !source_value) return alert('All fields are required');
+            try {
+                await fetch(API + '/campaigns/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id, name, source_type, source_value })
+                });
+                hideModals();
+                document.getElementById('campaignName').value = '';
+                document.getElementById('campaignSourceValue').value = '';
+                loadCampaigns();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // Export
+        function exportCSVFor(id) { window.open(API + '/export/' + id + '/csv'); }
+        function exportJSON() {
+            const cid = document.getElementById('dmsFilter').value;
+            if (!cid) return alert('Select a campaign first');
+            window.open(API + '/export/' + cid + '/json');
+        }
+        function exportCSV() {
+            const cid = document.getElementById('dmsFilter').value;
+            if (!cid) return alert('Select a campaign first');
+            window.open(API + '/export/' + cid + '/csv');
+        }
+
+        // Helpers
+        function esc(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function scoreHTML(score) {
+            const s = Math.round(score);
+            let color = 'var(--red)';
+            if (s >= 70) color = 'var(--green)';
+            else if (s >= 50) color = 'var(--yellow)';
+            return `<span style="color:${color};font-weight:600">${s}</span>` +
+                   `<span class="score-bar"><span class="score-bar-fill" style="width:${s}%;background:${color}"></span></span>`;
+        }
+
+        function updateCampaignFilters() {
+            ['leadsFilter', 'dmsFilter'].forEach(id => {
+                const sel = document.getElementById(id);
+                const val = sel.value;
+                const opts = '<option value="">All campaigns</option>' +
+                    campaigns.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+                sel.innerHTML = opts;
+                sel.value = val;
+            });
+        }
+
+        function updateClientSelects() {
+            const sel = document.getElementById('campaignClient');
+            sel.innerHTML = clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        }
+
+        function showModal(id) {
+            if (id === 'newCampaign') loadClients();
+            document.getElementById('modal-' + id).classList.add('active');
+        }
+
+        function hideModals() {
+            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+        }
+
+        // Close modal on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            m.addEventListener('click', e => { if (e.target === m) hideModals(); });
+        });
+
+        // Auto-refresh
+        function setupAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (document.getElementById('autoRefresh').checked) {
+                refreshInterval = setInterval(() => {
+                    const activeTab = document.querySelector('.tab.active').dataset.tab;
+                    if (activeTab === 'campaigns') loadCampaigns();
+                    else if (activeTab === 'leads') loadLeads();
+                    else if (activeTab === 'dms') loadDMs();
+                    checkHealth();
+                }, 5000);
+            }
+        }
+
+        document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
+
+        // Init
+        checkHealth();
+        loadCampaigns();
+        loadClients();
+        setupAutoRefresh();
+    </script>
+</body>
+</html>
