@@ -39,13 +39,17 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
 
             # Poll until complete
             max_attempts = 60
-            for _ in range(max_attempts):
+            for attempt in range(max_attempts):
                 status_data = await apify_service.poll_scrape_status(
                     scrape_job.apify_run_id
                 )
-                if status_data["status"] == "SUCCEEDED":
+                run_status = status_data["status"]
+                stats = status_data.get("stats", {})
+                logger.info(f"Poll {attempt+1}: status={run_status}, stats={stats}")
+                if run_status == "SUCCEEDED":
                     scrape_job.apify_dataset_id = status_data["defaultDatasetId"]
                     scrape_job.status = "completed"
+                    logger.info(f"Run succeeded. Dataset: {status_data['defaultDatasetId']}, usage: {status_data.get('usageTotalUsd')}")
                     break
                 elif status_data["status"] in ("FAILED", "ABORTED", "TIMED-OUT"):
                     scrape_job.status = "failed"
@@ -63,6 +67,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             raw_profiles = await apify_service.get_scrape_results(
                 scrape_job.apify_dataset_id
             )
+            logger.info(f"Raw profiles from Apify: {len(raw_profiles)} items for source_type={campaign.source_type}")
 
             # Get detailed profiles if needed (followers/comments give partial data)
             if campaign.source_type in ("followers", "comments"):

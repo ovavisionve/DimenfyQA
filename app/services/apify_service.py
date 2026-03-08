@@ -48,6 +48,7 @@ class ApifyService:
             raise ValueError(f"Unknown source type: {source_type}")
 
         input_data = self._build_input(source_type, source_value)
+        logger.info(f"Apify input for {source_type}: {input_data}")
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -58,6 +59,7 @@ class ApifyService:
             )
             response.raise_for_status()
             run_data = response.json()["data"]
+            logger.info(f"Apify run started: id={run_data['id']}, status={run_data.get('status')}")
 
         scrape_job = ScrapeJob(
             campaign_id=campaign_id,
@@ -89,7 +91,12 @@ class ApifyService:
                 timeout=60,
             )
             response.raise_for_status()
-            return response.json()
+            results = response.json()
+            logger.info(f"Dataset {dataset_id} returned {len(results)} items")
+            if results:
+                logger.info(f"First item keys: {list(results[0].keys())[:15]}")
+                logger.info(f"First item sample: username={results[0].get('username')}, fullName={results[0].get('fullName')}")
+            return results
 
     async def scrape_profiles_sync(self, usernames: list[str]) -> list[dict]:
         """Use synchronous Apify endpoint for profile scraping."""
