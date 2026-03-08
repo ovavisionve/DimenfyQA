@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import anthropic
@@ -10,6 +11,9 @@ from app.models.lead import Lead
 from app.models.client import Client
 
 logger = logging.getLogger(__name__)
+
+# Max parallel API calls for DM generation
+MAX_PARALLEL_DMS = 8
 
 COPYWRITING_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {client_business_type}.
 
@@ -120,10 +124,26 @@ class CopywritingService:
 
         return message.content[0].text.strip()
 
+    def _generate_dm_safe(self, lead_data: dict, client_config: dict) -> tuple[str, str | None, str | None]:
+        """Thread-safe DM generation. Returns (username, variant_a, variant_b)."""
+        username = lead_data.get("ig_username", "unknown")
+        try:
+            dm_text = self.generate_dm(lead_data, client_config)
+            dm_variant_b = None
+            try:
+                dm_variant_b = self.generate_dm_variant_b(lead_data, client_config, dm_text)
+            except Exception:
+                logger.warning(f"Could not generate variant B for {username}, using only variant A")
+            logger.info(f"Generated DM for lead {username}")
+            return (username, dm_text, dm_variant_b)
+        except Exception:
+            logger.exception(f"Error generating DM for lead {username}")
+            return (username, None, None)
+
     async def write_dms_batch(
         self, lead_ids: list[str], db: AsyncSession
     ) -> list[str]:
-        """Generate DMs for leads with score >= threshold. Returns list of dm-ready lead_ids."""
+        """Generate DMs for leads with score >= threshold in parallel. Returns list of dm-ready lead_ids."""
         threshold = settings.DM_SCORE_THRESHOLD
 
         result = await db.execute(
@@ -135,51 +155,62 @@ class CopywritingService:
         )
         leads = result.scalars().all()
 
-        dm_ready_ids = []
+        if not leads:
+            return []
+
+        # Get client config (same for all leads in a campaign)
+        first_lead = leads[0]
+        client_result = await db.execute(
+            select(Client).where(Client.id == first_lead.client_id)
+        )
+        client = client_result.scalar_one_or_none()
+        client_config = {
+            "business_type": client.business_type if client else "B2B automation",
+            "service_description": (client.settings or {}).get(
+                "service_description",
+                "B2B lead generation and automation services",
+            ) if client else "B2B lead generation and automation services",
+        }
+
+        # Prepare lead data map
+        lead_data_map: dict[str, tuple] = {}
         for lead in leads:
-            try:
-                # Get client config
-                client_result = await db.execute(
-                    select(Client).where(Client.id == lead.client_id)
-                )
-                client = client_result.scalar_one_or_none()
-                client_config = {
-                    "business_type": client.business_type if client else "B2B automation",
-                    "service_description": client.settings.get(
-                        "service_description",
-                        "B2B lead generation and automation services",
-                    ) if client else "B2B lead generation and automation services",
-                }
+            lead_data = {
+                "ig_username": lead.ig_username,
+                "ig_full_name": lead.ig_full_name,
+                "ig_bio": lead.ig_bio,
+                "ig_bio_clean": lead.ig_bio_clean,
+                "ig_website": lead.ig_website,
+                "lead_category": lead.lead_category,
+                "research_data": lead.research_data or "No research available",
+            }
+            lead_data_map[lead.ig_username] = (lead, lead_data)
 
-                lead_data = {
-                    "ig_username": lead.ig_username,
-                    "ig_full_name": lead.ig_full_name,
-                    "ig_bio": lead.ig_bio,
-                    "ig_bio_clean": lead.ig_bio_clean,
-                    "ig_website": lead.ig_website,
-                    "lead_category": lead.lead_category,
-                    "research_data": lead.research_data or "No research available",
-                }
+        # Generate DMs in parallel
+        logger.info(f"Generating DMs for {len(leads)} leads in parallel (max {MAX_PARALLEL_DMS} concurrent)")
+        dm_ready_ids = []
 
-                dm_text = self.generate_dm(lead_data, client_config)
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_DMS) as executor:
+            futures = {
+                executor.submit(self._generate_dm_safe, data[1], client_config): username
+                for username, data in lead_data_map.items()
+            }
+            for future in as_completed(futures):
+                username = futures[future]
+                _, dm_text, dm_variant_b = future.result()
+                if dm_text is None:
+                    continue
+
+                lead, _ = lead_data_map[username]
                 lead.dm_message = dm_text
-
-                # Generate variant B for A/B testing
-                try:
-                    dm_variant_b = self.generate_dm_variant_b(lead_data, client_config, dm_text)
+                if dm_variant_b:
                     lead.dm_variant_b = dm_variant_b
-                except Exception:
-                    logger.warning(f"Could not generate variant B for {lead.ig_username}, using only variant A")
-
                 lead.status = "dm_ready"
                 lead.dm_generated_at = datetime.now(timezone.utc)
-
                 dm_ready_ids.append(str(lead.id))
-                logger.info(f"Generated DM for lead {lead.ig_username}")
-            except Exception:
-                logger.exception(f"Error generating DM for lead {lead.ig_username}")
 
         await db.flush()
+        logger.info(f"Parallel DM generation complete: {len(dm_ready_ids)}/{len(leads)} DMs generated")
         return dm_ready_ids
 
 

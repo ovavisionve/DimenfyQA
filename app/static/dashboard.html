@@ -62,6 +62,12 @@
             letter-spacing: -0.5px;
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
         .live-badge {
             display: flex;
             align-items: center;
@@ -120,6 +126,9 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-primary {
@@ -135,6 +144,84 @@
             color: var(--red);
             border: 1px solid rgba(248,113,113,0.2);
         }
+
+        .btn-secondary {
+            background: var(--surface3);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover { border-color: var(--border2); background: var(--surface2); }
+
+        .btn-success {
+            background: var(--green-dim);
+            color: var(--green);
+            border: 1px solid rgba(52,211,153,0.2);
+        }
+
+        .btn-success:hover { background: rgba(52,211,153,0.2); }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        /* Tabs navigation */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text2);
+            transition: all 0.2s;
+            border: none;
+            background: none;
+            font-family: inherit;
+        }
+
+        .tab:hover { color: var(--text); background: var(--surface2); }
+
+        .tab.active {
+            background: var(--accent-glow);
+            color: var(--accent2);
+            box-shadow: 0 0 20px rgba(124,92,252,0.08);
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            background: var(--surface3);
+            color: var(--text3);
+            margin-left: 6px;
+        }
+
+        .tab.active .tab-badge {
+            background: rgba(124,92,252,0.3);
+            color: var(--accent2);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
         /* Pipeline steps */
         .pipeline {
@@ -171,22 +258,13 @@
             color: var(--text3);
         }
 
-        .pipe-step.active {
-            background: var(--accent-glow);
-        }
-
+        .pipe-step.active { background: var(--accent-glow); }
         .pipe-step.active .step-label { color: var(--accent2); }
         .pipe-step.active .step-value { color: var(--accent); }
-
         .pipe-step.done .step-label { color: var(--green); }
         .pipe-step.done .step-value { color: var(--green); }
 
-        .pipe-arrow {
-            color: var(--text3);
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-
+        .pipe-arrow { color: var(--text3); font-size: 18px; flex-shrink: 0; }
         .pipe-arrow.done { color: var(--green); }
 
         /* Stats row */
@@ -219,7 +297,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Timer */
         .timer {
             font-size: 13px;
             color: var(--text2);
@@ -242,15 +319,8 @@
             border-bottom: 1px solid var(--border);
         }
 
-        .leads-header h2 {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .leads-count {
-            font-size: 13px;
-            color: var(--text2);
-        }
+        .leads-header h2 { font-size: 16px; font-weight: 700; }
+        .leads-count { font-size: 13px; color: var(--text2); }
 
         .leads-table {
             width: 100%;
@@ -276,13 +346,8 @@
             transition: background 0.2s;
         }
 
-        .leads-table tbody tr:hover {
-            background: var(--surface2);
-        }
-
-        .leads-table tbody tr.new-row {
-            animation: rowAppear 0.6s ease-out;
-        }
+        .leads-table tbody tr:hover { background: var(--surface2); }
+        .leads-table tbody tr.new-row { animation: rowAppear 0.6s ease-out; }
 
         @keyframes rowAppear {
             0% { background: var(--accent-glow); transform: translateX(-10px); opacity: 0; }
@@ -302,21 +367,9 @@
             vertical-align: middle;
         }
 
-        .lead-user {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .lead-username {
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .lead-fullname {
-            font-size: 12px;
-            color: var(--text2);
-        }
+        .lead-user { display: flex; flex-direction: column; gap: 2px; }
+        .lead-username { font-weight: 600; color: var(--text); }
+        .lead-fullname { font-size: 12px; color: var(--text2); }
 
         .lead-bio {
             max-width: 250px;
@@ -338,33 +391,11 @@
             font-size: 14px;
         }
 
-        .score-high {
-            background: var(--green-dim);
-            color: var(--green);
-            border: 1px solid rgba(52, 211, 153, 0.2);
-        }
-
-        .score-mid {
-            background: var(--yellow-dim);
-            color: var(--yellow);
-            border: 1px solid rgba(251, 191, 36, 0.2);
-        }
-
-        .score-low {
-            background: var(--red-dim);
-            color: var(--red);
-            border: 1px solid rgba(248, 113, 113, 0.2);
-        }
-
-        .score-pending {
-            background: var(--surface3);
-            color: var(--text3);
-            border: 1px solid var(--border);
-        }
-
-        .score-badge.pop {
-            animation: scorePopIn 0.4s ease-out;
-        }
+        .score-high { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
+        .score-mid { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
+        .score-low { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+        .score-pending { background: var(--surface3); color: var(--text3); border: 1px solid var(--border); }
+        .score-badge.pop { animation: scorePopIn 0.4s ease-out; }
 
         .status-pill {
             display: inline-flex;
@@ -376,30 +407,11 @@
             font-weight: 600;
         }
 
-        .status-scraped {
-            background: var(--blue-dim);
-            color: var(--blue);
-        }
-
-        .status-scoring {
-            background: var(--yellow-dim);
-            color: var(--yellow);
-        }
-
-        .status-scored {
-            background: var(--orange-dim);
-            color: var(--orange);
-        }
-
-        .status-researched {
-            background: var(--cyan-dim);
-            color: var(--cyan);
-        }
-
-        .status-dm_ready {
-            background: var(--green-dim);
-            color: var(--green);
-        }
+        .status-scraped { background: var(--blue-dim); color: var(--blue); }
+        .status-scoring { background: var(--yellow-dim); color: var(--yellow); }
+        .status-scored { background: var(--orange-dim); color: var(--orange); }
+        .status-researched { background: var(--cyan-dim); color: var(--cyan); }
+        .status-dm_ready { background: var(--green-dim); color: var(--green); }
 
         .spinner {
             display: inline-block;
@@ -411,9 +423,7 @@
             animation: spin 0.8s linear infinite;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .category-tag {
             font-size: 11px;
@@ -434,27 +444,16 @@
             cursor: pointer;
         }
 
-        .dm-preview:hover {
-            color: var(--accent2);
-        }
+        .dm-preview:hover { color: var(--accent2); }
 
         .table-scroll {
             max-height: 520px;
             overflow-y: auto;
         }
 
-        .table-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .table-scroll::-webkit-scrollbar-track {
-            background: var(--surface);
-        }
-
-        .table-scroll::-webkit-scrollbar-thumb {
-            background: var(--border2);
-            border-radius: 3px;
-        }
+        .table-scroll::-webkit-scrollbar { width: 6px; }
+        .table-scroll::-webkit-scrollbar-track { background: var(--surface); }
+        .table-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
         /* Activity log */
         .activity-section {
@@ -483,12 +482,7 @@
         .activity-log::-webkit-scrollbar { width: 6px; }
         .activity-log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-        .log-entry {
-            padding: 4px 0;
-            display: flex;
-            gap: 12px;
-            animation: logIn 0.3s ease-out;
-        }
+        .log-entry { padding: 4px 0; display: flex; gap: 12px; animation: logIn 0.3s ease-out; }
 
         @keyframes logIn {
             from { opacity: 0; transform: translateY(-5px); }
@@ -526,10 +520,7 @@
             overflow-y: auto;
         }
 
-        .modal h3 {
-            font-size: 18px;
-            margin-bottom: 16px;
-        }
+        .modal h3 { font-size: 18px; margin-bottom: 16px; }
 
         .modal .dm-text {
             background: var(--surface2);
@@ -576,8 +567,266 @@
             margin-bottom: 16px;
         }
 
+        /* ===== DM GALLERY TAB ===== */
+        .dm-gallery {
+            display: grid;
+            gap: 16px;
+        }
+
+        .dm-search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .dm-search-bar input {
+            flex: 1;
+            min-width: 250px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .dm-search-bar input::placeholder { color: var(--text3); }
+
+        .dm-search-bar select {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .dm-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .dm-card:hover { border-color: var(--border2); }
+
+        .dm-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+
+        .dm-card-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dm-card-user .username {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .dm-card-user .fullname {
+            font-size: 12px;
+            color: var(--text2);
+        }
+
+        .dm-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dm-card-body {
+            padding: 20px;
+        }
+
+        .dm-variant-toggle {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+
+        .dm-variant-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--text2);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .dm-variant-btn.active {
+            background: var(--accent-glow);
+            color: var(--accent2);
+            border-color: rgba(124,92,252,0.3);
+        }
+
+        .dm-card-text {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            color: var(--text);
+        }
+
+        .dm-card-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .dm-card-meta span {
+            font-size: 11px;
+            color: var(--text3);
+        }
+
+        /* ===== EXPORT TAB ===== */
+        .export-section {
+            display: grid;
+            gap: 24px;
+        }
+
+        .export-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .export-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .export-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .export-card .export-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .export-card h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .export-card p {
+            font-size: 13px;
+            color: var(--text2);
+            margin-bottom: 16px;
+        }
+
+        .export-preview {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .export-preview-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .export-preview-header h3 { font-size: 16px; font-weight: 700; }
+
+        .export-preview-body {
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .export-preview-body pre {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text2);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .export-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .export-stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .export-stat .num {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .export-stat .label {
+            font-size: 11px;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Copy tooltip */
+        .copy-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--green);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            z-index: 200;
+            animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 1.5s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .copy-toast.show { opacity: 1; }
+
+        @keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
         @media (max-width: 900px) {
             .stats-row { grid-template-columns: repeat(3, 1fr); }
+            .export-cards { grid-template-columns: 1fr; }
+            .export-stats { grid-template-columns: repeat(2, 1fr); }
             .container { padding: 16px; }
             .pipeline { flex-wrap: wrap; }
         }
@@ -586,9 +835,11 @@
 <body>
     <div class="header">
         <div class="logo">IG DM Engine</div>
-        <div class="live-badge">
-            <span class="live-dot"></span>
-            LIVE <span class="timer" id="timer">00:00</span>
+        <div class="header-right">
+            <div class="live-badge">
+                <span class="live-dot"></span>
+                LIVE <span class="timer" id="timer">00:00</span>
+            </div>
         </div>
     </div>
 
@@ -599,89 +850,184 @@
             <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
         </div>
 
-        <!-- Pipeline visualization -->
-        <div class="pipeline" id="pipeline">
-            <div class="pipe-step" data-step="scraping">
-                <div class="step-label">Scraping</div>
-                <div class="step-value" id="step-scraping">-</div>
+        <!-- Tab navigation -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('pipeline')" id="tab-pipeline">
+                Pipeline
+            </button>
+            <button class="tab" onclick="switchTab('dms')" id="tab-dms">
+                DMs <span class="tab-badge" id="dmsBadge">0</span>
+            </button>
+            <button class="tab" onclick="switchTab('export')" id="tab-export">
+                Export
+            </button>
+        </div>
+
+        <!-- =============== PIPELINE TAB =============== -->
+        <div class="tab-content active" id="content-pipeline">
+            <div class="pipeline" id="pipeline">
+                <div class="pipe-step" data-step="scraping">
+                    <div class="step-label">Scraping</div>
+                    <div class="step-value" id="step-scraping">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="scoring">
+                    <div class="step-label">Scoring</div>
+                    <div class="step-value" id="step-scoring">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="researching">
+                    <div class="step-label">Research</div>
+                    <div class="step-value" id="step-research">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="writing">
+                    <div class="step-label">DM Copy</div>
+                    <div class="step-value" id="step-dms">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="ready">
+                    <div class="step-label">Ready</div>
+                    <div class="step-value" id="step-ready">-</div>
+                </div>
             </div>
-            <div class="pipe-arrow">&#x2192;</div>
-            <div class="pipe-step" data-step="scoring">
-                <div class="step-label">Scoring</div>
-                <div class="step-value" id="step-scoring">-</div>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
+                    <div class="stat-label">Total Leads</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--accent)" id="avgScore">-</div>
+                    <div class="stat-label">Avg Score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--green)" id="qualified">0</div>
+                    <div class="stat-label">Qualified (70+)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--cyan)" id="dmsGenerated">0</div>
+                    <div class="stat-label">DMs Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
+                    <div class="stat-label">Status</div>
+                </div>
             </div>
-            <div class="pipe-arrow">&#x2192;</div>
-            <div class="pipe-step" data-step="researching">
-                <div class="step-label">Research</div>
-                <div class="step-value" id="step-research">-</div>
+
+            <div class="leads-section">
+                <div class="leads-header">
+                    <h2>Leads Pipeline</h2>
+                    <span class="leads-count" id="leadsCount">0 leads</span>
+                </div>
+                <div class="table-scroll" id="tableScroll">
+                    <table class="leads-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Username</th>
+                                <th>Bio</th>
+                                <th>Followers</th>
+                                <th>Score</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>DM</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsBody">
+                            <tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F50D;</div>Select a campaign and start the pipeline</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="pipe-arrow">&#x2192;</div>
-            <div class="pipe-step" data-step="writing">
-                <div class="step-label">DM Copy</div>
-                <div class="step-value" id="step-dms">-</div>
-            </div>
-            <div class="pipe-arrow">&#x2192;</div>
-            <div class="pipe-step" data-step="ready">
-                <div class="step-label">Ready</div>
-                <div class="step-value" id="step-ready">-</div>
+
+            <div class="activity-section">
+                <div class="activity-header">Activity Log</div>
+                <div class="activity-log" id="activityLog"></div>
             </div>
         </div>
 
-        <!-- Stats -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
-                <div class="stat-label">Total Leads</div>
+        <!-- =============== DM GALLERY TAB =============== -->
+        <div class="tab-content" id="content-dms">
+            <div class="dm-search-bar">
+                <input type="text" id="dmSearch" placeholder="Search by username, name, or DM content..." oninput="filterDMs()">
+                <select id="dmCategoryFilter" onchange="filterDMs()">
+                    <option value="">All Categories</option>
+                    <option value="coach">Coach</option>
+                    <option value="ecommerce">E-commerce</option>
+                    <option value="saas">SaaS</option>
+                    <option value="agency">Agency</option>
+                    <option value="creator">Creator</option>
+                    <option value="local_business">Local Business</option>
+                    <option value="other">Other</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" onclick="copyAllDMs()">Copy All DMs</button>
             </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: var(--accent)" id="avgScore">-</div>
-                <div class="stat-label">Avg Score</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: var(--green)" id="qualified">0</div>
-                <div class="stat-label">Qualified (70+)</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: var(--cyan)" id="dmsGenerated">0</div>
-                <div class="stat-label">DMs Generated</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
-                <div class="stat-label">Status</div>
+
+            <div class="dm-gallery" id="dmGallery">
+                <div class="empty-state">
+                    <div class="empty-icon">&#x1F4AC;</div>
+                    No DMs generated yet. Run the pipeline first.
+                </div>
             </div>
         </div>
 
-        <!-- Leads table -->
-        <div class="leads-section">
-            <div class="leads-header">
-                <h2>Leads Pipeline</h2>
-                <span class="leads-count" id="leadsCount">0 leads</span>
-            </div>
-            <div class="table-scroll" id="tableScroll">
-                <table class="leads-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Username</th>
-                            <th>Bio</th>
-                            <th>Followers</th>
-                            <th>Score</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>DM</th>
-                        </tr>
-                    </thead>
-                    <tbody id="leadsBody">
-                        <tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F50D;</div>Select a campaign and start the pipeline</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <!-- =============== EXPORT TAB =============== -->
+        <div class="tab-content" id="content-export">
+            <div class="export-section">
+                <div class="export-stats">
+                    <div class="export-stat">
+                        <div class="num" id="exportTotal">0</div>
+                        <div class="label">DMs Ready</div>
+                    </div>
+                    <div class="export-stat">
+                        <div class="num" id="exportVariantA">0</div>
+                        <div class="label">Variant A</div>
+                    </div>
+                    <div class="export-stat">
+                        <div class="num" id="exportVariantB">0</div>
+                        <div class="label">Variant B</div>
+                    </div>
+                    <div class="export-stat">
+                        <div class="num" id="exportAvgScore">-</div>
+                        <div class="label">Avg Score</div>
+                    </div>
+                </div>
 
-        <!-- Activity log -->
-        <div class="activity-section">
-            <div class="activity-header">Activity Log</div>
-            <div class="activity-log" id="activityLog"></div>
+                <div class="export-cards">
+                    <div class="export-card" onclick="downloadCSV()">
+                        <div class="export-icon">&#x1F4C4;</div>
+                        <h3>CSV Export</h3>
+                        <p>Download leads as CSV for JarveePro import. Includes username, score, and DM text.</p>
+                        <button class="btn btn-success btn-sm">Download CSV</button>
+                    </div>
+                    <div class="export-card" onclick="downloadJSON()">
+                        <div class="export-icon">&#x1F4CB;</div>
+                        <h3>JSON Export</h3>
+                        <p>Full data export with research, scores, and both DM variants. Perfect for integrations.</p>
+                        <button class="btn btn-success btn-sm">Download JSON</button>
+                    </div>
+                    <div class="export-card" onclick="downloadExcel()">
+                        <div class="export-icon">&#x1F4CA;</div>
+                        <h3>Excel Export</h3>
+                        <p>Formatted spreadsheet with color-coded scores, filters, and all lead data.</p>
+                        <button class="btn btn-success btn-sm">Download Excel</button>
+                    </div>
+                </div>
+
+                <div class="export-preview">
+                    <div class="export-preview-header">
+                        <h3>Data Preview</h3>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="previewJSON()">JSON</button>
+                            <button class="btn btn-secondary btn-sm" onclick="previewCSV()">CSV</button>
+                        </div>
+                    </div>
+                    <div class="export-preview-body" id="exportPreviewBody">
+                        <pre id="exportPreviewContent" style="color:var(--text3)">Click a preview button to see export data...</pre>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -693,14 +1039,22 @@
             <div class="dm-text" id="dmTextA"></div>
             <div class="dm-label" id="dmLabelB" style="display:none">Variant B</div>
             <div class="dm-text" id="dmTextB" style="display:none"></div>
-            <button class="close-btn" onclick="closeDM()">Cerrar</button>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button class="btn btn-success btn-sm" style="flex:1" onclick="copyDMFromModal('A')">Copy Variant A</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1" id="copyBBtn" style="display:none" onclick="copyDMFromModal('B')">Copy Variant B</button>
+            </div>
+            <button class="close-btn" onclick="closeDM()" style="margin-top:8px;width:100%;padding:10px;background:var(--surface3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;">Cerrar</button>
         </div>
     </div>
+
+    <!-- Copy Toast -->
+    <div class="copy-toast" id="copyToast">Copied to clipboard!</div>
 
     <script>
         const API = '/api/v1';
         let activeCampaignId = null;
         let previousLeads = {};
+        let currentLeads = [];
         let timerStart = null;
         let timerInterval = null;
         let pollInterval = null;
@@ -710,6 +1064,17 @@
         async function init() {
             await loadCampaigns();
             log('Dashboard initialized', 'info');
+        }
+
+        // ===== TAB NAVIGATION =====
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.getElementById(`content-${tab}`).classList.add('active');
+
+            if (tab === 'dms') renderDMGallery();
+            if (tab === 'export') updateExportStats();
         }
 
         // ===== CAMPAIGNS =====
@@ -733,7 +1098,6 @@
                         startPolling();
                     }
                 };
-                // Auto-select first (most recent) campaign
                 if (campaigns.length > 0) {
                     const last = campaigns[0];
                     sel.value = last.id;
@@ -778,6 +1142,7 @@
                 const res = await fetch(`${API}/campaigns/${activeCampaignId}/reset`, { method: 'POST' });
                 if (res.ok) {
                     previousLeads = {};
+                    currentLeads = [];
                     pipelineRunning = false;
                     stopTimer();
                     document.getElementById('timer').textContent = '00:00';
@@ -794,6 +1159,7 @@
                     document.querySelectorAll('.pipe-step').forEach(s => s.classList.remove('active','done'));
                     document.querySelectorAll('.pipe-arrow').forEach(a => a.classList.remove('done'));
                     document.getElementById('activityLog').innerHTML = '';
+                    document.getElementById('dmsBadge').textContent = '0';
                     log('Campaign reset — ready to start fresh', 'warn');
                     await loadCampaigns();
                 } else {
@@ -821,10 +1187,15 @@
                 const campaign = await campRes.json();
                 const leads = await leadsRes.json();
 
+                currentLeads = leads;
                 updateCampaignStatus(campaign);
                 updatePipeline(campaign, leads);
                 updateStats(leads);
                 updateLeadsTable(leads);
+
+                // Update DMs badge
+                const dmCount = leads.filter(l => l.dm_message).length;
+                document.getElementById('dmsBadge').textContent = dmCount;
             } catch(e) {
                 // silent retry
             }
@@ -847,7 +1218,6 @@
             };
             statusEl.style.color = statusMap[campaign.status] || 'var(--text2)';
 
-            // Auto-start timer when pipeline is active
             if (['scraping','scoring','researching','writing_dms'].includes(campaign.status)) {
                 if (!pipelineRunning) {
                     pipelineRunning = true;
@@ -863,15 +1233,6 @@
         }
 
         function updatePipeline(campaign, leads) {
-            const counts = { scraped: 0, scored: 0, researched: 0, dm_ready: 0 };
-            leads.forEach(l => {
-                if (l.status === 'scraped') counts.scraped++;
-                if (l.status === 'scored') { counts.scored++; counts.scraped++; }
-                if (l.status === 'researched') { counts.researched++; counts.scored++; counts.scraped++; }
-                if (l.status === 'dm_ready') { counts.dm_ready++; counts.researched++; counts.scored++; counts.scraped++; }
-            });
-
-            // Actually count all that passed each phase
             let totalScraped = leads.length;
             let totalScored = leads.filter(l => l.score !== null && l.score !== undefined).length;
             let totalResearched = leads.filter(l => ['researched','dm_ready'].includes(l.status)).length;
@@ -883,7 +1244,6 @@
             document.getElementById('step-dms').textContent = totalDMReady || '-';
             document.getElementById('step-ready').textContent = totalDMReady || '-';
 
-            // Highlight active step
             const status = campaign.status;
             const steps = document.querySelectorAll('.pipe-step');
             const arrows = document.querySelectorAll('.pipe-arrow');
@@ -891,18 +1251,17 @@
             steps.forEach(s => { s.classList.remove('active', 'done'); });
             arrows.forEach(a => { a.classList.remove('done'); });
 
-            const phaseOrder = ['scraping', 'scoring', 'researching', 'writing', 'ready'];
             const statusToPhase = {
-                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'completed': 4, 'ready': -1
+                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'completed': 4
             };
 
             const currentIdx = statusToPhase[status] ?? -1;
             steps.forEach((s, i) => {
-                if (i < currentIdx) { s.classList.add('done'); }
-                if (i === currentIdx) { s.classList.add('active'); }
+                if (i < currentIdx) s.classList.add('done');
+                if (i === currentIdx) s.classList.add('active');
             });
             arrows.forEach((a, i) => {
-                if (i < currentIdx) { a.classList.add('done'); }
+                if (i < currentIdx) a.classList.add('done');
             });
 
             if (status === 'completed') {
@@ -935,7 +1294,6 @@
                 return;
             }
 
-            // Sort: dm_ready first, then by score desc, then scraped at bottom
             leads.sort((a, b) => {
                 const order = { dm_ready: 0, researched: 1, scored: 2, scraped: 3 };
                 const oa = order[a.status] ?? 5;
@@ -950,7 +1308,6 @@
                 const scoreChanged = previousLeads[lead.id] && previousLeads[lead.id].score !== lead.score && lead.score !== null;
                 const rowClass = (isNew || wasUpdated) ? 'new-row' : '';
 
-                // Log new events
                 if (isNew && Object.keys(previousLeads).length > 0) {
                     log(`New lead scraped: @${lead.ig_username || 'unknown'}`, 'info');
                 }
@@ -967,7 +1324,6 @@
                     : `<span class="score-badge score-pending"><span class="spinner"></span></span>`;
 
                 const statusHTML = `<span class="status-pill status-${lead.status}">${lead.status === 'scraped' ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
-
                 const catHTML = lead.lead_category ? `<span class="category-tag">${lead.lead_category}</span>` : '-';
 
                 const dmHTML = lead.dm_message
@@ -993,9 +1349,168 @@
 
             body.innerHTML = newHTML;
 
-            // Save state for diff
             previousLeads = {};
             leads.forEach(l => { previousLeads[l.id] = { status: l.status, score: l.score }; });
+        }
+
+        // ===== DM GALLERY =====
+        function renderDMGallery() {
+            const gallery = document.getElementById('dmGallery');
+            const dmLeads = getDMFilteredLeads();
+
+            if (dmLeads.length === 0) {
+                gallery.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No DMs generated yet. Run the pipeline first.</div>';
+                return;
+            }
+
+            gallery.innerHTML = dmLeads.map(lead => {
+                const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
+                const hasB = !!lead.dm_variant_b;
+                const leadId = lead.id.replace(/-/g, '');
+
+                return `<div class="dm-card" data-username="${(lead.ig_username||'').toLowerCase()}" data-category="${lead.lead_category||''}" data-name="${(lead.ig_full_name||'').toLowerCase()}" data-dm="${(lead.dm_message||'').toLowerCase()}">
+                    <div class="dm-card-header">
+                        <div class="dm-card-user">
+                            <div>
+                                <div class="username">@${lead.ig_username || '—'}</div>
+                                <div class="fullname">${lead.ig_full_name || ''}</div>
+                            </div>
+                            <span class="score-badge ${scoreClass}" style="margin-left:12px">${lead.score}</span>
+                            <span class="category-tag" style="margin-left:8px">${lead.lead_category || 'other'}</span>
+                        </div>
+                        <div class="dm-card-actions">
+                            <button class="btn btn-success btn-sm" onclick="copyDM('${escapeHTML(lead.ig_username)}', 'A')">Copy A</button>
+                            ${hasB ? `<button class="btn btn-secondary btn-sm" onclick="copyDM('${escapeHTML(lead.ig_username)}', 'B')">Copy B</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="dm-card-body">
+                        <div class="dm-variant-toggle">
+                            <button class="dm-variant-btn active" onclick="toggleVariant(this, '${leadId}', 'A')">Variant A</button>
+                            ${hasB ? `<button class="dm-variant-btn" onclick="toggleVariant(this, '${leadId}', 'B')">Variant B</button>` : ''}
+                        </div>
+                        <div class="dm-card-text" id="dm-text-${leadId}">${escapeHTML(lead.dm_message || '')}</div>
+                        <div class="dm-card-meta">
+                            <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
+                            <span>${lead.lead_category || 'other'}</span>
+                            ${lead.research_summary ? '<span>Has research</span>' : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function getDMFilteredLeads() {
+            const search = (document.getElementById('dmSearch').value || '').toLowerCase();
+            const category = document.getElementById('dmCategoryFilter').value;
+
+            return currentLeads.filter(l => {
+                if (!l.dm_message) return false;
+                if (category && l.lead_category !== category) return false;
+                if (search) {
+                    const hay = `${l.ig_username||''} ${l.ig_full_name||''} ${l.dm_message||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        function filterDMs() {
+            renderDMGallery();
+        }
+
+        function toggleVariant(btn, leadId, variant) {
+            const card = btn.closest('.dm-card-body');
+            card.querySelectorAll('.dm-variant-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+
+            const textEl = document.getElementById(`dm-text-${leadId}`);
+            textEl.textContent = variant === 'A' ? (lead.dm_message || '') : (lead.dm_variant_b || '');
+        }
+
+        function copyDM(username, variant) {
+            const lead = currentLeads.find(l => l.ig_username === username);
+            if (!lead) return;
+            const text = variant === 'A' ? lead.dm_message : lead.dm_variant_b;
+            if (text) {
+                navigator.clipboard.writeText(text);
+                showToast(`Copied ${variant === 'A' ? 'Variant A' : 'Variant B'} for @${username}`);
+            }
+        }
+
+        function copyAllDMs() {
+            const dmLeads = getDMFilteredLeads();
+            if (dmLeads.length === 0) return;
+            const text = dmLeads.map(l => `@${l.ig_username}\n${l.dm_message}\n`).join('\n---\n\n');
+            navigator.clipboard.writeText(text);
+            showToast(`Copied ${dmLeads.length} DMs to clipboard`);
+        }
+
+        function copyDMFromModal(variant) {
+            const text = variant === 'A'
+                ? document.getElementById('dmTextA').textContent
+                : document.getElementById('dmTextB').textContent;
+            if (text) {
+                navigator.clipboard.writeText(text);
+                showToast(`Copied ${variant === 'A' ? 'Variant A' : 'Variant B'}`);
+            }
+        }
+
+        // ===== EXPORT TAB =====
+        function updateExportStats() {
+            const dmLeads = currentLeads.filter(l => l.dm_message);
+            document.getElementById('exportTotal').textContent = dmLeads.length;
+            document.getElementById('exportVariantA').textContent = dmLeads.filter(l => l.dm_message).length;
+            document.getElementById('exportVariantB').textContent = dmLeads.filter(l => l.dm_variant_b).length;
+
+            if (dmLeads.length > 0) {
+                const avg = Math.round(dmLeads.reduce((a,l) => a + (l.score||0), 0) / dmLeads.length);
+                document.getElementById('exportAvgScore').textContent = avg;
+            } else {
+                document.getElementById('exportAvgScore').textContent = '-';
+            }
+        }
+
+        function downloadCSV() {
+            if (!activeCampaignId) return;
+            window.open(`${API}/export/${activeCampaignId}/csv`, '_blank');
+            showToast('Downloading CSV...');
+        }
+
+        function downloadJSON() {
+            if (!activeCampaignId) return;
+            window.open(`${API}/export/${activeCampaignId}/json`, '_blank');
+            showToast('Downloading JSON...');
+        }
+
+        function downloadExcel() {
+            if (!activeCampaignId) return;
+            window.open(`${API}/export/${activeCampaignId}/excel`, '_blank');
+            showToast('Downloading Excel...');
+        }
+
+        async function previewJSON() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/export/${activeCampaignId}/json`);
+                const data = await res.json();
+                document.getElementById('exportPreviewContent').textContent = JSON.stringify(data, null, 2);
+            } catch(e) {
+                document.getElementById('exportPreviewContent').textContent = 'Error loading preview: ' + e.message;
+            }
+        }
+
+        async function previewCSV() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/export/${activeCampaignId}/csv`);
+                const text = await res.text();
+                document.getElementById('exportPreviewContent').textContent = text;
+            } catch(e) {
+                document.getElementById('exportPreviewContent').textContent = 'Error loading preview: ' + e.message;
+            }
         }
 
         // ===== HELPERS =====
@@ -1012,7 +1527,7 @@
 
         function escapeHTML(s) {
             if (!s) return '';
-            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
 
         function log(msg, type = '') {
@@ -1022,7 +1537,6 @@
             entry.className = 'log-entry';
             entry.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type}">${msg}</span>`;
             logEl.prepend(entry);
-            // Keep max 50 entries
             while (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
         }
 
@@ -1045,19 +1559,29 @@
         function showDM(username, dmA, dmB) {
             document.getElementById('dmModalTitle').textContent = `DM for @${username}`;
             document.getElementById('dmTextA').textContent = dmA;
+            const copyBBtn = document.getElementById('copyBBtn');
             if (dmB) {
                 document.getElementById('dmLabelB').style.display = 'block';
                 document.getElementById('dmTextB').style.display = 'block';
                 document.getElementById('dmTextB').textContent = dmB;
+                copyBBtn.style.display = 'block';
             } else {
                 document.getElementById('dmLabelB').style.display = 'none';
                 document.getElementById('dmTextB').style.display = 'none';
+                copyBBtn.style.display = 'none';
             }
             document.getElementById('dmModal').classList.add('show');
         }
 
         function closeDM() {
             document.getElementById('dmModal').classList.remove('show');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('copyToast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         // Start

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -9,6 +10,9 @@ from app.config import settings
 from app.models.lead import Lead
 
 logger = logging.getLogger(__name__)
+
+# Max parallel research API calls
+MAX_PARALLEL_RESEARCH = 8
 
 RESEARCH_PROMPT = """Busca información sobre esta persona/negocio que pueda usarse para escribir un DM personalizado en Instagram.
 
@@ -124,9 +128,12 @@ class ResearchService:
             await db.flush()
             return researched_ids
 
-        researched_ids = []
-        for lead in leads:
-            try:
+        # Research leads in parallel using asyncio semaphore
+        logger.info(f"Researching {len(leads)} leads in parallel (max {MAX_PARALLEL_RESEARCH} concurrent)")
+        semaphore = asyncio.Semaphore(MAX_PARALLEL_RESEARCH)
+
+        async def _research_one(lead):
+            async with semaphore:
                 lead_data = {
                     "ig_username": lead.ig_username,
                     "ig_full_name": lead.ig_full_name,
@@ -135,24 +142,23 @@ class ResearchService:
                     "ig_website": lead.ig_website,
                     "lead_category": lead.lead_category,
                 }
-                research_text = await self.research_lead(lead_data)
-
-                lead.research_data = research_text
-                lead.research_summary = research_text[:500]
+                try:
+                    research_text = await self.research_lead(lead_data)
+                    lead.research_data = research_text
+                    lead.research_summary = research_text[:500]
+                    logger.info(f"Researched lead {lead.ig_username}")
+                except Exception:
+                    logger.exception(f"Error researching lead {lead.ig_username}")
+                # Mark as researched even on failure to not block pipeline
                 lead.status = "researched"
                 lead.researched_at = datetime.now(timezone.utc)
+                return str(lead.id)
 
-                researched_ids.append(str(lead.id))
-                logger.info(f"Researched lead {lead.ig_username}")
-            except Exception:
-                logger.exception(f"Error researching lead {lead.ig_username}")
-                # Don't block pipeline — mark as researched even on failure
-                lead.status = "researched"
-                lead.researched_at = datetime.now(timezone.utc)
-                researched_ids.append(str(lead.id))
+        researched_ids = await asyncio.gather(*[_research_one(lead) for lead in leads])
 
         await db.flush()
-        return researched_ids
+        logger.info(f"Parallel research complete: {len(researched_ids)}/{len(leads)} leads researched")
+        return list(researched_ids)
 
 
 research_service = ResearchService()
