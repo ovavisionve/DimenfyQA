@@ -15,10 +15,14 @@ logger = logging.getLogger(__name__)
 
 APIFY_BASE_URL = "https://api.apify.com/v2"
 
+# Apify actors — using official/free-tier-compatible actors only
+# Profile scraper: $2.60/1K results, works with $5/month free credit (~1,900/month)
+# Comment scraper: $2.30/1K results, works with $5/month free credit (~2,100/month)
+# Followers scraper: requires cookies + paid plan — avoid for now
 ACTORS = {
-    "followers": "louisdeconinck~instagram-following-scraper",
-    "comments": "apidojo~instagram-comments-scraper",
-    "profiles": "apify~instagram-profile-scraper",
+    "followers": "apify~instagram-profile-scraper",  # fallback to profile scraper
+    "comments": "apify~instagram-comment-scraper",    # official free-tier compatible
+    "profiles": "apify~instagram-profile-scraper",    # official free-tier compatible
 }
 
 
@@ -190,14 +194,17 @@ class ApifyService:
 
     def _build_input(self, source_type: str, source_value: str, max_leads: int = 0) -> dict:
         if source_type == "followers":
-            data: dict = {"usernames": [source_value]}
-            if max_leads > 0:
-                data["resultsLimit"] = max_leads
-            return data
+            # "followers" now uses the profile scraper as fallback (free tier).
+            # Treat source_value as comma-separated usernames to scrape profiles for.
+            usernames = [u.strip() for u in source_value.split(",") if u.strip()]
+            if not usernames:
+                usernames = [source_value]
+            return {"usernames": usernames}
         elif source_type == "comments":
-            data = {"directUrls": [source_value]}
+            # apify~instagram-comment-scraper uses directUrls + resultsPerPage
+            data: dict = {"directUrls": [source_value]}
             if max_leads > 0:
-                data["resultsLimit"] = max_leads
+                data["resultsPerPage"] = max_leads
             return data
         elif source_type == "profiles":
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]
