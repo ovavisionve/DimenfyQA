@@ -32,8 +32,8 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             # Start scrape job (use max_leads from campaign settings if set)
             max_leads = (campaign.settings or {}).get("max_leads", 0)
 
-            update_progress(campaign_id, "scraping",
-                            f"Starting Apify scraper for @{campaign.source_value}...",
+            await update_progress(campaign_id, "scraping",
+                            f"Starting Apify scraper for @{campaign.source_value[:50]}...",
                             detail=f"Source: {campaign.source_type}, target: {max_leads or 'all'} leads")
 
             scrape_job = await apify_service.start_scrape(
@@ -55,7 +55,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 items_count = stats.get("itemsCount", 0) if isinstance(stats, dict) else 0
                 logger.info(f"Poll {attempt+1}: status={run_status}, stats={stats}")
 
-                update_progress(campaign_id, "scraping",
+                await update_progress(campaign_id, "scraping",
                                 f"Apify running... ({run_status})",
                                 current=attempt + 1, total=max_attempts,
                                 detail=f"Poll {attempt+1}/{max_attempts} | Items found: {items_count}")
@@ -78,7 +78,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 raise RuntimeError("Apify run polling timed out after 5 minutes")
 
             # Get results
-            update_progress(campaign_id, "scraping",
+            await update_progress(campaign_id, "scraping",
                             "Downloading profiles from Apify...",
                             detail="Fetching dataset results")
 
@@ -97,7 +97,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                         chunk_num = i // 50 + 1
                         chunk = usernames[i:i + 50]
 
-                        update_progress(campaign_id, "scraping",
+                        await update_progress(campaign_id, "scraping",
                                         f"Fetching detailed profiles ({chunk_num}/{total_chunks})...",
                                         current=chunk_num, total=total_chunks,
                                         detail=f"Batch {chunk_num}: {len(chunk)} profiles")
@@ -107,7 +107,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                     raw_profiles = detailed_profiles
 
             # Save leads with dedup
-            update_progress(campaign_id, "scraping",
+            await update_progress(campaign_id, "scraping",
                             f"Saving {len(raw_profiles)} profiles to database...",
                             detail="Deduplicating and storing leads")
 
@@ -128,7 +128,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             lead_ids = [str(row[0]) for row in lead_result.fetchall()]
             logger.info(f"Scraped {saved} leads for campaign {campaign_id}")
 
-            update_progress(campaign_id, "scraping",
+            await update_progress(campaign_id, "scraping",
                             f"Scraping complete! {saved} leads saved.",
                             current=saved, total=saved,
                             detail="Moving to scoring phase...")

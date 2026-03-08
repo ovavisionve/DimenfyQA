@@ -97,9 +97,22 @@ async def _update_progress(campaign_id: str, progress: dict):
             await db.commit()
 
 
-def update_progress(campaign_id: str, phase: str, message: str,
-                    current: int = 0, total: int = 0, detail: str = ""):
-    """Sync wrapper to update campaign progress from Celery tasks."""
+async def update_progress(campaign_id: str, phase: str, message: str,
+                          current: int = 0, total: int = 0, detail: str = ""):
+    """Async function to update campaign progress. Must be awaited from async task context."""
+    progress = {
+        "phase": phase,
+        "message": message,
+        "current": current,
+        "total": total,
+        "detail": detail,
+    }
+    await _update_progress(campaign_id, progress)
+
+
+def sync_update_progress(campaign_id: str, phase: str, message: str,
+                         current: int = 0, total: int = 0, detail: str = ""):
+    """Sync version for use in ThreadPoolExecutor callbacks (runs in separate thread)."""
     progress = {
         "phase": phase,
         "message": message,

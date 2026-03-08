@@ -159,7 +159,9 @@ class ResearchService:
                 completed_count += 1
                 if progress_callback:
                     try:
-                        progress_callback(completed_count, len(leads), lead.ig_username)
+                        result = progress_callback(completed_count, len(leads), lead.ig_username)
+                        if asyncio.iscoroutine(result):
+                            await result
                     except Exception:
                         pass
                 return str(lead.id)

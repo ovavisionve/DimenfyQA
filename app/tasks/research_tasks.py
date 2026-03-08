@@ -37,23 +37,26 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
 
             cid = str(campaign_id) if campaign_id else None
             if cid:
-                update_progress(cid, "researching",
+                await update_progress(cid, "researching",
                                 f"Starting research on qualified leads...",
                                 current=0, total=len(lead_ids),
                                 detail="Filtering leads by score threshold")
 
-            researched_ids = await research_service.research_leads_batch(
-                lead_ids, db, progress_callback=lambda cur, tot, uname:
-                    update_progress(cid, "researching",
+            async def _research_progress(cur, tot, uname):
+                if cid:
+                    await update_progress(cid, "researching",
                                     f"Researching lead {cur}/{tot}: @{uname}",
                                     current=cur, total=tot,
-                                    detail=f"Using 8 parallel requests") if cid else None
+                                    detail="Using 8 parallel requests")
+
+            researched_ids = await research_service.research_leads_batch(
+                lead_ids, db, progress_callback=_research_progress
             )
             await db.commit()
             logger.info(f"Researched {len(researched_ids)} leads")
 
             if cid:
-                update_progress(cid, "researching",
+                await update_progress(cid, "researching",
                                 f"Research complete! {len(researched_ids)} leads researched.",
                                 current=len(researched_ids), total=len(researched_ids),
                                 detail="Moving to DM copywriting phase...")

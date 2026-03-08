@@ -1,7 +1,12 @@
 """Seed database with test data for development."""
 
 import asyncio
+import sys
 import uuid
+from pathlib import Path
+
+# Ensure app module is importable when running from scripts/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import select
 
