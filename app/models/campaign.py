@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,7 +16,7 @@ class Campaign(Base, UUIDMixin, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    source_value: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_value: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", server_default="pending")
     settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
     stats: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
