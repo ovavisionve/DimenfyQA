@@ -2,7 +2,7 @@ import logging
 
 from app.tasks.celery_app import celery_app
 from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
-from app.database import async_session
+from app.database import create_worker_session
 from app.services.copywriting_service import copywriting_service
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
     logger.info(f"Writing DMs for {len(lead_ids)} candidates (attempt {self.request.retries + 1}/{self.max_retries + 1})")
 
     async def _write():
-        async with async_session() as db:
+        async with create_worker_session()() as db:
             from sqlalchemy import select
             from app.models.lead import Lead
             from app.models.campaign import Campaign
@@ -57,7 +57,7 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
         if self.request.retries >= self.max_retries:
             try:
                 async def _get_campaign():
-                    async with async_session() as db:
+                    async with create_worker_session()() as db:
                         from sqlalchemy import select
                         from app.models.lead import Lead
                         result = await db.execute(

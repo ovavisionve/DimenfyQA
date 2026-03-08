@@ -5,7 +5,7 @@ import anthropic
 import httpx
 
 from app.tasks.celery_app import celery_app
-from app.database import async_session
+from app.database import create_worker_session
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def _run_async(coro):
 
 async def _set_campaign_failed(campaign_id: str, error_msg: str):
     """Mark a campaign as failed with an error message in stats."""
-    async with async_session() as db:
+    async with create_worker_session()() as db:
         from sqlalchemy import select
         from app.models.campaign import Campaign
 
@@ -65,7 +65,7 @@ async def _get_campaign_id_from_leads(lead_ids: list[str]) -> str | None:
     """Look up campaign_id from lead_ids."""
     if not lead_ids:
         return None
-    async with async_session() as db:
+    async with create_worker_session()() as db:
         from sqlalchemy import select
         from app.models.lead import Lead
 

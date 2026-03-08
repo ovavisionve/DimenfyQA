@@ -2,7 +2,7 @@ import logging
 
 from app.tasks.celery_app import celery_app
 from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
-from app.database import async_session
+from app.database import create_worker_session
 from app.services.research_service import research_service
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
     logger.info(f"Researching from {len(lead_ids)} scored leads (attempt {self.request.retries + 1}/{self.max_retries + 1})")
 
     async def _research():
-        async with async_session() as db:
+        async with create_worker_session()() as db:
             researched_ids = await research_service.research_leads_batch(lead_ids, db)
             await db.commit()
             logger.info(f"Researched {len(researched_ids)} leads")
@@ -27,7 +27,7 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
         if self.request.retries >= self.max_retries:
             try:
                 async def _get_campaign():
-                    async with async_session() as db:
+                    async with create_worker_session()() as db:
                         from sqlalchemy import select
                         from app.models.lead import Lead
                         result = await db.execute(

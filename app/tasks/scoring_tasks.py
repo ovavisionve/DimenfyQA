@@ -2,7 +2,7 @@ import logging
 
 from app.tasks.celery_app import celery_app
 from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
-from app.database import async_session
+from app.database import create_worker_session
 from app.services.scoring_service import scoring_service
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
     logger.info(f"Scoring {len(lead_ids)} leads (attempt {self.request.retries + 1}/{self.max_retries + 1})")
 
     async def _score():
-        async with async_session() as db:
+        async with create_worker_session()() as db:
             campaign_id = None
 
             # Update campaign status
@@ -49,7 +49,7 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
             # Try to find campaign_id from leads to mark it failed
             try:
                 async def _get_campaign():
-                    async with async_session() as db:
+                    async with create_worker_session()() as db:
                         from sqlalchemy import select
                         from app.models.lead import Lead
                         result = await db.execute(

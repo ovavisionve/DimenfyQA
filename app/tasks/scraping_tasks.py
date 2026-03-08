@@ -3,7 +3,7 @@ import time
 
 from app.tasks.celery_app import celery_app
 from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
-from app.database import async_session
+from app.database import create_worker_session
 from app.services.apify_service import apify_service
 from app.models.campaign import Campaign
 
@@ -16,7 +16,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
     logger.info(f"Starting scrape for campaign {campaign_id} (attempt {self.request.retries + 1}/{self.max_retries + 1})")
 
     async def _scrape():
-        async with async_session() as db:
+        async with create_worker_session()() as db:
             from sqlalchemy import select
 
             result = await db.execute(
