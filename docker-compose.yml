@@ -4,6 +4,7 @@ services:
     build: .
     ports:
       - "1000:1000"
+    env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/ig_dm_engine
       - REDIS_URL=redis://redis:6379/0
@@ -16,6 +17,7 @@ services:
 
   worker:
     build: .
+    env_file: .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/ig_dm_engine
       - REDIS_URL=redis://redis:6379/0

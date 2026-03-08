@@ -14,8 +14,11 @@ class Settings(BaseSettings):
     # Anthropic (Claude API)
     ANTHROPIC_API_KEY: str = ""
 
-    # Perplexity
+    # Perplexity (optional, fallback if GOOGLE_API_KEY is not set)
     PERPLEXITY_API_KEY: str = ""
+
+    # Google Gemini (preferred for research)
+    GOOGLE_API_KEY: str = ""
 
     # Apify
     APIFY_API_TOKEN: str = ""

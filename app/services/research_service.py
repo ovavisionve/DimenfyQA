@@ -29,10 +29,15 @@ Responde en un párrafo corto y conciso con los datos más útiles."""
 
 class ResearchService:
     def __init__(self):
-        self.api_key = settings.PERPLEXITY_API_KEY
+        self.google_api_key = settings.GOOGLE_API_KEY
+        self.perplexity_api_key = settings.PERPLEXITY_API_KEY
+
+    @property
+    def _use_google(self) -> bool:
+        return bool(self.google_api_key)
 
     async def research_lead(self, lead_data: dict) -> str:
-        """Research a single lead using Perplexity API."""
+        """Research a single lead using Google Gemini or Perplexity API."""
         prompt = RESEARCH_PROMPT.format(
             full_name=lead_data.get("ig_full_name", ""),
             username=lead_data.get("ig_username", ""),
@@ -41,11 +46,38 @@ class ResearchService:
             category=lead_data.get("lead_category", ""),
         )
 
+        if self._use_google:
+            return await self._research_with_gemini(prompt)
+        return await self._research_with_perplexity(prompt)
+
+    async def _research_with_gemini(self, prompt: str) -> str:
+        """Research using Google Gemini API."""
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.google_api_key}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.7,
+                        "maxOutputTokens": 500,
+                    },
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+
+    async def _research_with_perplexity(self, prompt: str) -> str:
+        """Research using Perplexity API (fallback)."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://api.perplexity.ai/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "Authorization": f"Bearer {self.perplexity_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
