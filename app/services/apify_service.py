@@ -24,8 +24,21 @@ ACTORS = {
 
 class ApifyService:
     def __init__(self):
-        self.token = settings.APIFY_API_TOKEN
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self._token: Optional[str] = None
+
+    @property
+    def token(self) -> str:
+        if not self._token:
+            self._token = settings.APIFY_API_TOKEN
+            if not self._token:
+                logger.error("APIFY_API_TOKEN is empty — check .env file")
+                raise ValueError("APIFY_API_TOKEN is not configured")
+            logger.info("Apify token loaded: %s...%s", self._token[:10], self._token[-4:])
+        return self._token
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"}
 
     async def start_scrape(
         self, source_type: str, source_value: str, campaign_id: str, db: AsyncSession
