@@ -115,8 +115,16 @@ class ApifyService:
     ) -> int:
         """Save scraped profiles as leads with deduplication."""
         saved = 0
+        logger.info(f"Processing {len(profiles)} profiles for saving")
+        if profiles:
+            logger.info(f"Sample profile keys: {list(profiles[0].keys())[:15]}")
         for profile in profiles:
+            username = profile.get("username", "")
+            if not username:
+                logger.warning(f"Skipping profile with no username: {list(profile.keys())[:10]}")
+                continue
             if profile.get("isPrivate", False):
+                logger.info(f"Skipping private profile: {username}")
                 continue
 
             stmt = pg_insert(Lead).values(
@@ -149,7 +157,9 @@ class ApifyService:
         elif source_type == "comments":
             return {"directUrls": [source_value]}
         elif source_type == "profiles":
-            return {"usernames": [source_value]}
+            # Support comma-separated usernames
+            usernames = [u.strip() for u in source_value.split(",") if u.strip()]
+            return {"usernames": usernames}
         else:
             raise ValueError(f"Unknown source type: {source_type}")
 
