@@ -733,9 +733,9 @@
                         startPolling();
                     }
                 };
-                // Auto-select last campaign
+                // Auto-select first (most recent) campaign
                 if (campaigns.length > 0) {
-                    const last = campaigns[campaigns.length - 1];
+                    const last = campaigns[0];
                     sel.value = last.id;
                     activeCampaignId = last.id;
                     previousLeads = {};
