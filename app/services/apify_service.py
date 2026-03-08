@@ -18,7 +18,7 @@ APIFY_BASE_URL = "https://api.apify.com/v2"
 ACTORS = {
     "followers": "louisdeconinck~instagram-following-scraper",
     "comments": "apidojo~instagram-comments-scraper",
-    "profiles": "danek~instagram-profiles-scraper-ppr",
+    "profiles": "apify~instagram-profile-scraper",
 }
 
 
@@ -134,18 +134,32 @@ class ApifyService:
                 logger.info(f"Skipping private profile: {username}")
                 continue
 
+            # Handle externalUrl - can be string or list (externalUrls)
+            website = profile.get("externalUrl") or ""
+            if not website:
+                ext_urls = profile.get("externalUrls") or []
+                if ext_urls and isinstance(ext_urls, list):
+                    website = ext_urls[0]
+
+            # Handle profile pic - try multiple field names
+            profile_pic = (
+                profile.get("profilePicUrl")
+                or profile.get("profilePicUrlHD")
+                or ""
+            )
+
             stmt = pg_insert(Lead).values(
                 campaign_id=campaign_id,
                 client_id=client_id,
-                ig_username=profile.get("username", ""),
+                ig_username=username,
                 ig_full_name=profile.get("fullName"),
                 ig_bio=profile.get("biography"),
-                ig_website=profile.get("externalUrl"),
+                ig_website=website,
                 ig_category=profile.get("businessCategoryName"),
                 ig_follower_count=profile.get("followersCount"),
                 ig_following_count=profile.get("followsCount"),
                 ig_is_private=profile.get("isPrivate", False),
-                ig_profile_pic_url=profile.get("profilePicUrl"),
+                ig_profile_pic_url=profile_pic,
                 status="scraped",
                 scraped_at=datetime.now(timezone.utc),
             ).on_conflict_do_nothing(
