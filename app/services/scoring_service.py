@@ -68,6 +68,11 @@ class ScoringService:
         )
 
         response_text = message.content[0].text.strip()
+        # Strip markdown code fences if present
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3].strip()
         return json.loads(response_text)
 
     async def score_leads_batch(
