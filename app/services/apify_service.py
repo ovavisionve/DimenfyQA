@@ -41,13 +41,14 @@ class ApifyService:
         return {"Authorization": f"Bearer {self.token}"}
 
     async def start_scrape(
-        self, source_type: str, source_value: str, campaign_id: str, db: AsyncSession
+        self, source_type: str, source_value: str, campaign_id: str, db: AsyncSession,
+        max_leads: int = 0,
     ) -> ScrapeJob:
         actor_id = ACTORS.get(source_type)
         if not actor_id:
             raise ValueError(f"Unknown source type: {source_type}")
 
-        input_data = self._build_input(source_type, source_value)
+        input_data = self._build_input(source_type, source_value, max_leads=max_leads)
         logger.info(f"Apify input for {source_type}: {input_data}")
 
         async with httpx.AsyncClient() as client:
@@ -184,13 +185,18 @@ class ApifyService:
         await db.flush()
         return saved
 
-    def _build_input(self, source_type: str, source_value: str) -> dict:
+    def _build_input(self, source_type: str, source_value: str, max_leads: int = 0) -> dict:
         if source_type == "followers":
-            return {"usernames": [source_value]}
+            data: dict = {"usernames": [source_value]}
+            if max_leads > 0:
+                data["resultsLimit"] = max_leads
+            return data
         elif source_type == "comments":
-            return {"directUrls": [source_value]}
+            data = {"directUrls": [source_value]}
+            if max_leads > 0:
+                data["resultsLimit"] = max_leads
+            return data
         elif source_type == "profiles":
-            # Support comma-separated usernames
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]
             return {"usernames": usernames}
         else:

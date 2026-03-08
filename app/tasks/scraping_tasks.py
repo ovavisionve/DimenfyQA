@@ -29,12 +29,14 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             campaign.status = "scraping"
             await db.flush()
 
-            # Start scrape job
+            # Start scrape job (use max_leads from campaign settings if set)
+            max_leads = (campaign.settings or {}).get("max_leads", 0)
             scrape_job = await apify_service.start_scrape(
                 campaign.source_type,
                 campaign.source_value,
                 campaign_id,
                 db,
+                max_leads=max_leads,
             )
 
             # Poll until complete
