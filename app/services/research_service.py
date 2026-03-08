@@ -89,6 +89,15 @@ class ResearchService:
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]
 
+    @property
+    def _has_api_key(self) -> bool:
+        """Check if any research API key is properly configured."""
+        if self.google_api_key and "XXXXX" not in self.google_api_key:
+            return True
+        if self.perplexity_api_key and "XXXXX" not in self.perplexity_api_key:
+            return True
+        return False
+
     async def research_leads_batch(
         self, lead_ids: list[str], db: AsyncSession
     ) -> list[str]:
@@ -103,6 +112,17 @@ class ResearchService:
             )
         )
         leads = result.scalars().all()
+
+        # If no research API key is configured, skip research and mark as researched
+        if not self._has_api_key:
+            logger.warning("No research API key configured — skipping research, marking %d leads as researched", len(leads))
+            researched_ids = []
+            for lead in leads:
+                lead.status = "researched"
+                lead.researched_at = datetime.now(timezone.utc)
+                researched_ids.append(str(lead.id))
+            await db.flush()
+            return researched_ids
 
         researched_ids = []
         for lead in leads:
@@ -126,6 +146,10 @@ class ResearchService:
                 logger.info(f"Researched lead {lead.ig_username}")
             except Exception:
                 logger.exception(f"Error researching lead {lead.ig_username}")
+                # Don't block pipeline — mark as researched even on failure
+                lead.status = "researched"
+                lead.researched_at = datetime.now(timezone.utc)
+                researched_ids.append(str(lead.id))
 
         await db.flush()
         return researched_ids

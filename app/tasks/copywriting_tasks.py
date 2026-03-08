@@ -33,19 +33,19 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                     )
                     campaign = campaign_result.scalar_one_or_none()
                     if campaign:
-                        campaign.status = "writing"
+                        campaign.status = "writing_dms"
                         await db.flush()
 
             dm_ready_ids = await copywriting_service.write_dms_batch(lead_ids, db)
 
-            # Update campaign to "ready"
+            # Update campaign to "completed"
             if campaign_id:
                 campaign_result = await db.execute(
                     select(Campaign).where(Campaign.id == str(campaign_id))
                 )
                 campaign = campaign_result.scalar_one_or_none()
                 if campaign:
-                    campaign.status = "ready"
+                    campaign.status = "completed"
 
             await db.commit()
             logger.info(f"Generated DMs for {len(dm_ready_ids)} leads")

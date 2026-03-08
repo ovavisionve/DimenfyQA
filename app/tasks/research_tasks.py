@@ -15,6 +15,25 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
 
     async def _research():
         async with create_worker_session()() as db:
+            # Update campaign status to "researching"
+            if lead_ids:
+                from sqlalchemy import select
+                from app.models.lead import Lead
+                from app.models.campaign import Campaign
+
+                result = await db.execute(
+                    select(Lead.campaign_id).where(Lead.id == lead_ids[0])
+                )
+                campaign_id = result.scalar_one_or_none()
+                if campaign_id:
+                    campaign_result = await db.execute(
+                        select(Campaign).where(Campaign.id == str(campaign_id))
+                    )
+                    campaign = campaign_result.scalar_one_or_none()
+                    if campaign:
+                        campaign.status = "researching"
+                        await db.flush()
+
             researched_ids = await research_service.research_leads_batch(lead_ids, db)
             await db.commit()
             logger.info(f"Researched {len(researched_ids)} leads")
