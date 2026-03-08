@@ -141,7 +141,8 @@ class CopywritingService:
             return (username, None, None)
 
     async def write_dms_batch(
-        self, lead_ids: list[str], db: AsyncSession
+        self, lead_ids: list[str], db: AsyncSession,
+        progress_callback=None,
     ) -> list[str]:
         """Generate DMs for leads with score >= threshold in parallel. Returns list of dm-ready lead_ids."""
         threshold = settings.DM_SCORE_THRESHOLD
@@ -189,6 +190,7 @@ class CopywritingService:
         # Generate DMs in parallel
         logger.info(f"Generating DMs for {len(leads)} leads in parallel (max {MAX_PARALLEL_DMS} concurrent)")
         dm_ready_ids = []
+        completed_count = 0
 
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_DMS) as executor:
             futures = {
@@ -197,7 +199,15 @@ class CopywritingService:
             }
             for future in as_completed(futures):
                 username = futures[future]
+                completed_count += 1
                 _, dm_text, dm_variant_b = future.result()
+
+                if progress_callback:
+                    try:
+                        progress_callback(completed_count, len(leads), username)
+                    except Exception:
+                        pass
+
                 if dm_text is None:
                     continue
 

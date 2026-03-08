@@ -78,3 +78,33 @@ async def _get_campaign_id_from_leads(lead_ids: list[str]) -> str | None:
 def fail_campaign(campaign_id: str, error_msg: str):
     """Sync wrapper to mark campaign as failed."""
     _run_async(_set_campaign_failed(campaign_id, error_msg))
+
+
+async def _update_progress(campaign_id: str, progress: dict):
+    """Update campaign.stats with progress info for the frontend."""
+    async with create_worker_session()() as db:
+        from sqlalchemy import select
+        from app.models.campaign import Campaign
+
+        result = await db.execute(
+            select(Campaign).where(Campaign.id == campaign_id)
+        )
+        campaign = result.scalar_one_or_none()
+        if campaign:
+            stats = dict(campaign.stats or {})
+            stats["progress"] = progress
+            campaign.stats = stats
+            await db.commit()
+
+
+def update_progress(campaign_id: str, phase: str, message: str,
+                    current: int = 0, total: int = 0, detail: str = ""):
+    """Sync wrapper to update campaign progress from Celery tasks."""
+    progress = {
+        "phase": phase,
+        "message": message,
+        "current": current,
+        "total": total,
+        "detail": detail,
+    }
+    _run_async(_update_progress(campaign_id, progress))

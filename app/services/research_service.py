@@ -103,7 +103,8 @@ class ResearchService:
         return False
 
     async def research_leads_batch(
-        self, lead_ids: list[str], db: AsyncSession
+        self, lead_ids: list[str], db: AsyncSession,
+        progress_callback=None,
     ) -> list[str]:
         """Research leads with score >= threshold. Returns list of researched lead_ids."""
         threshold = settings.RESEARCH_SCORE_THRESHOLD
@@ -132,7 +133,10 @@ class ResearchService:
         logger.info(f"Researching {len(leads)} leads in parallel (max {MAX_PARALLEL_RESEARCH} concurrent)")
         semaphore = asyncio.Semaphore(MAX_PARALLEL_RESEARCH)
 
+        completed_count = 0
+
         async def _research_one(lead):
+            nonlocal completed_count
             async with semaphore:
                 lead_data = {
                     "ig_username": lead.ig_username,
@@ -152,6 +156,12 @@ class ResearchService:
                 # Mark as researched even on failure to not block pipeline
                 lead.status = "researched"
                 lead.researched_at = datetime.now(timezone.utc)
+                completed_count += 1
+                if progress_callback:
+                    try:
+                        progress_callback(completed_count, len(leads), lead.ig_username)
+                    except Exception:
+                        pass
                 return str(lead.id)
 
         researched_ids = await asyncio.gather(*[_research_one(lead) for lead in leads])

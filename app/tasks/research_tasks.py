@@ -1,7 +1,7 @@
 import logging
 
 from app.tasks.celery_app import celery_app
-from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
+from app.tasks.base import _run_async, fail_campaign, update_progress, RETRY_KWARGS
 from app.database import create_worker_session
 from app.services.research_service import research_service
 
@@ -16,6 +16,7 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
     async def _research():
         async with create_worker_session()() as db:
             # Update campaign status to "researching"
+            campaign_id = None
             if lead_ids:
                 from sqlalchemy import select
                 from app.models.lead import Lead
@@ -34,9 +35,29 @@ def research_leads_task(self, lead_ids: list[str]) -> list[str]:
                         campaign.status = "researching"
                         await db.flush()
 
-            researched_ids = await research_service.research_leads_batch(lead_ids, db)
+            cid = str(campaign_id) if campaign_id else None
+            if cid:
+                update_progress(cid, "researching",
+                                f"Starting research on qualified leads...",
+                                current=0, total=len(lead_ids),
+                                detail="Filtering leads by score threshold")
+
+            researched_ids = await research_service.research_leads_batch(
+                lead_ids, db, progress_callback=lambda cur, tot, uname:
+                    update_progress(cid, "researching",
+                                    f"Researching lead {cur}/{tot}: @{uname}",
+                                    current=cur, total=tot,
+                                    detail=f"Using 8 parallel requests") if cid else None
+            )
             await db.commit()
             logger.info(f"Researched {len(researched_ids)} leads")
+
+            if cid:
+                update_progress(cid, "researching",
+                                f"Research complete! {len(researched_ids)} leads researched.",
+                                current=len(researched_ids), total=len(researched_ids),
+                                detail="Moving to DM copywriting phase...")
+
             # Return all lead_ids so the next step can filter
             return lead_ids
 

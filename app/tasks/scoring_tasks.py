@@ -1,7 +1,7 @@
 import logging
 
 from app.tasks.celery_app import celery_app
-from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
+from app.tasks.base import _run_async, fail_campaign, update_progress, RETRY_KWARGS
 from app.database import create_worker_session
 from app.services.scoring_service import scoring_service
 
@@ -36,17 +36,35 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
                         campaign.status = "scoring"
                         await db.flush()
 
-            scored_ids = await scoring_service.score_leads_batch(lead_ids, db)
+            cid = str(campaign_id) if campaign_id else None
+            if cid:
+                update_progress(cid, "scoring",
+                                f"Scoring {len(lead_ids)} leads with Claude AI...",
+                                current=0, total=len(lead_ids),
+                                detail="Preparing leads for parallel scoring")
+
+            scored_ids = await scoring_service.score_leads_batch(
+                lead_ids, db, progress_callback=lambda cur, tot, uname:
+                    update_progress(cid, "scoring",
+                                    f"Scoring lead {cur}/{tot}: @{uname}",
+                                    current=cur, total=tot,
+                                    detail=f"Using 10 parallel threads") if cid else None
+            )
             await db.commit()
             logger.info(f"Scored {len(scored_ids)} leads")
-            # Return ALL lead_ids so next step can filter by score
+
+            if cid:
+                update_progress(cid, "scoring",
+                                f"Scoring complete! {len(scored_ids)}/{len(lead_ids)} leads scored.",
+                                current=len(scored_ids), total=len(lead_ids),
+                                detail="Moving to research phase...")
+
             return lead_ids
 
     try:
         return _run_async(_score())
     except Exception as exc:
         if self.request.retries >= self.max_retries:
-            # Try to find campaign_id from leads to mark it failed
             try:
                 async def _get_campaign():
                     async with create_worker_session()() as db:

@@ -91,7 +91,8 @@ class ScoringService:
             return (username, None)
 
     async def score_leads_batch(
-        self, lead_ids: list[str], db: AsyncSession
+        self, lead_ids: list[str], db: AsyncSession,
+        progress_callback=None,
     ) -> list[str]:
         """Score a batch of leads in parallel. Returns list of lead_ids that meet the threshold."""
         result = await db.execute(
@@ -121,6 +122,7 @@ class ScoringService:
         # Score in parallel using ThreadPoolExecutor
         logger.info(f"Scoring {len(leads)} leads in parallel (max {MAX_PARALLEL_SCORING} concurrent)")
         scored_ids = []
+        completed_count = 0
 
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_SCORING) as executor:
             futures = {
@@ -129,7 +131,15 @@ class ScoringService:
             }
             for future in as_completed(futures):
                 username = futures[future]
+                completed_count += 1
                 _, score_result = future.result()
+
+                if progress_callback:
+                    try:
+                        progress_callback(completed_count, len(leads), username)
+                    except Exception:
+                        pass
+
                 if score_result is None:
                     continue
 

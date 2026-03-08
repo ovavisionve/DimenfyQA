@@ -1,7 +1,7 @@
 import logging
 
 from app.tasks.celery_app import celery_app
-from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
+from app.tasks.base import _run_async, fail_campaign, update_progress, RETRY_KWARGS
 from app.database import create_worker_session
 from app.services.copywriting_service import copywriting_service
 
@@ -36,7 +36,20 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                         campaign.status = "writing_dms"
                         await db.flush()
 
-            dm_ready_ids = await copywriting_service.write_dms_batch(lead_ids, db)
+            cid = str(campaign_id) if campaign_id else None
+            if cid:
+                update_progress(cid, "writing_dms",
+                                "Starting DM generation with Claude AI...",
+                                current=0, total=len(lead_ids),
+                                detail="Filtering qualified leads (score >= 70)")
+
+            dm_ready_ids = await copywriting_service.write_dms_batch(
+                lead_ids, db, progress_callback=lambda cur, tot, uname:
+                    update_progress(cid, "writing_dms",
+                                    f"Writing DM {cur}/{tot}: @{uname}",
+                                    current=cur, total=tot,
+                                    detail="Generating Variant A + B with 8 parallel threads") if cid else None
+            )
 
             # Update campaign to "completed"
             if campaign_id:
@@ -49,6 +62,13 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
 
             await db.commit()
             logger.info(f"Generated DMs for {len(dm_ready_ids)} leads")
+
+            if cid:
+                update_progress(cid, "completed",
+                                f"Pipeline complete! {len(dm_ready_ids)} DMs generated.",
+                                current=len(dm_ready_ids), total=len(dm_ready_ids),
+                                detail="Ready to export")
+
             return dm_ready_ids
 
     try:

@@ -2,7 +2,7 @@ import logging
 import time
 
 from app.tasks.celery_app import celery_app
-from app.tasks.base import _run_async, fail_campaign, RETRY_KWARGS
+from app.tasks.base import _run_async, fail_campaign, update_progress, RETRY_KWARGS
 from app.database import create_worker_session
 from app.services.apify_service import apify_service
 from app.models.campaign import Campaign
@@ -31,6 +31,11 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
 
             # Start scrape job (use max_leads from campaign settings if set)
             max_leads = (campaign.settings or {}).get("max_leads", 0)
+
+            update_progress(campaign_id, "scraping",
+                            f"Starting Apify scraper for @{campaign.source_value}...",
+                            detail=f"Source: {campaign.source_type}, target: {max_leads or 'all'} leads")
+
             scrape_job = await apify_service.start_scrape(
                 campaign.source_type,
                 campaign.source_value,
@@ -47,7 +52,14 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 )
                 run_status = status_data["status"]
                 stats = status_data.get("stats", {})
+                items_count = stats.get("itemsCount", 0) if isinstance(stats, dict) else 0
                 logger.info(f"Poll {attempt+1}: status={run_status}, stats={stats}")
+
+                update_progress(campaign_id, "scraping",
+                                f"Apify running... ({run_status})",
+                                current=attempt + 1, total=max_attempts,
+                                detail=f"Poll {attempt+1}/{max_attempts} | Items found: {items_count}")
+
                 if run_status == "SUCCEEDED":
                     scrape_job.apify_dataset_id = status_data["defaultDatasetId"]
                     scrape_job.status = "completed"
@@ -66,6 +78,10 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 raise RuntimeError("Apify run polling timed out after 5 minutes")
 
             # Get results
+            update_progress(campaign_id, "scraping",
+                            "Downloading profiles from Apify...",
+                            detail="Fetching dataset results")
+
             raw_profiles = await apify_service.get_scrape_results(
                 scrape_job.apify_dataset_id
             )
@@ -75,14 +91,26 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             if campaign.source_type in ("followers", "comments"):
                 usernames = [p.get("username", "") for p in raw_profiles if p.get("username")]
                 if usernames:
+                    total_chunks = (len(usernames) + 49) // 50
                     detailed_profiles = []
                     for i in range(0, len(usernames), 50):
+                        chunk_num = i // 50 + 1
                         chunk = usernames[i:i + 50]
+
+                        update_progress(campaign_id, "scraping",
+                                        f"Fetching detailed profiles ({chunk_num}/{total_chunks})...",
+                                        current=chunk_num, total=total_chunks,
+                                        detail=f"Batch {chunk_num}: {len(chunk)} profiles")
+
                         profiles = await apify_service.scrape_profiles_sync(chunk)
                         detailed_profiles.extend(profiles)
                     raw_profiles = detailed_profiles
 
             # Save leads with dedup
+            update_progress(campaign_id, "scraping",
+                            f"Saving {len(raw_profiles)} profiles to database...",
+                            detail="Deduplicating and storing leads")
+
             saved = await apify_service.save_leads(
                 raw_profiles, campaign_id, str(campaign.client_id), db
             )
@@ -99,20 +127,23 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             )
             lead_ids = [str(row[0]) for row in lead_result.fetchall()]
             logger.info(f"Scraped {saved} leads for campaign {campaign_id}")
+
+            update_progress(campaign_id, "scraping",
+                            f"Scraping complete! {saved} leads saved.",
+                            current=saved, total=saved,
+                            detail="Moving to scoring phase...")
+
             return lead_ids
 
     try:
         return _run_async(_scrape())
     except ValueError as exc:
-        # Permanent error (campaign not found) — don't retry
         fail_campaign(campaign_id, str(exc))
         raise
     except RuntimeError as exc:
-        # Apify run failed — mark campaign failed, don't retry
         fail_campaign(campaign_id, str(exc))
         raise
     except Exception as exc:
-        # On final retry, mark campaign as failed
         if self.request.retries >= self.max_retries:
             fail_campaign(campaign_id, f"Scraping failed after {self.max_retries + 1} attempts: {exc}")
         raise
