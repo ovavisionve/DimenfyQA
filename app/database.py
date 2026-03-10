@@ -7,7 +7,7 @@ from app.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.APP_ENV == "development",
+    echo=settings.LOG_LEVEL.upper() == "DEBUG",
     pool_pre_ping=True,
 )
 

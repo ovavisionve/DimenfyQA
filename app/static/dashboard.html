@@ -1191,6 +1191,7 @@
                     activeCampaignId = sel.value;
                     if (activeCampaignId) {
                         previousLeads = {};
+                        stopPolling();
                         refreshAll();
                         startPolling();
                     }
@@ -1201,7 +1202,10 @@
                     activeCampaignId = last.id;
                     previousLeads = {};
                     refreshAll();
-                    startPolling();
+                    // Only start polling if campaign is active
+                    if (ACTIVE_STATUSES.includes(last.status)) {
+                        startPolling();
+                    }
                 }
             } catch (e) {
                 log('Error loading campaigns: ' + e.message, 'error');
@@ -1220,6 +1224,7 @@
                     log('Pipeline started!', 'success');
                     pipelineRunning = true;
                     startTimer();
+                    startPolling();
                     previousLeads = {};
                 } else {
                     const err = await res.json();
@@ -1241,6 +1246,7 @@
                     previousLeads = {};
                     currentLeads = [];
                     pipelineRunning = false;
+                    stopPolling();
                     stopTimer();
                     document.getElementById('timer').textContent = '00:00';
                     document.getElementById('leadsBody').innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F680;</div>Campaign reset. Click Start Pipeline to begin.</td></tr>';
@@ -1270,9 +1276,18 @@
         }
 
         // ===== POLLING =====
+        const ACTIVE_STATUSES = ['scraping', 'scoring', 'researching', 'writing_dms'];
+
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(refreshAll, 2000);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
         }
 
         async function refreshAll() {
@@ -1294,6 +1309,11 @@
                 // Update DMs badge
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
+
+                // Stop polling when campaign is not actively running
+                if (!ACTIVE_STATUSES.includes(campaign.status)) {
+                    stopPolling();
+                }
             } catch(e) {
                 // silent retry
             }
