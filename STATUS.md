@@ -151,6 +151,25 @@ POST /campaigns/{id}/start
 
 ---
 
+## Extra: Integración Meta Lead Ads → Google Sheets — 🟡 20% INICIADO
+
+Proyecto paralelo solicitado por Orlando. Objetivo: cada lead que entre por Meta Ads se registra automáticamente en un Google Sheet en tiempo real.
+
+| Tarea | Estado | Notas |
+|---|---|---|
+| Google Sheet de prueba creado | HECHO | [Sheet de prueba](https://docs.google.com/spreadsheets/d/18eegbfPm_SifB_BIMoXLof4PtSgK6XzMyCYV_O2L6Ns/edit?gid=887005979#gid=887005979) |
+| Definición de arquitectura | HECHO | Google Apps Script (webhook) — custom, gratis, sin dependencias externas |
+| Diseño del esquema de columnas | EN PROGRESO | Mapeando campos de Meta Lead Forms al Sheet |
+| **Google Apps Script (webhook receiver)** | PENDIENTE | Script que recibe POST de Meta y escribe fila en Sheet |
+| **Configuración Meta Webhooks** | PENDIENTE | Conectar formulario de leads con el endpoint del Script |
+| **Validación y formateo de datos** | PENDIENTE | Limpiar/normalizar campos antes de escribir |
+| **Testing con leads de prueba** | PENDIENTE | Enviar leads mock para verificar flujo |
+| **Activación en producción** | PENDIENTE | Conectar con formularios reales de Meta Ads |
+
+**Enfoque elegido**: Google Apps Script (Opción 3) — webhook custom desplegado directamente en el Sheet, sin costo adicional, sin depender de Zapier ni servicios externos. Permite control total sobre transformación de datos y lógica de negocio.
+
+---
+
 ## Lo que Falta
 
 ### Prioridad Alta (próximos días)
