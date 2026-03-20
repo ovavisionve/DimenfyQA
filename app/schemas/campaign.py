@@ -42,5 +42,7 @@ class CampaignStats(BaseModel):
     scored_leads: int = 0
     researched_leads: int = 0
     dm_ready_leads: int = 0
+    sent_leads: int = 0
+    failed_leads: int = 0
     avg_score: Optional[float] = None
     status: str

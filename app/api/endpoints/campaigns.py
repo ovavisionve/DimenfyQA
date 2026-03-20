@@ -59,7 +59,7 @@ async def start_campaign_pipeline(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status not in ("pending", "ready", "failed"):
+    if campaign.status not in ("pending", "ready", "failed", "paused"):
         raise HTTPException(
             status_code=400,
             detail=f"Campaign is currently '{campaign.status}', cannot start. Reset first.",
@@ -122,12 +122,89 @@ async def get_campaign_stats(
         )
     )
 
+    sent = await db.execute(
+        select(func.count()).where(
+            Lead.campaign_id == campaign_id, Lead.status == "sent"
+        )
+    )
+    failed = await db.execute(
+        select(func.count()).where(
+            Lead.campaign_id == campaign_id, Lead.status == "failed"
+        )
+    )
+
     return CampaignStats(
         campaign_id=campaign_id,
         total_leads=total.scalar() or 0,
         scored_leads=scored.scalar() or 0,
         researched_leads=researched.scalar() or 0,
         dm_ready_leads=dm_ready.scalar() or 0,
+        sent_leads=sent.scalar() or 0,
+        failed_leads=failed.scalar() or 0,
         avg_score=avg_score.scalar(),
         status=campaign.status,
     )
+
+
+@router.post("/{campaign_id}/pause")
+async def pause_campaign(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Pause a running campaign (stops DM sending)."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status != "sending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Campaign is '{campaign.status}', can only pause while sending.",
+        )
+
+    campaign.status = "paused"
+    stats = dict(campaign.stats or {})
+    stats["send_error"] = "Manually paused by user"
+    campaign.stats = stats
+    await db.flush()
+
+    return {"message": "Campaign paused", "campaign_id": str(campaign_id)}
+
+
+@router.post("/{campaign_id}/resume-sending")
+async def resume_sending(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Resume sending DMs for a paused campaign."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status != "paused":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Campaign is '{campaign.status}', can only resume from paused.",
+        )
+
+    from app.tasks.sending_tasks import send_dms_task
+
+    # Get dm_ready + retry leads for this campaign
+    dm_leads = await db.execute(
+        select(Lead.id).where(
+            Lead.campaign_id == campaign_id,
+            Lead.status.in_(["dm_ready", "retry"]),
+        )
+    )
+    lead_ids = [str(lid) for lid in dm_leads.scalars().all()]
+
+    if not lead_ids:
+        raise HTTPException(status_code=400, detail="No leads ready to send")
+
+    task_result = send_dms_task.delay(lead_ids)
+    return {
+        "message": "Sending resumed",
+        "campaign_id": str(campaign_id),
+        "task_id": task_result.id,
+        "leads_to_send": len(lead_ids),
+    }

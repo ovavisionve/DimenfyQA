@@ -412,6 +412,11 @@
         .status-scored { background: var(--orange-dim); color: var(--orange); }
         .status-researched { background: var(--cyan-dim); color: var(--cyan); }
         .status-dm_ready { background: var(--green-dim); color: var(--green); }
+        .status-sending { background: var(--yellow-dim); color: var(--yellow); }
+        .status-sent { background: var(--green-dim); color: var(--green); }
+        .status-delivered { background: var(--green-dim); color: var(--green); }
+        .status-failed { background: var(--red-dim); color: var(--red); }
+        .status-retry { background: var(--orange-dim); color: var(--orange); }
 
         .spinner {
             display: inline-block;
@@ -929,6 +934,8 @@
         <div class="campaign-bar">
             <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
             <button class="btn btn-primary" id="startBtn" onclick="startPipeline()">Start Pipeline</button>
+            <button class="btn btn-secondary" id="pauseBtn" onclick="pauseCampaign()" style="display:none">Pause Sending</button>
+            <button class="btn btn-success" id="resumeBtn" onclick="resumeSending()" style="display:none">Resume Sending</button>
             <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
         </div>
 
@@ -968,9 +975,14 @@
                     <div class="step-value" id="step-dms">-</div>
                 </div>
                 <div class="pipe-arrow">&#x2192;</div>
-                <div class="pipe-step" data-step="ready">
-                    <div class="step-label">Ready</div>
-                    <div class="step-value" id="step-ready">-</div>
+                <div class="pipe-step" data-step="sending">
+                    <div class="step-label">Sending</div>
+                    <div class="step-value" id="step-sending">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="completed">
+                    <div class="step-label">Done</div>
+                    <div class="step-value" id="step-done">-</div>
                 </div>
             </div>
 
@@ -989,7 +1001,7 @@
                 <div class="progress-counter" id="progressCounter"></div>
             </div>
 
-            <div class="stats-row">
+            <div class="stats-row" style="grid-template-columns: repeat(6, 1fr)">
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
                     <div class="stat-label">Total Leads</div>
@@ -1005,6 +1017,10 @@
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--cyan)" id="dmsGenerated">0</div>
                     <div class="stat-label">DMs Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--green)" id="dmsSent">0</div>
+                    <div class="stat-label">DMs Sent</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
@@ -1254,11 +1270,14 @@
                     document.getElementById('avgScore').textContent = '-';
                     document.getElementById('qualified').textContent = '0';
                     document.getElementById('dmsGenerated').textContent = '0';
+                    document.getElementById('dmsSent').textContent = '0';
                     document.getElementById('campaignStatus').textContent = 'PENDING';
                     document.getElementById('campaignStatus').style.color = 'var(--text3)';
-                    ['step-scraping','step-scoring','step-research','step-dms','step-ready'].forEach(id => {
+                    ['step-scraping','step-scoring','step-research','step-dms','step-sending','step-done'].forEach(id => {
                         document.getElementById(id).textContent = '-';
                     });
+                    document.getElementById('pauseBtn').style.display = 'none';
+                    document.getElementById('resumeBtn').style.display = 'none';
                     document.querySelectorAll('.pipe-step').forEach(s => s.classList.remove('active','done'));
                     document.querySelectorAll('.pipe-arrow').forEach(a => a.classList.remove('done'));
                     document.getElementById('activityLog').innerHTML = '';
@@ -1276,7 +1295,7 @@
         }
 
         // ===== POLLING =====
-        const ACTIVE_STATUSES = ['scraping', 'scoring', 'researching', 'writing_dms'];
+        const ACTIVE_STATUSES = ['scraping', 'scoring', 'researching', 'writing_dms', 'sending'];
 
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
@@ -1331,21 +1350,30 @@
                 'scoring': 'var(--accent)',
                 'researching': 'var(--cyan)',
                 'writing_dms': 'var(--orange)',
+                'sending': 'var(--orange)',
                 'completed': 'var(--green)',
+                'paused': 'var(--yellow)',
                 'failed': 'var(--red)'
             };
             statusEl.style.color = statusMap[campaign.status] || 'var(--text2)';
 
-            if (['scraping','scoring','researching','writing_dms'].includes(campaign.status)) {
+            // Show/hide pause and resume buttons
+            document.getElementById('pauseBtn').style.display = campaign.status === 'sending' ? '' : 'none';
+            document.getElementById('resumeBtn').style.display = campaign.status === 'paused' ? '' : 'none';
+
+            if (ACTIVE_STATUSES.includes(campaign.status)) {
                 if (!pipelineRunning) {
                     pipelineRunning = true;
                     startTimer();
                 }
             }
-            if (['completed','ready','failed'].includes(campaign.status) && pipelineRunning) {
+            if (['completed','ready','failed','paused'].includes(campaign.status) && pipelineRunning) {
                 pipelineRunning = false;
                 if (campaign.status === 'completed') {
                     log('Pipeline completed!', 'success');
+                }
+                if (campaign.status === 'paused') {
+                    log('Campaign paused — click Resume to continue sending', 'warn');
                 }
             }
 
@@ -1356,7 +1384,7 @@
         function updateProgressBar(campaign) {
             const section = document.getElementById('progressSection');
             const progress = campaign.stats?.progress;
-            const isActive = ['scraping','scoring','researching','writing_dms'].includes(campaign.status);
+            const isActive = ACTIVE_STATUSES.includes(campaign.status);
 
             if (!isActive || !progress) {
                 section.classList.remove('active');
@@ -1383,14 +1411,16 @@
         function updatePipeline(campaign, leads) {
             let totalScraped = leads.length;
             let totalScored = leads.filter(l => l.score !== null && l.score !== undefined).length;
-            let totalResearched = leads.filter(l => ['researched','dm_ready'].includes(l.status)).length;
-            let totalDMReady = leads.filter(l => l.status === 'dm_ready').length;
+            let totalResearched = leads.filter(l => ['researched','dm_ready','sending','sent','delivered'].includes(l.status)).length;
+            let totalDMReady = leads.filter(l => ['dm_ready','sending','sent','delivered'].includes(l.status)).length;
+            let totalSent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
 
             document.getElementById('step-scraping').textContent = totalScraped || '-';
             document.getElementById('step-scoring').textContent = totalScored || '-';
             document.getElementById('step-research').textContent = totalResearched || '-';
             document.getElementById('step-dms').textContent = totalDMReady || '-';
-            document.getElementById('step-ready').textContent = totalDMReady || '-';
+            document.getElementById('step-sending').textContent = totalSent || '-';
+            document.getElementById('step-done').textContent = totalSent || '-';
 
             const status = campaign.status;
             const steps = document.querySelectorAll('.pipe-step');
@@ -1400,7 +1430,8 @@
             arrows.forEach(a => { a.classList.remove('done'); });
 
             const statusToPhase = {
-                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'completed': 4
+                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'ready': 3,
+                'sending': 4, 'paused': 4, 'completed': 5
             };
 
             const currentIdx = statusToPhase[status] ?? -1;
@@ -1431,6 +1462,9 @@
             const dms = leads.filter(l => l.dm_message).length;
             document.getElementById('dmsGenerated').textContent = dms;
 
+            const sent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
+            document.getElementById('dmsSent').textContent = sent;
+
             document.getElementById('leadsCount').textContent = `${leads.length} leads`;
         }
 
@@ -1443,9 +1477,9 @@
             }
 
             leads.sort((a, b) => {
-                const order = { dm_ready: 0, researched: 1, scored: 2, scraped: 3 };
-                const oa = order[a.status] ?? 5;
-                const ob = order[b.status] ?? 5;
+                const order = { sent: 0, delivered: 0, sending: 1, dm_ready: 2, researched: 3, scored: 4, scraped: 5, retry: 6, failed: 7 };
+                const oa = order[a.status] ?? 8;
+                const ob = order[b.status] ?? 8;
                 if (oa !== ob) return oa - ob;
                 return (b.score || 0) - (a.score || 0);
             });
@@ -1466,12 +1500,18 @@
                 if (wasUpdated && lead.status === 'dm_ready') {
                     log(`DM generated for @${lead.ig_username}`, 'success');
                 }
+                if (wasUpdated && lead.status === 'sent') {
+                    log(`DM sent to @${lead.ig_username}`, 'success');
+                }
+                if (wasUpdated && lead.status === 'failed') {
+                    log(`Failed to send DM to @${lead.ig_username}`, 'error');
+                }
 
                 const scoreHTML = lead.score !== null && lead.score !== undefined
                     ? `<span class="score-badge ${lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low'} ${scoreChanged ? 'pop' : ''}">${lead.score}</span>`
                     : `<span class="score-badge score-pending"><span class="spinner"></span></span>`;
 
-                const statusHTML = `<span class="status-pill status-${lead.status}">${lead.status === 'scraped' ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
+                const statusHTML = `<span class="status-pill status-${lead.status}">${['scraped','sending'].includes(lead.status) ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
                 const catHTML = lead.lead_category ? `<span class="category-tag">${lead.lead_category}</span>` : '-';
 
                 const dmHTML = lead.dm_message
@@ -1730,6 +1770,42 @@
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ===== PAUSE / RESUME =====
+        async function pauseCampaign() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/pause`, { method: 'POST' });
+                if (res.ok) {
+                    log('Campaign paused', 'warn');
+                    refreshAll();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not pause'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function resumeSending() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/resume-sending`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Resumed sending: ${data.leads_to_send} leads queued`, 'success');
+                    pipelineRunning = true;
+                    startTimer();
+                    startPolling();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not resume'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
         }
 
         // Start
