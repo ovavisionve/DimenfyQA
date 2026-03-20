@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.auth import verify_api_key
 from app.api.endpoints import campaigns, clients, leads, messages, scraping, export
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 api_router.include_router(clients.router, prefix="/clients", tags=["clients"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])

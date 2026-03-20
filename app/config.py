@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Apify
     APIFY_API_TOKEN: str = ""
 
+    # API Authentication
+    API_KEYS: str = ""  # Comma-separated list of valid API keys
+    API_AUTH_ENABLED: bool = True
+
     # App
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
