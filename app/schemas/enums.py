@@ -40,3 +40,20 @@ class LeadCategory(StrEnum):
     CREATOR = "creator"
     LOCAL_BUSINESS = "local_business"
     OTHER = "other"
+
+
+class ConversationStatus(StrEnum):
+    PENDING = "pending"
+    AWAITING_REPLY = "awaiting_reply"
+    REPLIED = "replied"
+    ENGAGED = "engaged"
+    CLOSED = "closed"
+
+
+class ReplyClassification(StrEnum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    QUESTION = "question"
+    NOT_INTERESTED = "not_interested"
+    OUT_OF_OFFICE = "out_of_office"
+    SPAM = "spam"

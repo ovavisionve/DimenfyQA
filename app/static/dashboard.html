@@ -303,6 +303,24 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* A/B Testing bars */
+        .ab-bar-track {
+            width: 100%;
+            height: 8px;
+            background: var(--surface3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .ab-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .ab-bar-a { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+        .ab-bar-b { background: linear-gradient(90deg, var(--orange), #fbbf24); }
+
         /* Lead table */
         .leads-section {
             background: var(--surface);
@@ -947,6 +965,9 @@
             <button class="tab" onclick="switchTab('dms')" id="tab-dms">
                 DMs <span class="tab-badge" id="dmsBadge">0</span>
             </button>
+            <button class="tab" onclick="switchTab('ab')" id="tab-ab">
+                A/B Testing
+            </button>
             <button class="tab" onclick="switchTab('export')" id="tab-export">
                 Export
             </button>
@@ -1153,6 +1174,122 @@
                 </div>
             </div>
         </div>
+        <!-- =============== A/B TESTING TAB =============== -->
+        <div class="tab-content" id="content-ab">
+            <div class="ab-section">
+                <div class="ab-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                    <h2 style="font-size:18px;font-weight:700">A/B Test Results</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadABResults()">Refresh</button>
+                </div>
+
+                <div id="abLoading" style="display:none;text-align:center;padding:40px;color:var(--text2)">
+                    <span class="spinner"></span> Loading A/B results...
+                </div>
+
+                <div id="abEmpty" style="text-align:center;padding:40px">
+                    <div class="empty-icon" style="font-size:48px;margin-bottom:12px">&#x1F4CA;</div>
+                    <div style="color:var(--text2)">No A/B test data yet. Send DMs to see results.</div>
+                </div>
+
+                <div id="abResults" style="display:none">
+                    <!-- Summary cards -->
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--blue)" id="abTotalSent">0</div>
+                            <div class="stat-label">Total Sent</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="abWinner" style="color:var(--green)">-</div>
+                            <div class="stat-label">Winner</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="abConfidence" style="color:var(--yellow)">-</div>
+                            <div class="stat-label">Confidence</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--accent)" id="abSplit">50/50</div>
+                            <div class="stat-label">A/B Split</div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation -->
+                    <div id="abRecommendation" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;font-size:14px;color:var(--text2)"></div>
+
+                    <!-- Side-by-side comparison -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+                        <!-- Variant A -->
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                                <span style="background:var(--accent-glow);color:var(--accent2);padding:4px 12px;border-radius:6px;font-weight:700;font-size:14px">A</span>
+                                <span style="font-weight:600;font-size:16px">Variant A</span>
+                                <span id="abWinnerBadgeA" style="display:none;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">WINNER</span>
+                            </div>
+                            <div style="display:grid;gap:16px">
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sent</div>
+                                    <div style="font-size:24px;font-weight:800" id="abSentA">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Reply Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--cyan)" id="abReplyRateA">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abRepliedA">0</span> replies)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-a" id="abBarReplyA" style="width:0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Conversion Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--green)" id="abConvRateA">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abPositiveA">0</span> positive)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-a" id="abBarConvA" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Variant B -->
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                                <span style="background:var(--orange-dim);color:var(--orange);padding:4px 12px;border-radius:6px;font-weight:700;font-size:14px">B</span>
+                                <span style="font-weight:600;font-size:16px">Variant B</span>
+                                <span id="abWinnerBadgeB" style="display:none;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">WINNER</span>
+                            </div>
+                            <div style="display:grid;gap:16px">
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sent</div>
+                                    <div style="font-size:24px;font-weight:800" id="abSentB">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Reply Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--cyan)" id="abReplyRateB">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abRepliedB">0</span> replies)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-b" id="abBarReplyB" style="width:0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Conversion Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--green)" id="abConvRateB">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abPositiveB">0</span> positive)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-b" id="abBarConvB" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- DM Modal -->
@@ -1198,6 +1335,7 @@
             document.getElementById(`content-${tab}`).classList.add('active');
 
             if (tab === 'dms') renderDMGallery();
+            if (tab === 'ab') loadABResults();
             if (tab === 'export') updateExportStats();
         }
 
@@ -1714,6 +1852,84 @@
                 document.getElementById('exportPreviewContent').textContent = text;
             } catch(e) {
                 document.getElementById('exportPreviewContent').textContent = 'Error loading preview: ' + e.message;
+            }
+        }
+
+        // ===== A/B TESTING =====
+        async function loadABResults() {
+            if (!activeCampaignId) return;
+
+            const loading = document.getElementById('abLoading');
+            const empty = document.getElementById('abEmpty');
+            const results = document.getElementById('abResults');
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            results.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/ab-results`);
+                if (!res.ok) {
+                    loading.style.display = 'none';
+                    empty.style.display = 'block';
+                    return;
+                }
+                const data = await res.json();
+                loading.style.display = 'none';
+
+                if (data.total_sent === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                results.style.display = 'block';
+
+                // Summary cards
+                document.getElementById('abTotalSent').textContent = data.total_sent;
+                document.getElementById('abWinner').textContent = data.winner || 'TBD';
+                document.getElementById('abWinner').style.color = data.winner ? 'var(--green)' : 'var(--text3)';
+                document.getElementById('abConfidence').textContent = data.confidence.toUpperCase();
+                const confColor = data.confidence === 'high' ? 'var(--green)' : data.confidence === 'medium' ? 'var(--yellow)' : 'var(--text3)';
+                document.getElementById('abConfidence').style.color = confColor;
+
+                const a = data.variant_a;
+                const b = data.variant_b;
+                const splitA = data.total_sent > 0 ? Math.round((a.sent / data.total_sent) * 100) : 50;
+                const splitB = 100 - splitA;
+                document.getElementById('abSplit').textContent = `${splitA}/${splitB}`;
+
+                // Recommendation
+                document.getElementById('abRecommendation').textContent = data.recommendation;
+
+                // Variant A stats
+                document.getElementById('abSentA').textContent = a.sent;
+                document.getElementById('abReplyRateA').textContent = (a.reply_rate * 100).toFixed(1) + '%';
+                document.getElementById('abRepliedA').textContent = a.replied;
+                document.getElementById('abConvRateA').textContent = (a.conversion_rate * 100).toFixed(1) + '%';
+                document.getElementById('abPositiveA').textContent = a.positive_replies;
+
+                // Variant B stats
+                document.getElementById('abSentB').textContent = b.sent;
+                document.getElementById('abReplyRateB').textContent = (b.reply_rate * 100).toFixed(1) + '%';
+                document.getElementById('abRepliedB').textContent = b.replied;
+                document.getElementById('abConvRateB').textContent = (b.conversion_rate * 100).toFixed(1) + '%';
+                document.getElementById('abPositiveB').textContent = b.positive_replies;
+
+                // Bar charts — scale to max value
+                const maxReply = Math.max(a.reply_rate, b.reply_rate, 0.01);
+                const maxConv = Math.max(a.conversion_rate, b.conversion_rate, 0.01);
+                document.getElementById('abBarReplyA').style.width = ((a.reply_rate / maxReply) * 100) + '%';
+                document.getElementById('abBarReplyB').style.width = ((b.reply_rate / maxReply) * 100) + '%';
+                document.getElementById('abBarConvA').style.width = ((a.conversion_rate / maxConv) * 100) + '%';
+                document.getElementById('abBarConvB').style.width = ((b.conversion_rate / maxConv) * 100) + '%';
+
+                // Winner badges
+                document.getElementById('abWinnerBadgeA').style.display = data.winner === 'A' ? 'inline' : 'none';
+                document.getElementById('abWinnerBadgeB').style.display = data.winner === 'B' ? 'inline' : 'none';
+
+            } catch(e) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
             }
         }
 

@@ -360,10 +360,26 @@ class DMSenderService:
         failed_count = 0
 
         for i, lead in enumerate(leads):
-            # Pick DM variant (A by default, B if A already failed)
-            if lead.dm_variant_used == "A" and lead.dm_variant_b:
-                message = lead.dm_variant_b
-                variant = "B"
+            # Pick DM variant: A/B test random assignment or fallback logic
+            if lead.dm_variant_used in ("A", "B") and lead.send_attempts > 0:
+                # Retry: switch to the other variant if available
+                if lead.dm_variant_used == "A" and lead.dm_variant_b:
+                    message = lead.dm_variant_b
+                    variant = "B"
+                elif lead.dm_variant_used == "B" and lead.dm_message:
+                    message = lead.dm_message
+                    variant = "A"
+                else:
+                    message = lead.dm_message or lead.dm_variant_b
+                    variant = "A" if lead.dm_message else "B"
+            elif settings.AB_TEST_ENABLED and lead.dm_variant_b:
+                # A/B test: randomly assign based on split ratio
+                if random.random() < settings.AB_TEST_SPLIT:
+                    message = lead.dm_message
+                    variant = "A"
+                else:
+                    message = lead.dm_variant_b
+                    variant = "B"
             else:
                 message = lead.dm_message
                 variant = "A"

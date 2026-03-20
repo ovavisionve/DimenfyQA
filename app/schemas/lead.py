@@ -29,6 +29,13 @@ class LeadRead(BaseModel):
     send_error: Optional[str] = None
     delivery_status: Optional[str] = None
     dm_variant_used: Optional[str] = None
+    replied_at: Optional[datetime] = None
+    reply_text: Optional[str] = None
+    reply_classification: Optional[str] = None
+    conversation_status: str = "pending"
+    follow_up_count: int = 0
+    last_follow_up_at: Optional[datetime] = None
+    next_follow_up_at: Optional[datetime] = None
     scraped_at: Optional[datetime]
     sent_at: Optional[datetime] = None
     scored_at: Optional[datetime]

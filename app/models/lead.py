@@ -18,6 +18,8 @@ class Lead(Base, UUIDMixin, TimestampMixin):
         Index("idx_leads_status", "status"),
         Index("idx_leads_score", "score"),
         Index("idx_leads_username", "ig_username"),
+        Index("idx_leads_conversation_status", "conversation_status"),
+        Index("idx_leads_next_follow_up_at", "next_follow_up_at"),
     )
 
     campaign_id: Mapped[uuid.UUID] = mapped_column(
@@ -61,6 +63,19 @@ class Lead(Base, UUIDMixin, TimestampMixin):
     send_error: Mapped[Optional[str]] = mapped_column(Text)
     delivery_status: Mapped[Optional[str]] = mapped_column(String(50))
     dm_variant_used: Mapped[Optional[str]] = mapped_column(String(10))
+
+    # Phase 3 — Inbox Monitoring & Reply Tracking
+    replied_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    reply_text: Mapped[Optional[str]] = mapped_column(Text)
+    reply_classification: Mapped[Optional[str]] = mapped_column(String(50))
+    conversation_status: Mapped[str] = mapped_column(
+        String(50), default="pending", server_default="pending"
+    )
+
+    # Phase 3 — Follow-up Automation
+    follow_up_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    next_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Timestamps
     scraped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

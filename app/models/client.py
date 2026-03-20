@@ -20,3 +20,4 @@ class Client(Base, UUIDMixin, TimestampMixin):
     # Relationships
     campaigns = relationship("Campaign", back_populates="client", lazy="selectin")
     leads = relationship("Lead", back_populates="client", lazy="selectin")
+    follow_up_rules = relationship("FollowUpRule", back_populates="client", lazy="selectin")

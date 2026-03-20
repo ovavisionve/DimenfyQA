@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     IG_WARMUP_DAYS: int = 7
     IG_WARMUP_START_LIMIT: int = 5
 
+    # Phase 3 — Inbox Monitoring
+    INBOX_CHECK_INTERVAL: int = 300  # seconds between inbox checks (default 5 min)
+
+    # Phase 3 — A/B Testing
+    AB_TEST_ENABLED: bool = True
+    AB_TEST_SPLIT: float = 0.5  # Ratio of leads that get variant A (0.0-1.0)
+
+    # Phase 3 — Follow-up Automation
+    FOLLOWUP_CHECK_INTERVAL: int = 3600  # seconds between follow-up checks (default 1 hour)
+    MAX_FOLLOW_UP_STEPS: int = 3  # maximum number of follow-up steps per campaign
+
     @field_validator("DEFAULT_SCORE_THRESHOLD", "RESEARCH_SCORE_THRESHOLD", "DM_SCORE_THRESHOLD", mode="before")
     @classmethod
     def clean_int_value(cls, v: object) -> object:

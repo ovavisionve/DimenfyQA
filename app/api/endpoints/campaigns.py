@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.campaign import Campaign
 from app.models.lead import Lead
+from app.schemas.ab_testing import ABTestResults
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignStats, CampaignUpdate
 from app.tasks.pipeline import run_campaign_pipeline
 
@@ -208,6 +209,75 @@ async def resume_sending(
         "task_id": task_result.id,
         "leads_to_send": len(lead_ids),
     }
+
+
+@router.post("/{campaign_id}/check-inbox")
+async def check_campaign_inbox(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Manually trigger an inbox check for a campaign."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from app.tasks.inbox_tasks import check_inbox_task
+
+    task_result = check_inbox_task.delay(str(campaign_id))
+    return {
+        "message": "Inbox check started",
+        "campaign_id": str(campaign_id),
+        "task_id": task_result.id,
+    }
+
+
+@router.get("/{campaign_id}/replies")
+async def get_campaign_replies(
+    campaign_id: uuid.UUID,
+    classification: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all leads that have replied for a campaign, with classification info."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from app.schemas.lead import LeadRead
+
+    query = select(Lead).where(
+        Lead.campaign_id == campaign_id,
+        Lead.replied_at.isnot(None),
+    )
+
+    if classification:
+        query = query.where(Lead.reply_classification == classification)
+
+    query = query.order_by(Lead.replied_at.desc())
+    leads_result = await db.execute(query)
+    leads = leads_result.scalars().all()
+
+    return {
+        "campaign_id": str(campaign_id),
+        "total_replies": len(leads),
+        "leads": [LeadRead.model_validate(lead) for lead in leads],
+    }
+
+
+@router.get("/{campaign_id}/ab-results", response_model=ABTestResults)
+async def get_ab_results(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Return A/B test results for a campaign's DM variants."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from app.services.ab_testing_service import ab_testing_service
+
+    ab_results = await ab_testing_service.get_campaign_ab_results(str(campaign_id), db)
+    return ab_results
 
 
 @router.get("/ig-accounts/health")
