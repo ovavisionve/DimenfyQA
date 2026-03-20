@@ -2259,6 +2259,156 @@
             }
         }
 
+        // ===== ANALYTICS =====
+        async function loadAnalytics() {
+            if (!activeCampaignId) return;
+
+            const loading = document.getElementById('analyticsLoading');
+            const empty = document.getElementById('analyticsEmpty');
+            const content = document.getElementById('analyticsContent');
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/analytics`);
+                if (!res.ok) throw new Error('Failed to load analytics');
+                const data = await res.json();
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+                // Summary cards
+                document.getElementById('anTotalLeads').textContent = data.total_leads;
+                document.getElementById('anAvgScore').textContent = data.avg_score;
+                document.getElementById('anResponseRate').textContent = data.response_rate + '%';
+
+                // Conversion rate: dm_ready / scored
+                const scored = data.funnel.find(f => f.name === 'scored');
+                const dmReady = data.funnel.find(f => f.name === 'dm_ready');
+                const convRate = scored && scored.count > 0
+                    ? Math.round(dmReady.count / scored.count * 100 * 10) / 10
+                    : 0;
+                document.getElementById('anConversionRate').textContent = convRate + '%';
+
+                // Funnel
+                renderAnalyticsFunnel(data.funnel);
+
+                // Score distribution
+                renderScoreDistribution(data.score_distribution);
+
+                // Category breakdown
+                renderCategoryBreakdown(data.category_breakdown);
+
+                // Timeline
+                renderTimeline(data.timeline);
+
+            } catch (e) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
+                log('Analytics error: ' + e.message, 'error');
+            }
+        }
+
+        function renderAnalyticsFunnel(funnel) {
+            const container = document.getElementById('anFunnel');
+            container.innerHTML = '';
+            const maxCount = Math.max(...funnel.map(f => f.count), 1);
+
+            funnel.forEach(stage => {
+                const widthPct = Math.max((stage.count / maxCount) * 100, 1);
+                container.innerHTML += `
+                    <div class="funnel-row">
+                        <div class="funnel-label">${stage.name.replace('_', ' ')}</div>
+                        <div class="funnel-bar-track">
+                            <div class="funnel-bar-fill stage-${stage.name}" style="width:${widthPct}%"></div>
+                        </div>
+                        <div class="funnel-value">${stage.count} (${stage.percentage}%)</div>
+                    </div>`;
+            });
+        }
+
+        function renderScoreDistribution(distribution) {
+            const container = document.getElementById('anScoreDist');
+            container.innerHTML = '';
+            const maxCount = Math.max(...distribution.map(d => d.count), 1);
+            const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--blue)', 'var(--green)'];
+
+            distribution.forEach((bucket, i) => {
+                const widthPct = Math.max((bucket.count / maxCount) * 100, 1);
+                container.innerHTML += `
+                    <div class="chart-row">
+                        <div class="chart-label">${bucket.range_label}</div>
+                        <div class="chart-bar-track">
+                            <div class="chart-bar-fill" style="width:${widthPct}%;background:${colors[i]}"></div>
+                        </div>
+                        <div class="chart-value">${bucket.count}</div>
+                    </div>`;
+            });
+        }
+
+        function renderCategoryBreakdown(categories) {
+            const container = document.getElementById('anCategoryBreakdown');
+            container.innerHTML = '';
+            if (!categories.length) {
+                container.innerHTML = '<div style="color:var(--text3);padding:12px">No category data yet.</div>';
+                return;
+            }
+            const maxCount = Math.max(...categories.map(c => c.count), 1);
+            const catColors = {
+                coach: 'var(--accent)',
+                ecommerce: 'var(--green)',
+                saas: 'var(--blue)',
+                agency: 'var(--cyan)',
+                creator: 'var(--yellow)',
+                local_business: 'var(--orange)',
+                other: 'var(--text3)',
+            };
+
+            categories.forEach(cat => {
+                const widthPct = Math.max((cat.count / maxCount) * 100, 1);
+                const color = catColors[cat.category] || 'var(--text3)';
+                container.innerHTML += `
+                    <div class="chart-row">
+                        <div class="chart-label">${cat.category.replace('_', ' ')}</div>
+                        <div class="chart-bar-track">
+                            <div class="chart-bar-fill" style="width:${widthPct}%;background:${color}"></div>
+                        </div>
+                        <div class="chart-value">${cat.count}</div>
+                    </div>`;
+            });
+        }
+
+        function renderTimeline(timeline) {
+            const tbody = document.getElementById('anTimelineBody');
+            const emptyMsg = document.getElementById('anTimelineEmpty');
+            const table = document.getElementById('anTimelineTable');
+
+            if (!timeline.length) {
+                table.style.display = 'none';
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyMsg.style.display = 'none';
+            tbody.innerHTML = '';
+
+            timeline.forEach(point => {
+                const rate = point.sent_count > 0
+                    ? Math.round(point.replied_count / point.sent_count * 100 * 10) / 10
+                    : 0;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${point.date}</td>
+                        <td>${point.sent_count}</td>
+                        <td>${point.replied_count}</td>
+                        <td>${rate}%</td>
+                    </tr>`;
+            });
+        }
+
         // Start
         init();
     </script>
