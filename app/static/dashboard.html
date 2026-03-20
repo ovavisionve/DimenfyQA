@@ -1054,6 +1054,17 @@
                 </div>
             </div>
 
+            <!-- Account Health -->
+            <div class="activity-section" id="accountHealthSection" style="margin-top:24px;display:none">
+                <div class="activity-header" style="display:flex;align-items:center;justify-content:space-between">
+                    IG Account Health
+                    <button class="btn btn-secondary btn-sm" onclick="refreshAccountHealth()">Refresh</button>
+                </div>
+                <div style="padding:16px 20px" id="accountHealthBody">
+                    <div style="color:var(--text3)">Loading account health...</div>
+                </div>
+            </div>
+
             <div class="activity-section">
                 <div class="activity-header">Activity Log</div>
                 <div class="activity-log" id="activityLog"></div>
@@ -1328,6 +1339,11 @@
                 // Update DMs badge
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
+
+                // Refresh account health during sending phases
+                if (['sending', 'paused', 'completed'].includes(campaign.status)) {
+                    refreshAccountHealth();
+                }
 
                 // Stop polling when campaign is not actively running
                 if (!ACTIVE_STATUSES.includes(campaign.status)) {
@@ -1770,6 +1786,40 @@
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ===== ACCOUNT HEALTH =====
+        async function refreshAccountHealth() {
+            try {
+                const res = await fetch(`${API}/campaigns/ig-accounts/health`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const section = document.getElementById('accountHealthSection');
+                const body = document.getElementById('accountHealthBody');
+
+                if (!data.accounts || data.accounts.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+                body.innerHTML = data.accounts.map(acc => {
+                    const statusColor = acc.is_blocked ? 'var(--red)' : acc.logged_in ? 'var(--green)' : 'var(--yellow)';
+                    const statusText = acc.is_blocked ? 'BLOCKED' : acc.logged_in ? 'ACTIVE' : 'OFFLINE';
+                    const rateColor = acc.success_rate >= 90 ? 'var(--green)' : acc.success_rate >= 70 ? 'var(--yellow)' : 'var(--red)';
+                    return `<div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border)">
+                        <span style="font-weight:700;min-width:120px">@${acc.username}</span>
+                        <span style="color:${statusColor};font-weight:600;font-size:12px">${statusText}</span>
+                        <span style="font-size:12px;color:var(--text2)">Sent: <b style="color:var(--text)">${acc.total_sent}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Failed: <b style="color:var(--text)">${acc.total_failed}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Rate: <b style="color:${rateColor}">${acc.success_rate}%</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Challenges: <b style="color:var(--text)">${acc.challenges}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Daily limit: <b style="color:var(--accent)">${acc.warmup_limit}</b></span>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                // silent
+            }
         }
 
         // ===== PAUSE / RESUME =====

@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     DM_DELAY_MAX: int = 120
     IG_SESSION_DIR: str = "./ig_sessions"
 
+    # Multi-account rotation: comma-separated "user:pass:proxy" entries
+    # e.g. "bot1:pass1:http://proxy1,bot2:pass2:http://proxy2"
+    IG_ACCOUNTS: str = ""
+
+    # Warm-up: new accounts send fewer DMs, ramping up over days
+    IG_WARMUP_DAYS: int = 7
+    IG_WARMUP_START_LIMIT: int = 5
+
     @field_validator("DEFAULT_SCORE_THRESHOLD", "RESEARCH_SCORE_THRESHOLD", "DM_SCORE_THRESHOLD", mode="before")
     @classmethod
     def clean_int_value(cls, v: object) -> object:

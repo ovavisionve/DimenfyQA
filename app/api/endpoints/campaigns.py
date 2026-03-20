@@ -208,3 +208,10 @@ async def resume_sending(
         "task_id": task_result.id,
         "leads_to_send": len(lead_ids),
     }
+
+
+@router.get("/ig-accounts/health")
+async def get_ig_accounts_health():
+    """Return health metrics for all configured Instagram accounts."""
+    from app.services.dm_sender_service import dm_sender_service
+    return {"accounts": dm_sender_service.get_accounts_health()}
