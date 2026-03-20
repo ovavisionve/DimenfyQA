@@ -8,6 +8,9 @@ class CampaignStatus(StrEnum):
     RESEARCHING = "researching"
     WRITING = "writing"
     READY = "ready"
+    SENDING = "sending"
+    COMPLETED = "completed"
+    PAUSED = "paused"
     FAILED = "failed"
 
 
@@ -16,8 +19,11 @@ class LeadStatus(StrEnum):
     SCORED = "scored"
     RESEARCHED = "researched"
     DM_READY = "dm_ready"
+    SENDING = "sending"
     SENT = "sent"
+    DELIVERED = "delivered"
     FAILED = "failed"
+    RETRY = "retry"
 
 
 class SourceType(StrEnum):

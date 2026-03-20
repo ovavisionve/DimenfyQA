@@ -56,6 +56,12 @@ class Lead(Base, UUIDMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), default="scraped", server_default="scraped")
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Phase 2 — DM Sending
+    send_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    send_error: Mapped[Optional[str]] = mapped_column(Text)
+    delivery_status: Mapped[Optional[str]] = mapped_column(String(50))
+    dm_variant_used: Mapped[Optional[str]] = mapped_column(String(10))
+
     # Timestamps
     scraped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

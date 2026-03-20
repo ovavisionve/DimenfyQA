@@ -25,7 +25,12 @@ class LeadRead(BaseModel):
     dm_message: Optional[str]
     status: str
     is_duplicate: bool
+    send_attempts: int = 0
+    send_error: Optional[str] = None
+    delivery_status: Optional[str] = None
+    dm_variant_used: Optional[str] = None
     scraped_at: Optional[datetime]
+    sent_at: Optional[datetime] = None
     scored_at: Optional[datetime]
     researched_at: Optional[datetime]
     dm_generated_at: Optional[datetime]

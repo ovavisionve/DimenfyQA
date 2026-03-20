@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     RESEARCH_SCORE_THRESHOLD: int = 60
     DM_SCORE_THRESHOLD: int = 70
 
+    # Phase 2 — Instagram DM Sending
+    IG_USERNAME: str = ""
+    IG_PASSWORD: str = ""
+    PROXY_URL: str = ""
+    DAILY_DM_LIMIT: int = 30
+    DM_DELAY_MIN: int = 45
+    DM_DELAY_MAX: int = 120
+    IG_SESSION_DIR: str = "./ig_sessions"
+
     @field_validator("DEFAULT_SCORE_THRESHOLD", "RESEARCH_SCORE_THRESHOLD", "DM_SCORE_THRESHOLD", mode="before")
     @classmethod
     def clean_int_value(cls, v: object) -> object:
