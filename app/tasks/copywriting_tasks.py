@@ -55,23 +55,23 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                 lead_ids, db, progress_callback=_writing_progress
             )
 
-            # Update campaign to "completed"
+            # Update campaign to "ready" (DMs generated, ready for sending)
             if campaign_id:
                 campaign_result = await db.execute(
                     select(Campaign).where(Campaign.id == str(campaign_id))
                 )
                 campaign = campaign_result.scalar_one_or_none()
                 if campaign:
-                    campaign.status = "completed"
+                    campaign.status = "ready"
 
             await db.commit()
             logger.info(f"Generated DMs for {len(dm_ready_ids)} leads")
 
             if cid:
-                await update_progress(cid, "completed",
-                                f"Pipeline complete! {len(dm_ready_ids)} DMs generated.",
+                await update_progress(cid, "ready",
+                                f"DM generation complete! {len(dm_ready_ids)} DMs ready to send.",
                                 current=len(dm_ready_ids), total=len(dm_ready_ids),
-                                detail="Ready to export")
+                                detail="Proceeding to DM sending phase")
 
             return dm_ready_ids
 
