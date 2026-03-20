@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.lead import Lead
+from app.services.webhook_service import webhook_service
 
 logger = logging.getLogger(__name__)
 
@@ -406,6 +407,22 @@ class DMSenderService:
                 lead.send_error = None
                 sent_count += 1
                 logger.info(f"Sent DM ({variant}) to @{lead.ig_username} [{sent_count}/{len(leads)}]")
+
+                # Trigger webhook for successful DM send
+                try:
+                    await webhook_service.trigger_event(
+                        client_id=str(lead.client_id),
+                        event_type="dm.sent",
+                        payload={
+                            "lead_id": str(lead.id),
+                            "ig_username": lead.ig_username,
+                            "campaign_id": str(lead.campaign_id),
+                            "variant": variant,
+                        },
+                        db=db,
+                    )
+                except Exception:
+                    pass
             else:
                 lead.send_attempts += 1
                 lead.send_error = result.get("error", "Unknown error")
@@ -436,6 +453,23 @@ class DMSenderService:
                     lead.status = "failed"
                     lead.delivery_status = "max_attempts"
                     failed_count += 1
+
+                    # Trigger webhook for failed DM
+                    try:
+                        await webhook_service.trigger_event(
+                            client_id=str(lead.client_id),
+                            event_type="dm.failed",
+                            payload={
+                                "lead_id": str(lead.id),
+                                "ig_username": lead.ig_username,
+                                "campaign_id": str(lead.campaign_id),
+                                "error": lead.send_error,
+                                "send_attempts": lead.send_attempts,
+                            },
+                            db=db,
+                        )
+                    except Exception:
+                        pass
                 else:
                     lead.status = "retry"
                     lead.delivery_status = "retry"

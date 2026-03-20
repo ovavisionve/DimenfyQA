@@ -9,6 +9,7 @@ from app.config import settings
 from app.models.lead import Lead
 from app.schemas.enums import ConversationStatus, ReplyClassification
 from app.services.dm_sender_service import DMSenderService, IGAccount
+from app.services.webhook_service import webhook_service
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,23 @@ class InboxService:
                     f"Reply from @{lead.ig_username}: "
                     f"classification={classification}, text={reply_text[:80]}"
                 )
+
+                # Trigger webhook for reply received
+                try:
+                    await webhook_service.trigger_event(
+                        client_id=str(lead.client_id),
+                        event_type="reply.received",
+                        payload={
+                            "lead_id": str(lead.id),
+                            "ig_username": lead.ig_username,
+                            "campaign_id": str(lead.campaign_id),
+                            "reply_text": reply_text[:500],
+                            "classification": classification,
+                        },
+                        db=db,
+                    )
+                except Exception:
+                    pass
 
             except Exception as e:
                 error_msg = f"Error processing reply from @{lead.ig_username}: {e}"

@@ -223,6 +223,106 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
+        /* Analytics */
+        .analytics-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+
+        .analytics-panel-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .analytics-funnel .funnel-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .analytics-funnel .funnel-label {
+            width: 100px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+            text-transform: capitalize;
+        }
+
+        .analytics-funnel .funnel-bar-track {
+            flex: 1;
+            height: 28px;
+            background: var(--surface2);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .analytics-funnel .funnel-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .analytics-funnel .funnel-bar-fill.stage-scraped { background: var(--blue); }
+        .analytics-funnel .funnel-bar-fill.stage-scored { background: var(--accent); }
+        .analytics-funnel .funnel-bar-fill.stage-researched { background: var(--yellow); }
+        .analytics-funnel .funnel-bar-fill.stage-dm_ready { background: var(--orange); }
+        .analytics-funnel .funnel-bar-fill.stage-sent { background: var(--cyan); }
+        .analytics-funnel .funnel-bar-fill.stage-replied { background: var(--green); }
+
+        .analytics-funnel .funnel-value {
+            width: 80px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .analytics-chart .chart-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .analytics-chart .chart-label {
+            width: 80px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .analytics-chart .chart-bar-track {
+            flex: 1;
+            height: 24px;
+            background: var(--surface2);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .analytics-chart .chart-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .analytics-chart .chart-value {
+            width: 50px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
         /* Pipeline steps */
         .pipeline {
             display: flex;
@@ -968,6 +1068,9 @@
             <button class="tab" onclick="switchTab('ab')" id="tab-ab">
                 A/B Testing
             </button>
+            <button class="tab" onclick="switchTab('analytics')" id="tab-analytics">
+                Analytics
+            </button>
             <button class="tab" onclick="switchTab('export')" id="tab-export">
                 Export
             </button>
@@ -1292,6 +1395,87 @@
         </div>
     </div>
 
+        <!-- =============== ANALYTICS TAB =============== -->
+        <div class="tab-content" id="content-analytics">
+            <div class="analytics-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                    <h2 style="font-size:18px;font-weight:700">Campaign Analytics</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadAnalytics()">Refresh</button>
+                </div>
+
+                <div id="analyticsLoading" style="display:none;text-align:center;padding:40px;color:var(--text2)">
+                    <span class="spinner"></span> Loading analytics...
+                </div>
+
+                <div id="analyticsEmpty" style="text-align:center;padding:40px">
+                    <div style="font-size:48px;margin-bottom:12px">&#x1F4C8;</div>
+                    <div style="color:var(--text2)">Select a campaign to view analytics.</div>
+                </div>
+
+                <div id="analyticsContent" style="display:none">
+                    <!-- Summary cards -->
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--blue)" id="anTotalLeads">0</div>
+                            <div class="stat-label">Total Leads</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--accent)" id="anAvgScore">0</div>
+                            <div class="stat-label">Avg Score</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--green)" id="anResponseRate">0%</div>
+                            <div class="stat-label">Response Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--cyan)" id="anConversionRate">0%</div>
+                            <div class="stat-label">Conversion Rate</div>
+                        </div>
+                    </div>
+
+                    <!-- Funnel visualization -->
+                    <div class="analytics-panel" style="margin-bottom:24px">
+                        <h3 class="analytics-panel-title">Lead Funnel</h3>
+                        <div id="anFunnel" class="analytics-funnel"></div>
+                    </div>
+
+                    <!-- Score distribution + Category breakdown side by side -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+                        <div class="analytics-panel">
+                            <h3 class="analytics-panel-title">Score Distribution</h3>
+                            <div id="anScoreDist" class="analytics-chart"></div>
+                        </div>
+                        <div class="analytics-panel">
+                            <h3 class="analytics-panel-title">Category Breakdown</h3>
+                            <div id="anCategoryBreakdown" class="analytics-chart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline table -->
+                    <div class="analytics-panel">
+                        <h3 class="analytics-panel-title">Daily Timeline</h3>
+                        <div class="table-scroll" style="max-height:300px">
+                            <table class="lead-table" id="anTimelineTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Sent</th>
+                                        <th>Replied</th>
+                                        <th>Response Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="anTimelineBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="anTimelineEmpty" style="text-align:center;padding:24px;color:var(--text3);display:none">
+                            No sending data yet.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     <!-- DM Modal -->
     <div class="modal-overlay" id="dmModal" onclick="if(event.target===this)closeDM()">
         <div class="modal">
@@ -1336,6 +1520,7 @@
 
             if (tab === 'dms') renderDMGallery();
             if (tab === 'ab') loadABResults();
+            if (tab === 'analytics') loadAnalytics();
             if (tab === 'export') updateExportStats();
         }
 

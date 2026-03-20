@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.campaign import Campaign
 from app.models.lead import Lead
 from app.schemas.ab_testing import ABTestResults
+from app.schemas.analytics import CampaignAnalytics
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignStats, CampaignUpdate
 from app.tasks.pipeline import run_campaign_pipeline
 
@@ -278,6 +279,22 @@ async def get_ab_results(
 
     ab_results = await ab_testing_service.get_campaign_ab_results(str(campaign_id), db)
     return ab_results
+
+
+@router.get("/{campaign_id}/analytics", response_model=CampaignAnalytics)
+async def get_campaign_analytics(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Return full analytics for a campaign."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from app.services.analytics_service import analytics_service
+
+    analytics = await analytics_service.get_campaign_analytics(str(campaign_id), db)
+    return analytics
 
 
 @router.get("/ig-accounts/health")

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.client import Client
+from app.schemas.analytics import ClientAnalytics, TopCampaign
 from app.schemas.client import ClientCreate, ClientRead, ClientUpdate
 
 router = APIRouter()
@@ -77,3 +78,37 @@ async def delete_client(client_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     # Soft delete: deactivate instead of removing
     client.is_active = False
     await db.flush()
+
+
+@router.get("/{client_id}/analytics", response_model=ClientAnalytics)
+async def get_client_analytics(
+    client_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Aggregate analytics across all campaigns for a client."""
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    from app.services.analytics_service import analytics_service
+
+    analytics = await analytics_service.get_client_analytics(str(client_id), db)
+    return analytics
+
+
+@router.get("/{client_id}/top-campaigns", response_model=list[TopCampaign])
+async def get_top_performing_campaigns(
+    client_id: uuid.UUID,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+):
+    """Campaigns ranked by response rate for a client."""
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    from app.services.analytics_service import analytics_service
+
+    campaigns = await analytics_service.get_top_performing_campaigns(str(client_id), db, limit=limit)
+    return campaigns
