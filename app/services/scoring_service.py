@@ -28,7 +28,10 @@ Evalúa cada perfil de Instagram y asigna un score de 0 a 100.
 - Su bio menciona servicios, productos o negocio (0-20 puntos)
 - Podría beneficiarse de lead generation B2B (0-25 puntos)
 - Tiene website (0-10 puntos)
-- Perfil público (0-5 puntos, 0 si es privado)
+- Perfil público (0-5 puntos)
+
+## REGLA CRÍTICA:
+- Si is_private=true → score DEBE ser 0. No se puede enviar DM a cuentas privadas.
 
 {content_context}
 
@@ -158,6 +161,17 @@ class ScoringService:
         all_lead_data: list[dict] = []
         skipped_count = 0
         for lead in leads:
+            # Filter out private accounts — can't send DMs to them
+            if lead.ig_is_private:
+                lead.score = 0
+                lead.score_reason = "Cuenta privada — no se pueden enviar DMs"
+                lead.lead_category = "other"
+                lead.status = "scored"
+                lead.scored_at = datetime.now(timezone.utc)
+                skipped_count += 1
+                logger.info(f"Auto-scored 0 (private account): @{lead.ig_username}")
+                continue
+
             has_bio = bool(lead.ig_bio and lead.ig_bio.strip())
             has_followers = bool(lead.ig_follower_count and lead.ig_follower_count > 0)
             has_name = bool(lead.ig_full_name and lead.ig_full_name.strip())

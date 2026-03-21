@@ -1,6 +1,6 @@
-"""Tests for Phase 2 DM sending: service, task, enums, config, and schema."""
+"""Tests for Phase 2 DM sending: service, task, enums, config, security, and schema."""
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,7 +35,7 @@ class TestPhase2Enums:
 
 
 class TestPhase2Config:
-    """Verify DM sending config defaults."""
+    """Verify DM sending config defaults including security settings."""
 
     def test_ig_username_default_empty(self):
         s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
@@ -76,6 +76,35 @@ class TestPhase2Config:
     def test_warmup_start_limit_default(self):
         s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
         assert s.IG_WARMUP_START_LIMIT == 5
+
+    # Security config defaults
+    def test_hourly_dm_limit_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.HOURLY_DM_LIMIT == 10
+
+    def test_challenge_cooldown_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.CHALLENGE_COOLDOWN_MINUTES == 60
+
+    def test_block_cooldown_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.BLOCK_COOLDOWN_HOURS == 24
+
+    def test_max_challenges_before_pause_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.MAX_CHALLENGES_BEFORE_PAUSE == 3
+
+    def test_pre_send_check_public_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.PRE_SEND_CHECK_PUBLIC is True
+
+    def test_skip_private_accounts_default(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.SKIP_PRIVATE_ACCOUNTS is True
+
+    def test_encryption_key_default_empty(self):
+        s = Settings(DATABASE_URL="postgresql+asyncpg://x", REDIS_URL="redis://x")
+        assert s.IG_SESSION_ENCRYPTION_KEY == ""
 
 
 class TestCampaignStatsSchema:
@@ -188,12 +217,22 @@ class TestIGAccount:
         acc.total_sent = 10
         acc.total_failed = 2
         acc.challenges = 1
-        health = acc.get_health()
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_WARMUP_START_LIMIT = 5
+            s.IG_WARMUP_DAYS = 7
+            s.DAILY_DM_LIMIT = 30
+            s.HOURLY_DM_LIMIT = 10
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            health = acc.get_health()
         assert health["username"] == "test"
         assert health["logged_in"] is True
         assert health["total_sent"] == 10
         assert health["total_failed"] == 2
         assert health["success_rate"] == 83.3
+        assert "in_cooldown" in health
+        assert "hourly_sends" in health
 
     def test_health_persistence(self, tmp_path):
         from app.services.dm_sender_service import IGAccount
@@ -201,13 +240,22 @@ class TestIGAccount:
         acc1.total_sent = 50
         acc1.total_failed = 3
         acc1.created_at = datetime(2025, 6, 1, tzinfo=timezone.utc)
-        acc1._save_health()
+        acc1.last_challenge_at = datetime(2025, 6, 1, 12, 0, tzinfo=timezone.utc)
+        acc1.challenges_today = 2
+        acc1._challenges_today_date = "2025-06-01"
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            acc1._save_health()
 
         acc2 = IGAccount("test", "pass", "", tmp_path)
-        acc2._load_health()
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            acc2._load_health()
         assert acc2.total_sent == 50
         assert acc2.total_failed == 3
         assert acc2.created_at == datetime(2025, 6, 1, tzinfo=timezone.utc)
+        assert acc2.last_challenge_at == datetime(2025, 6, 1, 12, 0, tzinfo=timezone.utc)
+        assert acc2.challenges_today == 2
 
     def test_send_dm_fails_when_not_logged_in(self, tmp_path):
         from app.services.dm_sender_service import IGAccount
@@ -222,10 +270,17 @@ class TestIGAccount:
         acc._logged_in = True
         acc._client = MagicMock()
         acc._client.user_id_from_username.side_effect = Exception("challenge_required")
-        result = acc.send_dm("testuser", "Hello")
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.HOURLY_DM_LIMIT = 10
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            result = acc.send_dm("testuser", "Hello")
         assert result["success"] is False
         assert result["is_challenge"] is True
         assert acc.challenges == 1
+        assert acc.last_challenge_at is not None
 
     def test_send_dm_detects_block(self, tmp_path):
         from app.services.dm_sender_service import IGAccount
@@ -233,10 +288,17 @@ class TestIGAccount:
         acc._logged_in = True
         acc._client = MagicMock()
         acc._client.user_id_from_username.side_effect = Exception("feedback_required: block")
-        result = acc.send_dm("testuser", "Hello")
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.HOURLY_DM_LIMIT = 10
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            result = acc.send_dm("testuser", "Hello")
         assert result["success"] is False
         assert result["is_block"] is True
         assert acc.is_blocked is True
+        assert acc.last_block_at is not None
 
     def test_send_dm_success(self, tmp_path):
         from app.services.dm_sender_service import IGAccount
@@ -247,10 +309,89 @@ class TestIGAccount:
         mock_result = MagicMock()
         mock_result.id = "thread_abc"
         acc._client.direct_send.return_value = mock_result
-        result = acc.send_dm("testuser", "Hello!")
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.HOURLY_DM_LIMIT = 10
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            with patch("app.services.dm_sender_service.time"):
+                result = acc.send_dm("testuser", "Hello!")
         assert result["success"] is True
         assert result["thread_id"] == "thread_abc"
         assert acc.total_sent == 1
+
+    def test_hourly_rate_limit(self, tmp_path):
+        from app.services.dm_sender_service import IGAccount
+        acc = IGAccount("test", "pass", "", tmp_path)
+        acc._logged_in = True
+        acc._client = MagicMock()
+        # Fill hourly sends to the limit
+        import time as _time
+        now = _time.time()
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.HOURLY_DM_LIMIT = 3
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            acc._hourly_sends = [now - 10, now - 20, now - 30]
+            result = acc.send_dm("testuser", "Hello!")
+        assert result["success"] is False
+        assert "Hourly DM limit" in result["error"]
+        assert result.get("is_rate_limited") is True
+
+    def test_cooldown_after_challenge(self, tmp_path):
+        from app.services.dm_sender_service import IGAccount
+        acc = IGAccount("test", "pass", "", tmp_path)
+        acc.last_challenge_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            in_cooldown, reason = acc.is_in_cooldown()
+        assert in_cooldown is True
+        assert "Challenge cooldown" in reason
+
+    def test_cooldown_expired(self, tmp_path):
+        from app.services.dm_sender_service import IGAccount
+        acc = IGAccount("test", "pass", "", tmp_path)
+        acc.last_challenge_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            in_cooldown, _ = acc.is_in_cooldown()
+        assert in_cooldown is False
+
+    def test_too_many_challenges_today(self, tmp_path):
+        from app.services.dm_sender_service import IGAccount
+        acc = IGAccount("test", "pass", "", tmp_path)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        acc._challenges_today_date = today
+        acc.challenges_today = 5
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.CHALLENGE_COOLDOWN_MINUTES = 60
+            s.BLOCK_COOLDOWN_HOURS = 24
+            s.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            in_cooldown, reason = acc.is_in_cooldown()
+        assert in_cooldown is True
+        assert "Too many challenges" in reason
+
+    def test_device_profile_consistent(self, tmp_path):
+        """Same username always gets the same device profile."""
+        from app.services.dm_sender_service import IGAccount
+        acc1 = IGAccount("testuser", "pass", "", tmp_path)
+        acc2 = IGAccount("testuser", "pass", "", tmp_path)
+        assert acc1._device_profile == acc2._device_profile
+
+    def test_device_profile_different_users(self, tmp_path):
+        """Different usernames may get different device profiles."""
+        from app.services.dm_sender_service import IGAccount
+        # Just verify the profile is assigned without error
+        acc1 = IGAccount("bot1", "pass", "", tmp_path)
+        acc2 = IGAccount("bot2", "pass", "", tmp_path)
+        assert acc1._device_profile is not None
+        assert acc2._device_profile is not None
 
 
 class TestDMSenderService:
@@ -326,6 +467,10 @@ class TestDMSenderService:
             mock_settings.IG_WARMUP_START_LIMIT = 5
             mock_settings.IG_WARMUP_DAYS = 7
             mock_settings.DAILY_DM_LIMIT = 30
+            mock_settings.HOURLY_DM_LIMIT = 10
+            mock_settings.CHALLENGE_COOLDOWN_MINUTES = 60
+            mock_settings.BLOCK_COOLDOWN_HOURS = 24
+            mock_settings.MAX_CHALLENGES_BEFORE_PAUSE = 3
             from app.services.dm_sender_service import DMSenderService
             svc = DMSenderService()
             health = svc.get_accounts_health()
@@ -333,6 +478,8 @@ class TestDMSenderService:
             assert health[0]["username"] == "bot1"
             assert "success_rate" in health[0]
             assert "warmup_limit" in health[0]
+            assert "in_cooldown" in health[0]
+            assert "hourly_sends" in health[0]
 
     def test_round_robin_rotation(self):
         with patch("app.services.dm_sender_service.settings") as mock_settings:
@@ -340,6 +487,9 @@ class TestDMSenderService:
             mock_settings.IG_ACCOUNTS = "bot1:pass1,bot2:pass2"
             mock_settings.IG_USERNAME = ""
             mock_settings.IG_PASSWORD = ""
+            mock_settings.CHALLENGE_COOLDOWN_MINUTES = 60
+            mock_settings.BLOCK_COOLDOWN_HOURS = 24
+            mock_settings.MAX_CHALLENGES_BEFORE_PAUSE = 3
             from app.services.dm_sender_service import DMSenderService
             svc = DMSenderService()
             svc._init_accounts()
@@ -357,6 +507,9 @@ class TestDMSenderService:
             mock_settings.IG_ACCOUNTS = "bot1:pass1,bot2:pass2"
             mock_settings.IG_USERNAME = ""
             mock_settings.IG_PASSWORD = ""
+            mock_settings.CHALLENGE_COOLDOWN_MINUTES = 60
+            mock_settings.BLOCK_COOLDOWN_HOURS = 24
+            mock_settings.MAX_CHALLENGES_BEFORE_PAUSE = 3
             from app.services.dm_sender_service import DMSenderService
             svc = DMSenderService()
             svc._init_accounts()
@@ -365,6 +518,80 @@ class TestDMSenderService:
             svc._accounts[1]._logged_in = True
             result = svc._get_next_account()
             assert result.username == "bot2"
+
+    def test_rotation_skips_cooldown(self):
+        with patch("app.services.dm_sender_service.settings") as mock_settings:
+            mock_settings.IG_SESSION_DIR = "/tmp/test_ig_sessions"
+            mock_settings.IG_ACCOUNTS = "bot1:pass1,bot2:pass2"
+            mock_settings.IG_USERNAME = ""
+            mock_settings.IG_PASSWORD = ""
+            mock_settings.CHALLENGE_COOLDOWN_MINUTES = 60
+            mock_settings.BLOCK_COOLDOWN_HOURS = 24
+            mock_settings.MAX_CHALLENGES_BEFORE_PAUSE = 3
+            from app.services.dm_sender_service import DMSenderService
+            svc = DMSenderService()
+            svc._init_accounts()
+            svc._accounts[0]._logged_in = True
+            svc._accounts[0].last_challenge_at = datetime.now(timezone.utc)  # Just challenged
+            svc._accounts[1]._logged_in = True
+            result = svc._get_next_account()
+            assert result.username == "bot2"
+
+
+def _cryptography_available():
+    import subprocess
+    result = subprocess.run(
+        ["python", "-c", "from cryptography.fernet import Fernet; print('ok')"],
+        capture_output=True, text=True, timeout=5,
+    )
+    return result.returncode == 0 and "ok" in result.stdout
+
+
+@pytest.mark.skipif(not _cryptography_available(), reason="cryptography package not available")
+class TestSessionEncryption:
+    """Test session file encryption/decryption."""
+
+    def test_encrypt_decrypt_roundtrip(self, tmp_path):
+        from cryptography.fernet import Fernet
+        key = Fernet.generate_key().decode()
+        test_file = tmp_path / "test_session.json"
+        test_data = '{"pk": 12345, "session_id": "abc"}'
+        test_file.write_text(test_data)
+
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_SESSION_ENCRYPTION_KEY = key
+            from app.services.dm_sender_service import _encrypt_file, _decrypt_file
+            _encrypt_file(test_file)
+            assert test_file.read_bytes() != test_data.encode()
+            assert test_file.read_bytes().startswith(b"gAAAAA")
+            decrypted = _decrypt_file(test_file)
+            assert decrypted == test_data.encode()
+
+    def test_no_encryption_without_key(self, tmp_path):
+        test_file = tmp_path / "test_session.json"
+        test_data = '{"pk": 12345}'
+        test_file.write_text(test_data)
+
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_SESSION_ENCRYPTION_KEY = ""
+            from app.services.dm_sender_service import _encrypt_file, _decrypt_file
+            _encrypt_file(test_file)
+            assert test_file.read_text() == test_data
+            decrypted = _decrypt_file(test_file)
+            assert decrypted == test_data.encode()
+
+    def test_decrypt_unencrypted_file(self, tmp_path):
+        test_file = tmp_path / "plain.json"
+        test_data = '{"pk": 99}'
+        test_file.write_text(test_data)
+
+        from cryptography.fernet import Fernet
+        key = Fernet.generate_key().decode()
+        with patch("app.services.dm_sender_service.settings") as s:
+            s.IG_SESSION_ENCRYPTION_KEY = key
+            from app.services.dm_sender_service import _decrypt_file
+            decrypted = _decrypt_file(test_file)
+            assert decrypted == test_data.encode()
 
 
 class TestSendingTaskConfig:

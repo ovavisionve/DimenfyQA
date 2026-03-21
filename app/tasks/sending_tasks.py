@@ -68,10 +68,12 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                     await db.commit()
                 return lead_ids
 
+            accounts_health = dm_sender_service.get_accounts_health()
+            active_accounts = sum(1 for h in accounts_health if h.get("logged_in"))
             await update_progress(cid, "sending",
                             "Logged in. Starting DM delivery...",
                             current=0, total=len(lead_ids),
-                            detail=f"Rate limit: {dm_sender_service._client is not None}")
+                            detail=f"Active accounts: {active_accounts}")
 
             def _sending_progress(cur, tot, uname, success):
                 """Sync callback for send progress."""
@@ -88,6 +90,7 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
 
             sent = send_result["sent_count"]
             failed = send_result["failed_count"]
+            skipped = send_result.get("skipped_count", 0)
             paused = send_result["paused"]
             reason = send_result["reason"]
 
@@ -101,19 +104,23 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                     campaign.status = "paused"
                     stats = dict(campaign.stats or {})
                     stats["send_error"] = reason
+                    stats["send_summary"] = {"sent": sent, "failed": failed, "skipped": skipped}
                     campaign.stats = stats
                 else:
                     campaign.status = "completed"
+                    stats = dict(campaign.stats or {})
+                    stats["send_summary"] = {"sent": sent, "failed": failed, "skipped": skipped}
+                    campaign.stats = stats
                 await db.commit()
 
             phase = "paused" if paused else "completed"
             detail = reason if paused else "Ready to export"
-            await update_progress(cid, phase,
-                            f"Sending done: {sent} sent, {failed} failed. {reason}",
-                            current=sent, total=sent + failed,
+            summary = f"Sending done: {sent} sent, {failed} failed, {skipped} skipped. {reason}"
+            await update_progress(cid, phase, summary,
+                            current=sent, total=sent + failed + skipped,
                             detail=detail)
 
-            logger.info(f"DM sending complete: {sent} sent, {failed} failed, paused={paused}")
+            logger.info(f"DM sending complete: {sent} sent, {failed} failed, {skipped} skipped, paused={paused}")
 
             # Return all lead_ids for downstream (export)
             return lead_ids

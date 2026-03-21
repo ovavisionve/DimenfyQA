@@ -1,8 +1,11 @@
 import asyncio
+import base64
 import json
 import logging
+import os
 import random
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -16,6 +19,15 @@ logger = logging.getLogger(__name__)
 
 # Max send attempts before giving up on a lead
 MAX_SEND_ATTEMPTS = 3
+
+# Human-like device settings for instagrapi anti-detection
+_DEVICE_PROFILES = [
+    {"app_version": "269.0.0.18.75", "android_version": 31, "android_release": "12", "dpi": "480dpi", "resolution": "1080x2400", "manufacturer": "Samsung", "device": "SM-G991B", "model": "samsung"},
+    {"app_version": "269.0.0.18.75", "android_version": 33, "android_release": "13", "dpi": "420dpi", "resolution": "1080x2340", "manufacturer": "Google", "device": "Pixel 7", "model": "google"},
+    {"app_version": "269.0.0.18.75", "android_version": 30, "android_release": "11", "dpi": "440dpi", "resolution": "1080x2340", "manufacturer": "OnePlus", "device": "IN2025", "model": "oneplus"},
+    {"app_version": "269.0.0.18.75", "android_version": 33, "android_release": "13", "dpi": "560dpi", "resolution": "1440x3200", "manufacturer": "Samsung", "device": "SM-S908B", "model": "samsung"},
+    {"app_version": "269.0.0.18.75", "android_version": 32, "android_release": "12L", "dpi": "480dpi", "resolution": "1080x2400", "manufacturer": "Xiaomi", "device": "22021211RG", "model": "xiaomi"},
+]
 
 
 def _parse_accounts(accounts_str: str) -> list[dict]:
@@ -34,6 +46,53 @@ def _parse_accounts(accounts_str: str) -> list[dict]:
             if account["username"] and account["password"]:
                 result.append(account)
     return result
+
+
+# --- Session encryption helpers ---
+
+def _get_fernet():
+    """Get Fernet cipher for session encryption. Returns None if key not configured."""
+    key = settings.IG_SESSION_ENCRYPTION_KEY
+    if not key:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key.encode() if isinstance(key, str) else key)
+    except Exception as e:
+        logger.warning(f"Failed to initialize Fernet encryption: {e}")
+        return None
+
+
+def _encrypt_file(path: Path):
+    """Encrypt a file in-place using Fernet. No-op if key not configured."""
+    fernet = _get_fernet()
+    if not fernet or not path.exists():
+        return
+    try:
+        data = path.read_bytes()
+        # Don't re-encrypt already encrypted data
+        if data.startswith(b"gAAAAA"):
+            return
+        encrypted = fernet.encrypt(data)
+        path.write_bytes(encrypted)
+        logger.debug(f"Encrypted session file: {path.name}")
+    except Exception as e:
+        logger.warning(f"Failed to encrypt {path.name}: {e}")
+
+
+def _decrypt_file(path: Path) -> bytes | None:
+    """Decrypt a file and return plaintext bytes. Returns raw bytes if not encrypted."""
+    if not path.exists():
+        return None
+    data = path.read_bytes()
+    fernet = _get_fernet()
+    if fernet and data.startswith(b"gAAAAA"):
+        try:
+            return fernet.decrypt(data)
+        except Exception as e:
+            logger.warning(f"Failed to decrypt {path.name}: {e}")
+            return None
+    return data
 
 
 class IGAccount:
@@ -55,6 +114,20 @@ class IGAccount:
         self.is_blocked = False
         self.created_at: datetime | None = None  # For warm-up calculation
 
+        # Security: cooldown tracking
+        self.last_challenge_at: datetime | None = None
+        self.last_block_at: datetime | None = None
+        self.challenges_today = 0
+        self._challenges_today_date: str | None = None
+
+        # Security: hourly rate tracking
+        self._hourly_sends: list[float] = []  # timestamps of sends in current hour
+
+        # Anti-detection: assign a consistent device profile per account
+        self._device_profile = _DEVICE_PROFILES[
+            hash(username) % len(_DEVICE_PROFILES)
+        ]
+
     @property
     def session_file(self) -> Path:
         return self._session_dir / f"{self.username}_session.json"
@@ -63,12 +136,77 @@ class IGAccount:
     def health_file(self) -> Path:
         return self._session_dir / f"{self.username}_health.json"
 
+    def is_in_cooldown(self) -> tuple[bool, str]:
+        """Check if this account is in a cooldown period. Returns (is_cooling, reason)."""
+        now = datetime.now(timezone.utc)
+
+        # Challenge cooldown
+        if self.last_challenge_at:
+            cooldown_end = self.last_challenge_at + timedelta(minutes=settings.CHALLENGE_COOLDOWN_MINUTES)
+            if now < cooldown_end:
+                remaining = int((cooldown_end - now).total_seconds() / 60)
+                return True, f"Challenge cooldown ({remaining}min remaining)"
+
+        # Block cooldown
+        if self.last_block_at:
+            cooldown_end = self.last_block_at + timedelta(hours=settings.BLOCK_COOLDOWN_HOURS)
+            if now < cooldown_end:
+                remaining = int((cooldown_end - now).total_seconds() / 3600)
+                return True, f"Block cooldown ({remaining}h remaining)"
+
+        # Too many challenges today
+        today = now.strftime("%Y-%m-%d")
+        if self._challenges_today_date == today and self.challenges_today >= settings.MAX_CHALLENGES_BEFORE_PAUSE:
+            return True, f"Too many challenges today ({self.challenges_today})"
+
+        return False, ""
+
+    def _check_hourly_limit(self) -> bool:
+        """Check if we've hit the hourly DM limit. Returns True if OK to send."""
+        now = time.time()
+        one_hour_ago = now - 3600
+        # Prune old entries
+        self._hourly_sends = [t for t in self._hourly_sends if t > one_hour_ago]
+        return len(self._hourly_sends) < settings.HOURLY_DM_LIMIT
+
+    def _record_send(self):
+        """Record a send for hourly rate tracking."""
+        self._hourly_sends.append(time.time())
+
     def _ensure_client(self):
         if self._client is None:
             from instagrapi import Client
             self._client = Client()
+
+            # Anti-detection: set device profile
+            dp = self._device_profile
+            self._client.set_device({
+                "app_version": dp["app_version"],
+                "android_version": dp["android_version"],
+                "android_release": dp["android_release"],
+                "dpi": dp["dpi"],
+                "resolution": dp["resolution"],
+                "manufacturer": dp["manufacturer"],
+                "device": dp["device"],
+                "model": dp["model"],
+                "cpu": "qcom",
+                "version_code": "314665256",
+            })
+
+            # Anti-detection: set realistic user agent
+            self._client.set_user_agent(
+                f"Instagram {dp['app_version']} Android "
+                f"({dp['android_version']}/{dp['android_release']}; "
+                f"{dp['dpi']}; {dp['resolution']}; "
+                f"{dp['manufacturer']}; {dp['device']}; "
+                f"{dp['device']}; {dp['model']}; en_US; 314665256)"
+            )
+
             if self.proxy:
                 self._client.set_proxy(self.proxy)
+
+            # Anti-detection: add random request delay
+            self._client.delay_range = [2, 5]
 
     def login(self) -> bool:
         if self._logged_in:
@@ -77,15 +215,31 @@ class IGAccount:
         self._ensure_client()
         self._load_health()
 
-        # Try to restore saved session first
+        # Security: check cooldown before login attempt
+        in_cooldown, reason = self.is_in_cooldown()
+        if in_cooldown:
+            logger.warning(f"Account @{self.username} in cooldown: {reason}")
+            return False
+
+        # Try to restore saved session first (with decryption)
         if self.session_file.exists():
             try:
-                self._client.load_settings(self.session_file)
-                self._client.login(self.username, self.password)
-                self._client.get_timeline_feed()
-                self._logged_in = True
-                logger.info(f"Restored Instagram session for @{self.username}")
-                return True
+                decrypted = _decrypt_file(self.session_file)
+                if decrypted:
+                    # Write decrypted to temp file for instagrapi to load
+                    tmp_path = self.session_file.with_suffix(".tmp")
+                    tmp_path.write_bytes(decrypted)
+                    self._client.load_settings(tmp_path)
+                    tmp_path.unlink(missing_ok=True)
+                    self._client.login(self.username, self.password)
+                    # Validate session with a lightweight call
+                    self._client.get_timeline_feed()
+                    self._logged_in = True
+                    # Re-encrypt session after successful restore
+                    self._client.dump_settings(self.session_file)
+                    _encrypt_file(self.session_file)
+                    logger.info(f"Restored Instagram session for @{self.username}")
+                    return True
             except Exception as e:
                 logger.warning(f"Session restore failed for @{self.username} ({type(e).__name__}), doing fresh login")
                 self.session_file.unlink(missing_ok=True)
@@ -93,7 +247,9 @@ class IGAccount:
         # Fresh login
         try:
             self._client.login(self.username, self.password)
+            # Save and encrypt session
             self._client.dump_settings(self.session_file)
+            _encrypt_file(self.session_file)
             self._logged_in = True
             if self.created_at is None:
                 self.created_at = datetime.now(timezone.utc)
@@ -101,46 +257,103 @@ class IGAccount:
             logger.info(f"Fresh login successful for @{self.username}")
             return True
         except Exception as e:
+            error_str = str(e).lower()
+            if "challenge" in error_str or "checkpoint" in error_str:
+                self._record_challenge()
             logger.error(f"Instagram login failed for @{self.username}: {type(e).__name__}: {e}")
             return False
+
+    def _record_challenge(self):
+        """Record a challenge event for cooldown tracking."""
+        now = datetime.now(timezone.utc)
+        self.challenges += 1
+        self.last_challenge_at = now
+        today = now.strftime("%Y-%m-%d")
+        if self._challenges_today_date != today:
+            self._challenges_today_date = today
+            self.challenges_today = 0
+        self.challenges_today += 1
+        self._save_health()
+
+    def _record_block(self):
+        """Record a block event for cooldown tracking."""
+        self.is_blocked = True
+        self.last_block_at = datetime.now(timezone.utc)
+        self._save_health()
+
+    def check_user_public(self, username: str) -> bool:
+        """Pre-send check: verify target account is public and can receive DMs."""
+        if not self._logged_in or not self._client:
+            return False
+        try:
+            user_info = self._client.user_info_by_username(username)
+            if user_info.is_private:
+                logger.info(f"Pre-send check: @{username} is private, skipping")
+                return False
+            return True
+        except Exception as e:
+            logger.warning(f"Pre-send check failed for @{username}: {e}")
+            # On error, allow sending (don't block due to check failure)
+            return True
 
     def send_dm(self, username: str, message: str) -> dict:
         if not self._logged_in:
             return {"success": False, "error": "Not logged in"}
 
+        # Security: check hourly rate limit
+        if not self._check_hourly_limit():
+            return {
+                "success": False,
+                "error": f"Hourly DM limit reached ({settings.HOURLY_DM_LIMIT}/hour)",
+                "is_rate_limited": True,
+            }
+
+        # Security: check cooldown
+        in_cooldown, reason = self.is_in_cooldown()
+        if in_cooldown:
+            return {"success": False, "error": f"Account in cooldown: {reason}", "is_cooldown": True}
+
         try:
             user_id = self._client.user_id_from_username(username)
+
+            # Anti-detection: small random pre-send delay (1-3s)
+            time.sleep(random.uniform(1.0, 3.0))
+
             result = self._client.direct_send(message, [int(user_id)])
             self.total_sent += 1
+            self._record_send()
+            self._save_health()
             logger.info(f"[@{self.username}] DM sent to @{username}")
             return {"success": True, "thread_id": str(result.id) if result else None}
         except Exception as e:
             error_type = type(e).__name__
             error_msg = f"{error_type}: {e}"
+            error_lower = str(e).lower()
             logger.error(f"[@{self.username}] Failed to send DM to @{username}: {error_msg}")
 
-            is_challenge = "challenge" in str(e).lower() or "checkpoint" in str(e).lower()
-            is_block = "block" in str(e).lower() or "feedback_required" in str(e).lower()
+            is_challenge = "challenge" in error_lower or "checkpoint" in error_lower
+            is_block = "block" in error_lower or "feedback_required" in error_lower
+            is_not_found = "user not found" in error_lower or "user_not_found" in error_lower
 
             self.total_failed += 1
             if is_challenge:
-                self.challenges += 1
+                self._record_challenge()
             if is_block:
-                self.is_blocked = True
-
-            self._save_health()
+                self._record_block()
 
             return {
                 "success": False,
                 "error": error_msg[:500],
                 "is_challenge": is_challenge,
                 "is_block": is_block,
+                "is_not_found": is_not_found,
             }
 
     def save_session(self):
         if self._client and self._logged_in:
             try:
                 self._client.dump_settings(self.session_file)
+                _encrypt_file(self.session_file)
             except Exception as e:
                 logger.warning(f"Failed to save session for @{self.username}: {e}")
         self._save_health()
@@ -166,15 +379,21 @@ class IGAccount:
         """Return health metrics for this account."""
         total = self.total_sent + self.total_failed
         success_rate = (self.total_sent / total * 100) if total > 0 else 100.0
+        in_cooldown, cooldown_reason = self.is_in_cooldown()
         return {
             "username": self.username,
             "logged_in": self._logged_in,
             "is_blocked": self.is_blocked,
+            "in_cooldown": in_cooldown,
+            "cooldown_reason": cooldown_reason,
             "total_sent": self.total_sent,
             "total_failed": self.total_failed,
             "challenges": self.challenges,
+            "challenges_today": self.challenges_today,
             "success_rate": round(success_rate, 1),
             "warmup_limit": self.get_warmup_limit(),
+            "hourly_sends": len(self._hourly_sends),
+            "hourly_limit": settings.HOURLY_DM_LIMIT,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -186,23 +405,58 @@ class IGAccount:
                 "challenges": self.challenges,
                 "is_blocked": self.is_blocked,
                 "created_at": self.created_at.isoformat() if self.created_at else None,
+                "last_challenge_at": self.last_challenge_at.isoformat() if self.last_challenge_at else None,
+                "last_block_at": self.last_block_at.isoformat() if self.last_block_at else None,
+                "challenges_today": self.challenges_today,
+                "challenges_today_date": self._challenges_today_date,
             }
-            self.health_file.write_text(json.dumps(data))
+            # Health file is also encrypted if key is available
+            raw = json.dumps(data).encode()
+            fernet = _get_fernet()
+            if fernet:
+                raw = fernet.encrypt(raw)
+            self.health_file.write_bytes(raw)
         except Exception:
             pass
 
     def _load_health(self):
         if self.health_file.exists():
             try:
-                data = json.loads(self.health_file.read_text())
+                raw = _decrypt_file(self.health_file)
+                if raw is None:
+                    return
+                data = json.loads(raw)
                 self.total_sent = data.get("total_sent", 0)
                 self.total_failed = data.get("total_failed", 0)
                 self.challenges = data.get("challenges", 0)
                 self.is_blocked = data.get("is_blocked", False)
                 if data.get("created_at"):
                     self.created_at = datetime.fromisoformat(data["created_at"])
+                if data.get("last_challenge_at"):
+                    self.last_challenge_at = datetime.fromisoformat(data["last_challenge_at"])
+                if data.get("last_block_at"):
+                    self.last_block_at = datetime.fromisoformat(data["last_block_at"])
+                self.challenges_today = data.get("challenges_today", 0)
+                self._challenges_today_date = data.get("challenges_today_date")
             except Exception:
                 pass
+
+    def validate_proxy(self) -> bool:
+        """Validate that the proxy is reachable before using it for sends."""
+        if not self.proxy:
+            return True  # No proxy configured, OK
+        try:
+            import httpx
+            with httpx.Client(proxy=self.proxy, timeout=10) as client:
+                resp = client.get("https://httpbin.org/ip")
+                if resp.status_code == 200:
+                    ip = resp.json().get("origin", "unknown")
+                    logger.info(f"Proxy validated for @{self.username}: IP={ip}")
+                    return True
+            return False
+        except Exception as e:
+            logger.warning(f"Proxy validation failed for @{self.username}: {e}")
+            return False
 
 
 class DMSenderService:
@@ -248,10 +502,17 @@ class DMSenderService:
             logger.error("No IG accounts configured (set IG_USERNAME/IG_PASSWORD or IG_ACCOUNTS)")
             return False
 
+        # Security: validate proxies before login
+        for acc in self._accounts:
+            if acc.proxy and not acc.validate_proxy():
+                logger.warning(f"Proxy failed for @{acc.username}, proceeding without proxy")
+
         success_count = 0
         for acc in self._accounts:
-            if acc.is_blocked:
-                logger.warning(f"Skipping blocked account @{acc.username}")
+            # Skip blocked or cooling-down accounts
+            in_cooldown, reason = acc.is_in_cooldown()
+            if acc.is_blocked and in_cooldown:
+                logger.warning(f"Skipping account @{acc.username}: {reason}")
                 continue
             if acc.login():
                 success_count += 1
@@ -264,7 +525,7 @@ class DMSenderService:
         return True
 
     def _get_next_account(self) -> IGAccount | None:
-        """Round-robin select next available (logged in, not blocked) account."""
+        """Round-robin select next available (logged in, not blocked, not in cooldown) account."""
         if not self._accounts:
             return None
 
@@ -272,7 +533,9 @@ class DMSenderService:
             acc = self._accounts[self._current_account_idx]
             self._current_account_idx = (self._current_account_idx + 1) % len(self._accounts)
             if acc._logged_in and not acc.is_blocked:
-                return acc
+                in_cooldown, _ = acc.is_in_cooldown()
+                if not in_cooldown:
+                    return acc
 
         return None
 
@@ -280,11 +543,20 @@ class DMSenderService:
         """Send a DM using the next available account."""
         account = self._get_next_account()
         if not account:
-            return {"success": False, "error": "No available IG accounts"}
+            return {"success": False, "error": "No available IG accounts (all blocked/cooldown)"}
         return account.send_dm(username, message)
 
+    def pre_send_check(self, username: str) -> bool:
+        """Check if target account is public before sending. Uses first available account."""
+        if not settings.PRE_SEND_CHECK_PUBLIC:
+            return True
+        account = self._get_next_account()
+        if not account:
+            return True  # No account to check, don't block
+        return account.check_user_public(username)
+
     def save_sessions(self):
-        """Persist all account sessions to disk."""
+        """Persist all account sessions to disk (encrypted)."""
         for acc in self._accounts:
             acc.save_session()
 
@@ -310,18 +582,25 @@ class DMSenderService:
             return settings.DAILY_DM_LIMIT
 
         # Total limit is the sum of each account's warm-up limit
-        total = sum(acc.get_warmup_limit() for acc in self._accounts if acc._logged_in and not acc.is_blocked)
+        total = sum(
+            acc.get_warmup_limit()
+            for acc in self._accounts
+            if acc._logged_in and not acc.is_blocked
+        )
         return total if total > 0 else settings.DAILY_DM_LIMIT
 
     async def get_next_leads_to_send(
         self, campaign_id: str, db: AsyncSession, limit: int = 10
     ) -> list[Lead]:
-        """Get next batch of leads ready to send, ordered by score DESC."""
+        """Get next batch of leads ready to send, ordered by score DESC.
+        Only returns public accounts (ig_is_private != True).
+        """
         result = await db.execute(
             select(Lead).where(
                 Lead.campaign_id == campaign_id,
                 Lead.status.in_(["dm_ready", "retry"]),
                 Lead.send_attempts < MAX_SEND_ATTEMPTS,
+                Lead.ig_is_private.is_not(True),  # Security: only public accounts
             ).order_by(Lead.score.desc()).limit(limit)
         )
         return list(result.scalars().all())
@@ -334,7 +613,7 @@ class DMSenderService:
     ) -> dict:
         """Send DMs for a campaign with rate limiting, warm-up, and random delays.
 
-        Returns dict with sent_count, failed_count, paused (bool), reason.
+        Returns dict with sent_count, failed_count, skipped_count, paused (bool), reason.
         """
         daily_count = await self.get_daily_send_count(db)
         daily_limit = self._get_effective_daily_limit()
@@ -344,6 +623,7 @@ class DMSenderService:
             return {
                 "sent_count": 0,
                 "failed_count": 0,
+                "skipped_count": 0,
                 "paused": True,
                 "reason": f"Daily limit reached ({daily_count}/{daily_limit})",
             }
@@ -353,14 +633,27 @@ class DMSenderService:
 
         if not leads:
             logger.info(f"No leads ready to send for campaign {campaign_id}")
-            return {"sent_count": 0, "failed_count": 0, "paused": False, "reason": "No leads to send"}
+            return {"sent_count": 0, "failed_count": 0, "skipped_count": 0, "paused": False, "reason": "No leads to send"}
 
         logger.info(f"Sending DMs to {len(leads)} leads (daily: {daily_count}/{daily_limit})")
 
         sent_count = 0
         failed_count = 0
+        skipped_count = 0
 
         for i, lead in enumerate(leads):
+            # Security: pre-send check that account is public
+            if settings.PRE_SEND_CHECK_PUBLIC:
+                if not self.pre_send_check(lead.ig_username):
+                    lead.status = "failed"
+                    lead.send_error = "Target account is private"
+                    lead.delivery_status = "skipped_private"
+                    lead.ig_is_private = True  # Update for future filtering
+                    await db.commit()
+                    skipped_count += 1
+                    logger.info(f"Skipped @{lead.ig_username}: private account (pre-send check)")
+                    continue
+
             # Pick DM variant: A/B test random assignment or fallback logic
             if lead.dm_variant_used in ("A", "B") and lead.send_attempts > 0:
                 # Retry: switch to the other variant if available
@@ -427,6 +720,27 @@ class DMSenderService:
                 lead.send_attempts += 1
                 lead.send_error = result.get("error", "Unknown error")
 
+                # Rate limited → pause without counting as failure
+                if result.get("is_rate_limited") or result.get("is_cooldown"):
+                    lead.status = "retry"
+                    lead.delivery_status = "rate_limited"
+                    await db.commit()
+                    return {
+                        "sent_count": sent_count,
+                        "failed_count": failed_count,
+                        "skipped_count": skipped_count,
+                        "paused": True,
+                        "reason": result.get("error", "Rate limited"),
+                    }
+
+                # User not found → mark as failed immediately
+                if result.get("is_not_found"):
+                    lead.status = "failed"
+                    lead.delivery_status = "user_not_found"
+                    failed_count += 1
+                    await db.commit()
+                    continue
+
                 # Challenge or block → pause the whole campaign
                 if result.get("is_challenge") or result.get("is_block"):
                     lead.status = "retry"
@@ -436,11 +750,12 @@ class DMSenderService:
                     # Check if ANY account is still usable
                     usable = self._get_next_account()
                     if usable is None:
-                        reason = "All accounts challenged/blocked"
+                        reason = "All accounts challenged/blocked — waiting for cooldown"
                         logger.warning(f"Pausing campaign: {reason}")
                         return {
                             "sent_count": sent_count,
                             "failed_count": failed_count,
+                            "skipped_count": skipped_count,
                             "paused": True,
                             "reason": reason,
                         }
@@ -482,9 +797,19 @@ class DMSenderService:
                 except Exception:
                     pass
 
-            # Random delay between sends (skip after last one)
+            # Human-like delay between sends (skip after last one)
             if i < len(leads) - 1:
-                delay = random.uniform(settings.DM_DELAY_MIN, settings.DM_DELAY_MAX)
+                # Variable delay: shorter for successful sends, longer after failures
+                base_min = settings.DM_DELAY_MIN
+                base_max = settings.DM_DELAY_MAX
+                if not result["success"]:
+                    # After failure, wait longer (1.5x-2x)
+                    base_min = int(base_min * 1.5)
+                    base_max = int(base_max * 2)
+                delay = random.uniform(base_min, base_max)
+                # Add small random jitter for more human-like behavior
+                delay += random.uniform(-5, 10)
+                delay = max(15, delay)  # Minimum 15s between any sends
                 logger.debug(f"Waiting {delay:.1f}s before next DM")
                 await asyncio.sleep(delay)
 
@@ -493,6 +818,7 @@ class DMSenderService:
         return {
             "sent_count": sent_count,
             "failed_count": failed_count,
+            "skipped_count": skipped_count,
             "paused": False,
             "reason": "Batch complete",
         }
