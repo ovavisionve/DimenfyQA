@@ -1051,6 +1051,7 @@
     <div class="container">
         <div class="campaign-bar">
             <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
+            <button class="btn btn-success" onclick="showNewCampaignModal()" style="font-weight:700">+ New Campaign</button>
             <button class="btn btn-primary" id="startBtn" onclick="startPipeline()">Start Pipeline</button>
             <button class="btn btn-secondary" id="pauseBtn" onclick="pauseCampaign()" style="display:none">Pause Sending</button>
             <button class="btn btn-success" id="resumeBtn" onclick="resumeSending()" style="display:none">Resume Sending</button>
@@ -1508,6 +1509,47 @@
         </div>
 
     <!-- DM Modal -->
+    <!-- New Campaign Modal -->
+    <div class="modal-overlay" id="newCampaignModal" onclick="if(event.target===this)closeNewCampaignModal()">
+        <div class="modal" style="max-width:560px">
+            <h3 style="color:var(--accent2)">New Campaign</h3>
+            <div style="display:flex;flex-direction:column;gap:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Campaign Name</label>
+                    <input id="ncName" type="text" placeholder="e.g. Comentarios de @nike post viral" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Source Type</label>
+                    <select id="ncSourceType" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px" onchange="updateSourceHelp()">
+                        <option value="comments">Comments — Scrapea comentaristas de un post</option>
+                        <option value="followers">Followers — Scrapea perfiles por username</option>
+                        <option value="profiles">Profiles — Scrapea lista de usernames</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px" id="ncSourceLabel">Post URL (Instagram)</label>
+                    <input id="ncSourceValue" type="text" placeholder="https://www.instagram.com/p/XXXXX/" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    <div id="ncSourceHelp" style="font-size:11px;color:var(--text3);margin-top:4px">Pega la URL de un post con muchos comentarios (100+). Los comentaristas se scrapean como leads.</div>
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Max Leads (0 = sin límite)</label>
+                    <input id="ncMaxLeads" type="number" value="100" min="0" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Client</label>
+                    <select id="ncClientId" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px">
+                        <option value="">Loading clients...</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <button class="btn btn-primary" style="flex:1;padding:12px;font-size:15px;font-weight:700" onclick="createNewCampaign()">Create Campaign</button>
+                    <button class="btn btn-secondary" style="flex:1;padding:12px" onclick="closeNewCampaignModal()">Cancel</button>
+                </div>
+                <div id="ncError" style="display:none;padding:8px 12px;background:rgba(255,50,50,0.15);border:1px solid rgba(255,50,50,0.3);border-radius:8px;color:#ff6666;font-size:13px"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="dmModal" onclick="if(event.target===this)closeDM()">
         <div class="modal">
             <h3 id="dmModalTitle">DM Preview</h3>
@@ -1744,6 +1786,104 @@
                 }
             } catch (e) {
                 log('Error loading campaigns: ' + e.message, 'error');
+            }
+        }
+
+        // ===== NEW CAMPAIGN =====
+        function updateSourceHelp() {
+            const type = document.getElementById('ncSourceType').value;
+            const label = document.getElementById('ncSourceLabel');
+            const input = document.getElementById('ncSourceValue');
+            const help = document.getElementById('ncSourceHelp');
+            if (type === 'comments') {
+                label.textContent = 'Post URL (Instagram)';
+                input.placeholder = 'https://www.instagram.com/p/XXXXX/';
+                help.textContent = 'Pega la URL de un post con muchos comentarios (100+). Los comentaristas se scrapean como leads con sus perfiles completos y posts.';
+            } else if (type === 'followers') {
+                label.textContent = 'Username(s)';
+                input.placeholder = 'username1, username2, username3';
+                help.textContent = 'Usernames separados por coma. Se scrapean sus perfiles completos (bio, followers, posts recientes).';
+            } else {
+                label.textContent = 'Username(s)';
+                input.placeholder = 'username1, username2, username3';
+                help.textContent = 'Lista de usernames separados por coma para scrapear perfiles directamente.';
+            }
+        }
+
+        async function showNewCampaignModal() {
+            // Load clients
+            try {
+                const res = await fetch(`${API}/clients/`);
+                const clients = await res.json();
+                const sel = document.getElementById('ncClientId');
+                sel.innerHTML = '';
+                if (clients.length === 0) {
+                    sel.innerHTML = '<option value="">No clients — create one first</option>';
+                } else {
+                    clients.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.name || c.business_type || c.id;
+                        sel.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                log('Error loading clients: ' + e.message, 'error');
+            }
+            document.getElementById('ncError').style.display = 'none';
+            document.getElementById('newCampaignModal').classList.add('show');
+        }
+
+        function closeNewCampaignModal() {
+            document.getElementById('newCampaignModal').classList.remove('show');
+        }
+
+        async function createNewCampaign() {
+            const name = document.getElementById('ncName').value.trim();
+            const sourceType = document.getElementById('ncSourceType').value;
+            const sourceValue = document.getElementById('ncSourceValue').value.trim();
+            const maxLeads = parseInt(document.getElementById('ncMaxLeads').value) || 0;
+            const clientId = document.getElementById('ncClientId').value;
+            const errDiv = document.getElementById('ncError');
+
+            if (!name || !sourceValue || !clientId) {
+                errDiv.textContent = 'All fields are required. Fill in name, source, and select a client.';
+                errDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/campaigns/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        name: name,
+                        source_type: sourceType,
+                        source_value: sourceValue,
+                        settings: maxLeads > 0 ? { max_leads: maxLeads } : {},
+                    }),
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${res.status}`);
+                }
+
+                const campaign = await res.json();
+                log(`Campaign created: ${campaign.name}`, 'success');
+                closeNewCampaignModal();
+                await loadCampaigns();
+                // Select the new campaign
+                const sel = document.getElementById('campaignSelect');
+                sel.value = campaign.id;
+                activeCampaignId = campaign.id;
+                previousLeads = {};
+                refreshAll();
+                loadExistingAnalysis();
+            } catch (e) {
+                errDiv.textContent = `Error: ${e.message}`;
+                errDiv.style.display = 'block';
             }
         }
 
