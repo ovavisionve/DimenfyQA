@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -24,6 +26,52 @@ ACTORS = {
     "comments": "apify~instagram-comment-scraper",    # official free-tier compatible
     "profiles": "apify~instagram-profile-scraper",    # official free-tier compatible
 }
+
+# Multiple comment scraper actors to maximize results on free tier.
+# Each actor's free tier gives ~15 results independently, so running 3 in parallel
+# can yield ~45 unique commenters instead of just 15.
+COMMENT_ACTORS = [
+    {
+        "id": "apify~instagram-comment-scraper",
+        "name": "Apify Official",
+        "build_input": lambda url, limit: {
+            "directUrls": [url],
+            **({"resultsLimit": limit} if limit > 0 else {}),
+        },
+        "username_field": "ownerUsername",
+    },
+    {
+        "id": "louisdeconinck~instagram-comments-scraper",
+        "name": "LouisDeconinck",
+        "build_input": lambda url, limit: {
+            "postUrls": [url],
+            **({"resultsLimit": limit} if limit > 0 else {}),
+        },
+        "username_field": "ownerUsername",
+    },
+    {
+        "id": "datadoping~instagram-comments-and-replies-scraper",
+        "name": "DataDoping",
+        "build_input": lambda url, limit: {
+            # This actor uses shortCode extracted from the URL
+            "shortCode": _extract_shortcode(url),
+            **({"maxComments": limit} if limit > 0 else {}),
+        },
+        "username_field": "username",
+    },
+]
+
+
+def _extract_shortcode(url: str) -> str:
+    """Extract Instagram shortcode from a post/reel URL."""
+    # Matches /p/SHORTCODE/, /reel/SHORTCODE/, /reels/SHORTCODE/
+    match = re.search(r"/(p|reel|reels)/([A-Za-z0-9_-]+)", url)
+    if match:
+        return match.group(2)
+    # If it's already a shortcode (no slashes), return as-is
+    if "/" not in url:
+        return url
+    return url
 
 
 class ApifyService:
@@ -105,6 +153,124 @@ class ApifyService:
                 if len(results) == 1 and "message" in results[0] and "username" not in results[0]:
                     logger.error(f"Apify actor returned error: {results[0].get('message', 'unknown error')}")
             return results
+
+    async def scrape_comments_multi_actor(
+        self, source_value: str, max_leads: int = 0,
+        progress_callback=None,
+    ) -> list[dict]:
+        """Run multiple comment scraper actors in parallel to maximize results.
+
+        Each actor on the free tier returns ~15 comments independently.
+        By running 3 actors in parallel, we can get ~45 unique commenters.
+        Returns combined raw comment data from all actors.
+        """
+        all_comments = []
+        seen_usernames = set()
+
+        async def _run_single_actor(actor_config: dict) -> list[dict]:
+            """Run one actor and return its results."""
+            actor_id = actor_config["id"]
+            actor_name = actor_config["name"]
+            try:
+                input_data = actor_config["build_input"](source_value, max_leads)
+                logger.info(f"[MultiActor] Starting {actor_name} ({actor_id}) with input: {input_data}")
+
+                # Start the run
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{APIFY_BASE_URL}/acts/{actor_id}/runs",
+                        headers=self.headers,
+                        json=input_data,
+                        timeout=30,
+                    )
+                    response.raise_for_status()
+                    run_data = response.json()["data"]
+                    run_id = run_data["id"]
+                    logger.info(f"[MultiActor] {actor_name} run started: {run_id}")
+
+                # Poll until complete (max 5 minutes)
+                import time
+                for attempt in range(60):
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(
+                            f"{APIFY_BASE_URL}/actor-runs/{run_id}",
+                            headers=self.headers,
+                            timeout=30,
+                        )
+                        response.raise_for_status()
+                        status_data = response.json()["data"]
+
+                    run_status = status_data["status"]
+                    if run_status == "SUCCEEDED":
+                        dataset_id = status_data["defaultDatasetId"]
+                        logger.info(f"[MultiActor] {actor_name} succeeded. Dataset: {dataset_id}")
+                        # Fetch results
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(
+                                f"{APIFY_BASE_URL}/datasets/{dataset_id}/items",
+                                headers=self.headers,
+                                params={"format": "json"},
+                                timeout=60,
+                            )
+                            response.raise_for_status()
+                            results = response.json()
+                        logger.info(f"[MultiActor] {actor_name} returned {len(results)} items")
+                        if results:
+                            logger.info(f"[MultiActor] {actor_name} first item keys: {list(results[0].keys())[:10]}")
+                        return results
+                    elif run_status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                        logger.warning(f"[MultiActor] {actor_name} failed: {run_status}")
+                        return []
+
+                    await asyncio.sleep(5)
+
+                logger.warning(f"[MultiActor] {actor_name} timed out after polling")
+                return []
+
+            except Exception as e:
+                logger.warning(f"[MultiActor] {actor_name} error (non-blocking): {e}")
+                return []
+
+        # Run all comment actors in parallel
+        if progress_callback:
+            await progress_callback(f"Running {len(COMMENT_ACTORS)} comment scrapers in parallel...")
+
+        tasks = [_run_single_actor(actor) for actor in COMMENT_ACTORS]
+        results_per_actor = await asyncio.gather(*tasks)
+
+        # Combine results, deduplicating by username
+        for actor_config, actor_results in zip(COMMENT_ACTORS, results_per_actor):
+            uname_field = actor_config["username_field"]
+            actor_name = actor_config["name"]
+            new_count = 0
+            for comment in actor_results:
+                # Try multiple username fields
+                uname = (
+                    comment.get("ownerUsername")
+                    or comment.get("username")
+                    or comment.get("owner", {}).get("username", "")
+                    or ""
+                )
+                if uname and uname not in seen_usernames:
+                    seen_usernames.add(uname)
+                    all_comments.append(comment)
+                    new_count += 1
+                # Also extract from replies
+                for reply in (comment.get("replies") or []):
+                    reply_uname = (
+                        reply.get("ownerUsername")
+                        or reply.get("username")
+                        or reply.get("owner", {}).get("username", "")
+                        or ""
+                    )
+                    if reply_uname and reply_uname not in seen_usernames:
+                        seen_usernames.add(reply_uname)
+                        all_comments.append(reply)
+                        new_count += 1
+            logger.info(f"[MultiActor] {actor_name}: {len(actor_results)} raw → {new_count} new unique usernames")
+
+        logger.info(f"[MultiActor] Total unique commenters across all actors: {len(seen_usernames)}")
+        return all_comments
 
     async def scrape_profiles_sync(self, usernames: list[str]) -> list[dict]:
         """Use synchronous Apify endpoint for profile scraping."""
