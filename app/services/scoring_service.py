@@ -30,6 +30,8 @@ Evalúa cada perfil de Instagram y asigna un score de 0 a 100.
 - Tiene website (0-10 puntos)
 - Perfil público (0-5 puntos, 0 si es privado)
 
+{content_context}
+
 ## Leads a evaluar:
 {leads_json}
 
@@ -52,7 +54,7 @@ class ScoringService:
     def __init__(self):
         self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    def score_batch(self, leads_data: list[dict]) -> list[dict]:
+    def score_batch(self, leads_data: list[dict], content_context: str = "") -> list[dict]:
         """Score a batch of leads in a single API call. Returns list of score dicts."""
         leads_for_prompt = []
         for ld in leads_data:
@@ -70,6 +72,7 @@ class ScoringService:
         prompt = BATCH_SCORING_PROMPT.format(
             leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
             lead_count=len(leads_data),
+            content_context=content_context,
         )
 
         message = self.client.messages.create(
@@ -90,11 +93,11 @@ class ScoringService:
             raise ValueError(f"Expected JSON array, got {type(results).__name__}")
         return results
 
-    def _score_batch_safe(self, leads_data: list[dict]) -> list[tuple[str, dict | None]]:
+    def _score_batch_safe(self, leads_data: list[dict], content_context: str = "") -> list[tuple[str, dict | None]]:
         """Thread-safe batch scoring. Returns list of (username, result_or_None)."""
         usernames = [ld.get("ig_username", "unknown") for ld in leads_data]
         try:
-            results = self.score_batch(leads_data)
+            results = self.score_batch(leads_data, content_context=content_context)
             # Map results by username
             result_map = {r.get("username", ""): r for r in results}
             output = []
@@ -128,6 +131,27 @@ class ScoringService:
             return []
 
         logger.info(f"Found {len(leads)} scraped leads to score out of {len(lead_ids)} IDs")
+
+        # Load campaign content analysis for context-aware scoring
+        content_context = ""
+        if leads:
+            from app.models.campaign import Campaign
+            campaign_result = await db.execute(
+                select(Campaign).where(Campaign.id == leads[0].campaign_id)
+            )
+            campaign = campaign_result.scalar_one_or_none()
+            content_analysis = (campaign.settings or {}).get("content_analysis") if campaign else None
+            if content_analysis and "error" not in content_analysis:
+                target = content_analysis.get("target_audience", "")
+                pain_points = ", ".join(content_analysis.get("pain_points_addressed", []))
+                if target or pain_points:
+                    content_context = (
+                        f"## Contexto adicional — Cliente ideal:\n"
+                        f"Audiencia objetivo: {target}\n"
+                        f"Problemas que resolvemos: {pain_points}\n"
+                        f"BONUS: Dale +10 puntos extra a leads que encajen con esta audiencia o tengan estos problemas."
+                    )
+                    logger.info("Using campaign content analysis for context-aware scoring")
 
         # Prepare lead data — skip leads with no useful data (saves API calls)
         lead_data_map: dict[str, tuple] = {}  # username -> (lead, lead_data, cleaned_bio)
@@ -174,7 +198,7 @@ class ScoringService:
 
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_BATCHES) as executor:
             futures = {
-                executor.submit(self._score_batch_safe, batch): i
+                executor.submit(self._score_batch_safe, batch, content_context): i
                 for i, batch in enumerate(batches)
             }
             for future in as_completed(futures):

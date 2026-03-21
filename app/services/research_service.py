@@ -22,11 +22,14 @@ Website: {website}
 Bio: {bio}
 Categoría: {category}
 
+{content_context}
+
 Busca:
 1. Logros recientes o noticias
 2. Información personal relevante (ciudades, intereses)
 3. Tipo de negocio y qué venden
 4. Cualquier dato que permita un mensaje personal y auténtico
+5. Conexiones potenciales entre el lead y nuestro servicio
 
 Responde en un párrafo corto y conciso con los datos más útiles."""
 
@@ -40,14 +43,30 @@ class ResearchService:
     def _use_google(self) -> bool:
         return bool(self.google_api_key)
 
-    async def research_lead(self, lead_data: dict) -> str:
+    async def research_lead(self, lead_data: dict, content_analysis: dict | None = None) -> str:
         """Research a single lead using Google Gemini or Perplexity API."""
+        # Build content context from campaign content analysis
+        content_context = ""
+        if content_analysis and "error" not in content_analysis:
+            summary = content_analysis.get("business_summary", "")
+            audience = content_analysis.get("target_audience", "")
+            pain_points = ", ".join(content_analysis.get("pain_points_addressed", []))
+            if summary:
+                content_context = (
+                    f"## Contexto de nuestro servicio (para encontrar conexiones relevantes):\n"
+                    f"Nuestro negocio: {summary}\n"
+                    f"Audiencia ideal: {audience}\n"
+                    f"Problemas que resolvemos: {pain_points}\n"
+                    f"Busca conexiones entre este lead y lo que ofrecemos."
+                )
+
         prompt = RESEARCH_PROMPT.format(
             full_name=lead_data.get("ig_full_name", ""),
             username=lead_data.get("ig_username", ""),
             website=lead_data.get("ig_website", ""),
             bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
             category=lead_data.get("lead_category", ""),
+            content_context=content_context,
         )
 
         if self._use_google:
@@ -118,6 +137,19 @@ class ResearchService:
         )
         leads = result.scalars().all()
 
+        # Load campaign content analysis if available
+        content_analysis = None
+        if leads:
+            from app.models.campaign import Campaign
+            campaign_result = await db.execute(
+                select(Campaign).where(Campaign.id == leads[0].campaign_id)
+            )
+            campaign = campaign_result.scalar_one_or_none()
+            if campaign:
+                content_analysis = (campaign.settings or {}).get("content_analysis")
+                if content_analysis:
+                    logger.info("Using campaign content analysis for enriched research")
+
         # If no research API key is configured, skip research and mark as researched
         if not self._has_api_key:
             logger.warning("No research API key configured — skipping research, marking %d leads as researched", len(leads))
@@ -147,7 +179,7 @@ class ResearchService:
                     "lead_category": lead.lead_category,
                 }
                 try:
-                    research_text = await self.research_lead(lead_data)
+                    research_text = await self.research_lead(lead_data, content_analysis=content_analysis)
                     lead.research_data = research_text
                     lead.research_summary = research_text[:500]
                     logger.info(f"Researched lead {lead.ig_username}")

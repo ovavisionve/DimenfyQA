@@ -1057,6 +1057,37 @@
             <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
         </div>
 
+        <!-- Content Analysis Panel -->
+        <div class="card" id="contentAnalysisPanel" style="margin-bottom:16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+            <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleContentPanel()">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:16px;font-weight:700;color:var(--text)">Content Analysis</span>
+                    <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-glow);color:var(--accent2);font-weight:600">AI MULTIMODAL</span>
+                    <span id="contentStatusBadge" style="display:none;font-size:11px;padding:2px 8px;border-radius:4px;background:var(--green-dim);color:var(--green);font-weight:600">ANALYZED</span>
+                </div>
+                <span id="contentToggleIcon" style="color:var(--text2);font-size:18px">&#x25BC;</span>
+            </div>
+            <div id="contentPanelBody" style="display:none;margin-top:12px">
+                <p style="color:var(--text2);font-size:13px;margin-bottom:12px">
+                    Agrega links de videos, imágenes o páginas web de tu negocio. Gemini AI los analiza para generar DMs mucho más personalizados y relevantes. Esto es lo que hace la diferencia vs DMs genéricos.
+                </p>
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <input type="text" id="contentUrlInput" placeholder="URL de video, imagen o página web..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter')addContentUrl()" />
+                    <button class="btn btn-secondary" onclick="addContentUrl()" style="white-space:nowrap;font-size:12px;padding:8px 12px">+ Add</button>
+                </div>
+                <div id="contentUrlList" style="margin-bottom:8px"></div>
+                <textarea id="contentTextInput" placeholder="O describe tu negocio/servicio aquí... (opcional, complementa los URLs)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:60px;font-family:inherit" rows="2"></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                    <button class="btn btn-primary" onclick="analyzeContent()" id="analyzeBtn" style="font-size:13px;padding:8px 16px">Analyze with Gemini</button>
+                    <span id="analyzeStatus" style="font-size:12px;color:var(--text2)"></span>
+                </div>
+                <div id="contentAnalysisResult" style="display:none;margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+                    <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">Analysis Complete</div>
+                    <div id="analysisDetails" style="font-size:12px;color:var(--text2);line-height:1.6"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab navigation -->
         <div class="tabs">
             <button class="tab active" onclick="switchTab('pipeline')" id="tab-pipeline">
@@ -1505,6 +1536,158 @@
         let pollInterval = null;
         let pipelineRunning = false;
 
+        // ===== CONTENT ANALYSIS =====
+        let contentUrls = [];
+
+        function toggleContentPanel() {
+            const body = document.getElementById('contentPanelBody');
+            const icon = document.getElementById('contentToggleIcon');
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.innerHTML = '&#x25B2;';
+            } else {
+                body.style.display = 'none';
+                icon.innerHTML = '&#x25BC;';
+            }
+        }
+
+        function addContentUrl() {
+            const input = document.getElementById('contentUrlInput');
+            const url = input.value.trim();
+            if (!url) return;
+            contentUrls.push(url);
+            input.value = '';
+            renderContentUrls();
+        }
+
+        function removeContentUrl(index) {
+            contentUrls.splice(index, 1);
+            renderContentUrls();
+        }
+
+        function renderContentUrls() {
+            const list = document.getElementById('contentUrlList');
+            if (contentUrls.length === 0) {
+                list.innerHTML = '';
+                return;
+            }
+            list.innerHTML = contentUrls.map((url, i) => {
+                const type = detectUrlType(url);
+                const typeColors = {video: 'var(--red)', image: 'var(--cyan)', webpage: 'var(--blue)'};
+                return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin-bottom:4px;background:var(--surface2);border-radius:6px;font-size:12px">
+                    <span style="color:${typeColors[type] || 'var(--text2)'};font-weight:600;text-transform:uppercase;font-size:10px;min-width:50px">${type}</span>
+                    <span style="color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${url}</span>
+                    <span style="cursor:pointer;color:var(--red);font-size:14px" onclick="removeContentUrl(${i})">&#x2715;</span>
+                </div>`;
+            }).join('');
+        }
+
+        function detectUrlType(url) {
+            const u = url.toLowerCase();
+            if (u.includes('youtube.com') || u.includes('youtu.be') || u.includes('instagram.com/reel') ||
+                u.includes('tiktok.com') || u.includes('vimeo.com') || u.includes('loom.com') ||
+                u.endsWith('.mp4') || u.endsWith('.mov') || u.endsWith('.webm')) return 'video';
+            if (u.endsWith('.jpg') || u.endsWith('.jpeg') || u.endsWith('.png') ||
+                u.endsWith('.gif') || u.endsWith('.webp')) return 'image';
+            return 'webpage';
+        }
+
+        async function analyzeContent() {
+            if (!activeCampaignId) { alert('Select a campaign first'); return; }
+            const text = document.getElementById('contentTextInput').value.trim();
+            if (contentUrls.length === 0 && !text) { alert('Add at least one URL or description'); return; }
+
+            const btn = document.getElementById('analyzeBtn');
+            const status = document.getElementById('analyzeStatus');
+            btn.disabled = true;
+            btn.textContent = 'Analyzing...';
+            status.textContent = 'Gemini is analyzing your content...';
+            status.style.color = 'var(--yellow)';
+
+            try {
+                const res = await fetch(`${API}/content/analyze-for-campaign`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        campaign_id: activeCampaignId,
+                        content_urls: contentUrls.length > 0 ? contentUrls : null,
+                        content_text: text || null,
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    showAnalysisResult(data.analysis);
+                    status.textContent = 'Analysis saved! Will be used in pipeline.';
+                    status.style.color = 'var(--green)';
+                    log('Content analysis complete — DMs will be enriched with this context', 'success');
+                    document.getElementById('contentStatusBadge').style.display = 'inline';
+                } else {
+                    const err = await res.json();
+                    status.textContent = 'Error: ' + (err.detail || 'Analysis failed');
+                    status.style.color = 'var(--red)';
+                    log('Content analysis failed: ' + (err.detail || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                status.textContent = 'Network error: ' + e.message;
+                status.style.color = 'var(--red)';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Analyze with Gemini';
+        }
+
+        function showAnalysisResult(analysis) {
+            const container = document.getElementById('contentAnalysisResult');
+            const details = document.getElementById('analysisDetails');
+            container.style.display = 'block';
+
+            let html = '';
+            if (analysis.business_summary) html += `<div><strong>Negocio:</strong> ${analysis.business_summary}</div>`;
+            if (analysis.value_propositions && analysis.value_propositions.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Propuestas de valor:</strong></div>`;
+                html += analysis.value_propositions.map(vp => `<div style="padding-left:12px">• ${vp}</div>`).join('');
+            }
+            if (analysis.target_audience) html += `<div style="margin-top:6px"><strong>Audiencia:</strong> ${analysis.target_audience}</div>`;
+            if (analysis.tone_style) html += `<div><strong>Tono:</strong> ${analysis.tone_style}</div>`;
+            if (analysis.pain_points_addressed && analysis.pain_points_addressed.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Problemas que resuelve:</strong></div>`;
+                html += analysis.pain_points_addressed.map(pp => `<div style="padding-left:12px">• ${pp}</div>`).join('');
+            }
+            if (analysis.key_differentiators && analysis.key_differentiators.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Diferenciadores:</strong></div>`;
+                html += analysis.key_differentiators.map(d => `<div style="padding-left:12px">• ${d}</div>`).join('');
+            }
+            if (analysis.content_type_detected) html += `<div style="margin-top:6px"><strong>Tipo detectado:</strong> ${analysis.content_type_detected}</div>`;
+
+            details.innerHTML = html;
+        }
+
+        async function loadExistingAnalysis() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/content/campaign/${activeCampaignId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.has_analysis) {
+                        showAnalysisResult(data.analysis);
+                        document.getElementById('contentStatusBadge').style.display = 'inline';
+                        if (data.content_urls) {
+                            contentUrls = data.content_urls;
+                            renderContentUrls();
+                        }
+                        document.getElementById('analyzeStatus').textContent = 'Analysis loaded from campaign';
+                        document.getElementById('analyzeStatus').style.color = 'var(--green)';
+                    } else {
+                        document.getElementById('contentStatusBadge').style.display = 'none';
+                        document.getElementById('contentAnalysisResult').style.display = 'none';
+                        document.getElementById('analyzeStatus').textContent = '';
+                        contentUrls = [];
+                        renderContentUrls();
+                    }
+                }
+            } catch (e) { /* silently fail */ }
+        }
+
         // ===== INIT =====
         async function init() {
             await loadCampaigns();
@@ -1544,6 +1727,7 @@
                         stopPolling();
                         refreshAll();
                         startPolling();
+                        loadExistingAnalysis();
                     }
                 };
                 if (campaigns.length > 0) {
@@ -1552,6 +1736,7 @@
                     activeCampaignId = last.id;
                     previousLeads = {};
                     refreshAll();
+                    loadExistingAnalysis();
                     // Only start polling if campaign is active
                     if (ACTIVE_STATUSES.includes(last.status)) {
                         startPolling();

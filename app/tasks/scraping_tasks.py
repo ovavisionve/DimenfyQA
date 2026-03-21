@@ -133,6 +133,27 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                             current=saved, total=saved,
                             detail="Moving to scoring phase...")
 
+            # Auto-analyze campaign content if URLs/text are configured
+            content_urls = (campaign.settings or {}).get("content_urls", [])
+            content_text = (campaign.settings or {}).get("content_text", "")
+            existing_analysis = (campaign.settings or {}).get("content_analysis")
+
+            if (content_urls or content_text) and not existing_analysis:
+                try:
+                    from app.services.content_analysis_service import content_analysis_service
+                    await update_progress(campaign_id, "scraping",
+                                    "Analyzing campaign content with Gemini AI...",
+                                    detail="Multimodal analysis of video/image/webpage content")
+                    await content_analysis_service.analyze_campaign_content(
+                        campaign_id, db,
+                        content_urls=content_urls,
+                        content_text=content_text,
+                    )
+                    await db.commit()
+                    logger.info(f"Content analysis completed for campaign {campaign_id}")
+                except Exception as e:
+                    logger.warning(f"Content analysis failed (non-blocking): {e}")
+
             return lead_ids
 
     try:

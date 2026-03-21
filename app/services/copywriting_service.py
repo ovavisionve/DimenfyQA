@@ -31,6 +31,8 @@ SINGLE_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {
 ## Servicio que ofrecemos:
 {client_service_description}
 
+{content_analysis_context}
+
 ## Formato de cada DM:
 [Saludo personal con nombre si disponible]
 [Cumplido específico basado en research/bio — 1 oración]
@@ -41,12 +43,13 @@ SINGLE_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {
 1. SOLO texto plano, sin formateo
 2. Máximo 4-5 oraciones por DM
 3. Nunca uses palabras que suenen a IA: "journey", "game-changer", "impressive", "amplify", "transformation"
-4. Tono: conversación natural entre profesionales, no formal ni robótico
+4. Tono: {tone_instruction}
 5. Si no sabes el nombre, omítelo
 6. NUNCA pidas una llamada o reunión directamente
 7. No uses paréntesis, comillas dobles, ni caracteres especiales
 8. Evita: emojis, exclamaciones excesivas, ALL CAPS
 9. El DM debe sentirse como si un amigo profesional te escribiera
+10. Usa los pain points y propuestas de valor del análisis de contenido para hacer el DM relevante
 
 ## Output:
 Responde SOLO en JSON válido, sin markdown ni backticks:
@@ -59,6 +62,8 @@ BATCH_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {c
 
 ## Servicio que ofrecemos:
 {client_service_description}
+
+{content_analysis_context}
 
 ## Leads para generar DMs:
 {leads_json}
@@ -73,13 +78,14 @@ BATCH_DM_PROMPT = """Eres un copywriter experto en cold DMs de Instagram para {c
 1. SOLO texto plano, sin formateo
 2. Máximo 4-5 oraciones por DM
 3. Nunca uses palabras que suenen a IA: "journey", "game-changer", "impressive", "amplify", "transformation"
-4. Tono: conversación natural entre profesionales, no formal ni robótico
+4. Tono: {tone_instruction}
 5. Si no sabes el nombre, omítelo
 6. NUNCA pidas una llamada o reunión directamente
 7. No uses paréntesis, comillas dobles, ni caracteres especiales
 8. Evita: emojis, exclamaciones excesivas, ALL CAPS
 9. El DM debe sentirse como si un amigo profesional te escribiera
 10. Cada DM debe ser ÚNICO y personalizado al lead
+11. Conecta los pain points del lead con las propuestas de valor del análisis de contenido
 
 ## Output:
 Responde SOLO un JSON array válido, sin markdown ni backticks. Para cada lead genera 2 variantes (A/B test):
@@ -117,9 +123,68 @@ class CopywritingService:
         )
         return message.content[0].text.strip()
 
+    @staticmethod
+    def _build_content_context(client_config: dict) -> tuple[str, str]:
+        """
+        Build content analysis context and tone instruction from client config.
+        Returns (content_analysis_context, tone_instruction).
+        """
+        content_analysis = client_config.get("content_analysis")
+        tone_instruction = "conversación natural entre profesionales, no formal ni robótico"
+
+        if not content_analysis or "error" in content_analysis:
+            return ("", tone_instruction)
+
+        parts = []
+
+        summary = content_analysis.get("business_summary", "")
+        if summary:
+            parts.append(f"**Resumen del negocio**: {summary}")
+
+        value_props = content_analysis.get("value_propositions", [])
+        if value_props:
+            props_text = "\n".join(f"  - {vp}" for vp in value_props)
+            parts.append(f"**Propuestas de valor clave**:\n{props_text}")
+
+        target = content_analysis.get("target_audience", "")
+        if target:
+            parts.append(f"**Audiencia ideal**: {target}")
+
+        differentiators = content_analysis.get("key_differentiators", [])
+        if differentiators:
+            diff_text = "\n".join(f"  - {d}" for d in differentiators)
+            parts.append(f"**Diferenciadores**:\n{diff_text}")
+
+        social_proof = content_analysis.get("social_proof", [])
+        if social_proof:
+            sp_text = "\n".join(f"  - {sp}" for sp in social_proof)
+            parts.append(f"**Prueba social**:\n{sp_text}")
+
+        pain_points = content_analysis.get("pain_points_addressed", [])
+        if pain_points:
+            pp_text = "\n".join(f"  - {pp}" for pp in pain_points)
+            parts.append(f"**Problemas que resolvemos**:\n{pp_text}")
+
+        cta = content_analysis.get("call_to_action_hints", "")
+        if cta:
+            parts.append(f"**Acción deseada del prospecto**: {cta}")
+
+        # Extract tone from analysis
+        tone = content_analysis.get("tone_style", "")
+        if tone:
+            tone_instruction = f"{tone} — mantenlo natural y humano, nunca robótico"
+
+        context = ""
+        if parts:
+            context = "## Análisis de contenido del cliente (extraído por IA de videos/imágenes/web del cliente):\n" + "\n".join(parts)
+            context += "\n\nUSA esta información para crear DMs que conecten naturalmente con lo que el lead necesita."
+
+        return (context, tone_instruction)
+
     def generate_single_dm(self, lead_data: dict, client_config: dict) -> tuple[str | None, str | None]:
         """Generate DM for a single lead. Returns (dm_a, dm_b) or (None, None) on failure."""
         username = lead_data.get("ig_username", "unknown")
+        content_context, tone = self._build_content_context(client_config)
         try:
             prompt = SINGLE_DM_PROMPT.format(
                 full_name=lead_data.get("ig_full_name", ""),
@@ -132,6 +197,8 @@ class CopywritingService:
                 client_service_description=client_config.get(
                     "service_description", "B2B lead generation and automation services"
                 ),
+                content_analysis_context=content_context,
+                tone_instruction=tone,
             )
             raw = self._call_claude(prompt, max_tokens=1024)
             result = json.loads(_strip_code_fences(raw))
@@ -146,6 +213,8 @@ class CopywritingService:
 
     def generate_dms_batch(self, leads_data: list[dict], client_config: dict) -> list[dict]:
         """Generate DMs for a batch of leads in a single API call."""
+        content_context, tone = self._build_content_context(client_config)
+
         leads_for_prompt = []
         for ld in leads_data:
             leads_for_prompt.append({
@@ -164,6 +233,8 @@ class CopywritingService:
             client_service_description=client_config.get(
                 "service_description", "B2B lead generation and automation services"
             ),
+            content_analysis_context=content_context,
+            tone_instruction=tone,
         )
 
         raw = self._call_claude(prompt, max_tokens=8192)
@@ -229,19 +300,32 @@ class CopywritingService:
 
         logger.info(f"Found {len(leads)} leads with score >= {threshold} for DM generation")
 
-        # Get client config
+        # Get client config + campaign content analysis
         first_lead = leads[0]
         client_result = await db.execute(
             select(Client).where(Client.id == first_lead.client_id)
         )
         client = client_result.scalar_one_or_none()
+
+        # Load campaign content analysis
+        from app.models.campaign import Campaign
+        campaign_result = await db.execute(
+            select(Campaign).where(Campaign.id == first_lead.campaign_id)
+        )
+        campaign = campaign_result.scalar_one_or_none()
+        content_analysis = (campaign.settings or {}).get("content_analysis") if campaign else None
+
         client_config = {
             "business_type": client.business_type if client else "B2B automation",
             "service_description": (client.settings or {}).get(
                 "service_description",
                 "B2B lead generation and automation services",
             ) if client else "B2B lead generation and automation services",
+            "content_analysis": content_analysis,
         }
+
+        if content_analysis:
+            logger.info("Using campaign content analysis for enriched DM generation")
 
         # Prepare lead data
         lead_data_map: dict[str, tuple] = {}
