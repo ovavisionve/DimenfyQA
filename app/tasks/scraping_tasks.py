@@ -89,7 +89,12 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
 
             # Get detailed profiles if needed (followers/comments give partial data)
             if campaign.source_type in ("followers", "comments"):
-                usernames = [p.get("username", "") for p in raw_profiles if p.get("username")]
+                # Comment scraper returns 'ownerUsername', profile scraper returns 'username'
+                usernames = []
+                for p in raw_profiles:
+                    uname = p.get("username") or p.get("ownerUsername") or ""
+                    if uname and uname not in usernames:
+                        usernames.append(uname)
                 if usernames:
                     total_chunks = (len(usernames) + 49) // 50
                     detailed_profiles = []

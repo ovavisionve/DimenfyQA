@@ -134,7 +134,7 @@ class ApifyService:
         if profiles:
             logger.info(f"Sample profile keys: {list(profiles[0].keys())[:15]}")
         for profile in profiles:
-            username = profile.get("username", "")
+            username = profile.get("username") or profile.get("ownerUsername") or ""
             if not username:
                 logger.warning(f"Skipping profile with no username: {list(profile.keys())[:10]}")
                 continue
