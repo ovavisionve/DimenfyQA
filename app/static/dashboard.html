@@ -2044,10 +2044,14 @@
 
                 const followers = lead.ig_follower_count != null ? formatNum(lead.ig_follower_count) : '-';
 
+                const postsIndicator = lead.ig_post_analysis
+                    ? '<span title="Posts analyzed by Gemini AI" style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--cyan-dim);color:var(--cyan);margin-left:4px;font-weight:600">AI</span>'
+                    : (lead.ig_posts ? '<span title="Posts scraped" style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text3);margin-left:4px">' + (Array.isArray(lead.ig_posts) ? lead.ig_posts.length : '?') + 'p</span>' : '');
+
                 return `<tr class="${rowClass}">
                     <td style="color:var(--text3)">${i + 1}</td>
                     <td><div class="lead-user">
-                        <span class="lead-username">@${lead.ig_username || '—'}</span>
+                        <span class="lead-username">@${lead.ig_username || '—'}${postsIndicator}</span>
                         <span class="lead-fullname">${lead.ig_full_name || ''}</span>
                     </div></td>
                     <td><div class="lead-bio" title="${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '')}">${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '-')}</div></td>

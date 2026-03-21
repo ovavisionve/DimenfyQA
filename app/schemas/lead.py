@@ -18,11 +18,14 @@ class LeadRead(BaseModel):
     ig_follower_count: Optional[int]
     ig_following_count: Optional[int]
     ig_is_private: Optional[bool]
+    ig_posts: Optional[list] = None
+    ig_post_analysis: Optional[dict] = None
     score: Optional[int]
     score_reason: Optional[str]
     lead_category: Optional[str]
     research_summary: Optional[str]
     dm_message: Optional[str]
+    dm_variant_b: Optional[str] = None
     status: str
     is_duplicate: bool
     send_attempts: int = 0

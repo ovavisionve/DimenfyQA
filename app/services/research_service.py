@@ -178,8 +178,37 @@ class ResearchService:
                     "ig_website": lead.ig_website,
                     "lead_category": lead.lead_category,
                 }
+
+                # Auto-analyze lead's posts with Gemini if available
+                if lead.ig_posts and self.google_api_key:
+                    try:
+                        from app.services.content_analysis_service import content_analysis_service
+                        post_analysis = await content_analysis_service.analyze_lead_content(
+                            username=lead.ig_username,
+                            full_name=lead.ig_full_name or "",
+                            bio=lead.ig_bio_clean or lead.ig_bio or "",
+                            posts_data=lead.ig_posts,
+                        )
+                        if post_analysis:
+                            lead.ig_post_analysis = post_analysis
+                            logger.info(f"Analyzed {len(lead.ig_posts)} posts for @{lead.ig_username}")
+                    except Exception as e:
+                        logger.warning(f"Post analysis failed for @{lead.ig_username}: {e}")
+
                 try:
                     research_text = await self.research_lead(lead_data, content_analysis=content_analysis)
+
+                    # Enrich research with post analysis if available
+                    if lead.ig_post_analysis:
+                        hooks = lead.ig_post_analysis.get("personalization_hooks", [])
+                        approach = lead.ig_post_analysis.get("best_approach", "")
+                        if hooks or approach:
+                            research_text += f"\n\nAnálisis de posts recientes:"
+                            if hooks:
+                                research_text += f"\nHooks de personalización: {', '.join(hooks[:3])}"
+                            if approach:
+                                research_text += f"\nMejor ángulo: {approach}"
+
                     lead.research_data = research_text
                     lead.research_summary = research_text[:500]
                     logger.info(f"Researched lead {lead.ig_username}")

@@ -168,6 +168,24 @@ class ApifyService:
                 or ""
             )
 
+            # Capture latest posts/reels from the profile scraper
+            latest_posts = profile.get("latestPosts") or []
+            # Keep only useful fields per post to save DB space
+            posts_data = []
+            for post in latest_posts[:12]:  # max 12 posts
+                posts_data.append({
+                    "shortCode": post.get("shortCode", ""),
+                    "caption": (post.get("caption") or "")[:500],
+                    "likesCount": post.get("likesCount", 0),
+                    "commentsCount": post.get("commentsCount", 0),
+                    "timestamp": post.get("timestamp", ""),
+                    "type": post.get("type", post.get("__typename", "post")),
+                    "url": post.get("url", ""),
+                    "displayUrl": post.get("displayUrl", ""),
+                    "videoViewCount": post.get("videoViewCount"),
+                    "isVideo": post.get("isVideo", False),
+                })
+
             stmt = pg_insert(Lead).values(
                 campaign_id=campaign_id,
                 client_id=client_id,
@@ -180,6 +198,7 @@ class ApifyService:
                 ig_following_count=profile.get("followsCount"),
                 ig_is_private=profile.get("isPrivate", False),
                 ig_profile_pic_url=profile_pic,
+                ig_posts=posts_data if posts_data else None,
                 status="scraped",
                 scraped_at=datetime.now(timezone.utc),
             ).on_conflict_do_nothing(

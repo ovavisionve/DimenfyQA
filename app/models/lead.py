@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -40,6 +40,8 @@ class Lead(Base, UUIDMixin, TimestampMixin):
     ig_following_count: Mapped[Optional[int]] = mapped_column(Integer)
     ig_is_private: Mapped[Optional[bool]] = mapped_column(Boolean)
     ig_profile_pic_url: Mapped[Optional[str]] = mapped_column(Text)
+    ig_posts: Mapped[Optional[dict]] = mapped_column(JSONB)  # Latest posts/reels from Apify
+    ig_post_analysis: Mapped[Optional[dict]] = mapped_column(JSONB)  # Gemini analysis of posts
 
     # Scoring
     score: Mapped[Optional[int]] = mapped_column(Integer)

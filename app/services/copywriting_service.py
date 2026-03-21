@@ -331,6 +331,21 @@ class CopywritingService:
         lead_data_map: dict[str, tuple] = {}
         all_lead_data: list[dict] = []
         for lead in leads:
+            research = lead.research_data or "No research available"
+
+            # Enrich with post analysis personalization hooks
+            post_analysis = lead.ig_post_analysis
+            if post_analysis:
+                hooks = post_analysis.get("personalization_hooks", [])
+                interests = post_analysis.get("interests", [])
+                approach = post_analysis.get("best_approach", "")
+                if hooks:
+                    research += f"\nPersonalization hooks from posts: {', '.join(hooks[:3])}"
+                if interests:
+                    research += f"\nInterests from content: {', '.join(interests[:4])}"
+                if approach:
+                    research += f"\nBest approach: {approach}"
+
             lead_data = {
                 "ig_username": lead.ig_username,
                 "ig_full_name": lead.ig_full_name,
@@ -338,7 +353,7 @@ class CopywritingService:
                 "ig_bio_clean": lead.ig_bio_clean,
                 "ig_website": lead.ig_website,
                 "lead_category": lead.lead_category,
-                "research_data": lead.research_data or "No research available",
+                "research_data": research,
             }
             lead_data_map[lead.ig_username] = (lead, lead_data)
             all_lead_data.append(lead_data)
