@@ -1811,14 +1811,29 @@
         }
 
         async function showNewCampaignModal() {
-            // Load clients
+            // Load clients — auto-create one if none exist
             try {
-                const res = await fetch(`${API}/clients/`);
-                const clients = await res.json();
+                let res = await fetch(`${API}/clients/`);
+                let clients = await res.json();
+
+                if (clients.length === 0) {
+                    // Auto-create a default client
+                    const createRes = await fetch(`${API}/clients/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: 'Mi Agencia', business_type: 'Marketing Agency' }),
+                    });
+                    if (createRes.ok) {
+                        const newClient = await createRes.json();
+                        clients = [newClient];
+                        log('Default client "Mi Agencia" created automatically', 'success');
+                    }
+                }
+
                 const sel = document.getElementById('ncClientId');
                 sel.innerHTML = '';
                 if (clients.length === 0) {
-                    sel.innerHTML = '<option value="">No clients — create one first</option>';
+                    sel.innerHTML = '<option value="">Error creating client</option>';
                 } else {
                     clients.forEach(c => {
                         const opt = document.createElement('option');
