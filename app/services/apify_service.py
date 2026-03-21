@@ -220,10 +220,10 @@ class ApifyService:
                 usernames = [source_value]
             return {"usernames": usernames}
         elif source_type == "comments":
-            # apify~instagram-comment-scraper uses directUrls + resultsPerPage
+            # apify~instagram-comment-scraper uses directUrls + resultsLimit
             data: dict = {"directUrls": [source_value]}
             if max_leads > 0:
-                data["resultsPerPage"] = max_leads
+                data["resultsLimit"] = max_leads
             return data
         elif source_type == "profiles":
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]
