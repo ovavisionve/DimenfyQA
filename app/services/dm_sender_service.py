@@ -223,14 +223,13 @@ class IGAccount:
 
         # Try to restore saved session first (with decryption)
         if self.session_file.exists():
+            tmp_path = self.session_file.with_suffix(".tmp")
             try:
                 decrypted = _decrypt_file(self.session_file)
                 if decrypted:
                     # Write decrypted to temp file for instagrapi to load
-                    tmp_path = self.session_file.with_suffix(".tmp")
                     tmp_path.write_bytes(decrypted)
                     self._client.load_settings(tmp_path)
-                    tmp_path.unlink(missing_ok=True)
                     self._client.login(self.username, self.password)
                     # Validate session with a lightweight call
                     self._client.get_timeline_feed()
@@ -243,6 +242,8 @@ class IGAccount:
             except Exception as e:
                 logger.warning(f"Session restore failed for @{self.username} ({type(e).__name__}), doing fresh login")
                 self.session_file.unlink(missing_ok=True)
+            finally:
+                tmp_path.unlink(missing_ok=True)
 
         # Fresh login
         try:
@@ -438,8 +439,8 @@ class IGAccount:
                     self.last_block_at = datetime.fromisoformat(data["last_block_at"])
                 self.challenges_today = data.get("challenges_today", 0)
                 self._challenges_today_date = data.get("challenges_today_date")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load health data for @{self.username}: {type(e).__name__}: {e}")
 
     def validate_proxy(self) -> bool:
         """Validate that the proxy is reachable before using it for sends."""

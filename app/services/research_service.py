@@ -115,9 +115,9 @@ class ResearchService:
     @property
     def _has_api_key(self) -> bool:
         """Check if any research API key is properly configured."""
-        if self.google_api_key and "XXXXX" not in self.google_api_key:
+        if self.google_api_key and len(self.google_api_key.strip()) >= 20:
             return True
-        if self.perplexity_api_key and "XXXXX" not in self.perplexity_api_key:
+        if self.perplexity_api_key and len(self.perplexity_api_key.strip()) >= 20:
             return True
         return False
 

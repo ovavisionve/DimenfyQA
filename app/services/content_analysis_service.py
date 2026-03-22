@@ -107,7 +107,7 @@ class ContentAnalysisService:
 
     @property
     def _has_api_key(self) -> bool:
-        return bool(self.google_api_key) and "XXXXX" not in self.google_api_key
+        return bool(self.google_api_key) and len(self.google_api_key.strip()) >= 20
 
     async def analyze_content(
         self,

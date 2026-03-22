@@ -333,9 +333,11 @@ class TestWriteDmsBatch:
             lead.ig_following_count = 500
             lead.lead_category = "Agency"
             lead.research_data = "Some research data"
+            lead.ig_post_analysis = None
             lead.score = score
             lead.status = status
             lead.client_id = uuid.uuid4()
+            lead.campaign_id = uuid.uuid4()
             lead.dm_message = None
             lead.dm_variant_b = None
             lead.dm_generated_at = None
@@ -350,9 +352,16 @@ class TestWriteDmsBatch:
         client.settings = {"service_description": "We automate lead gen with AI."}
         return client
 
+    @pytest.fixture
+    def mock_campaign(self):
+        campaign = MagicMock()
+        campaign.id = uuid.uuid4()
+        campaign.settings = {}
+        return campaign
+
     @pytest.mark.asyncio
     async def test_write_dms_batch_generates_dms(
-        self, copywriting_service, mock_lead, mock_client
+        self, copywriting_service, mock_lead, mock_client, mock_campaign
     ):
         lead1 = mock_lead("user1", score=85, status="researched")
         lead2 = mock_lead("user2", score=75, status="scored")
@@ -374,7 +383,11 @@ class TestWriteDmsBatch:
         client_result = MagicMock()
         client_result.scalar_one_or_none.return_value = mock_client
 
-        db.execute = AsyncMock(side_effect=[leads_result, client_result])
+        # Third query: select campaign
+        campaign_result = MagicMock()
+        campaign_result.scalar_one_or_none.return_value = mock_campaign
+
+        db.execute = AsyncMock(side_effect=[leads_result, client_result, campaign_result])
         db.flush = AsyncMock()
 
         # Mock the batch generation
@@ -413,7 +426,7 @@ class TestWriteDmsBatch:
 
     @pytest.mark.asyncio
     async def test_write_dms_batch_skips_leads_with_failed_generation(
-        self, copywriting_service, mock_lead, mock_client
+        self, copywriting_service, mock_lead, mock_client, mock_campaign
     ):
         lead1 = mock_lead("user1", score=80)
         mock_client.id = lead1.client_id
@@ -428,7 +441,10 @@ class TestWriteDmsBatch:
         client_result = MagicMock()
         client_result.scalar_one_or_none.return_value = mock_client
 
-        db.execute = AsyncMock(side_effect=[leads_result, client_result])
+        campaign_result = MagicMock()
+        campaign_result.scalar_one_or_none.return_value = mock_campaign
+
+        db.execute = AsyncMock(side_effect=[leads_result, client_result, campaign_result])
         db.flush = AsyncMock()
 
         # DM generation returns None for dm_a (failed)
@@ -445,7 +461,7 @@ class TestWriteDmsBatch:
 
     @pytest.mark.asyncio
     async def test_write_dms_batch_calls_progress_callback(
-        self, copywriting_service, mock_lead, mock_client
+        self, copywriting_service, mock_lead, mock_client, mock_campaign
     ):
         lead1 = mock_lead("user1", score=80)
         mock_client.id = lead1.client_id
@@ -458,7 +474,10 @@ class TestWriteDmsBatch:
         client_result = MagicMock()
         client_result.scalar_one_or_none.return_value = mock_client
 
-        db.execute = AsyncMock(side_effect=[leads_result, client_result])
+        campaign_result = MagicMock()
+        campaign_result.scalar_one_or_none.return_value = mock_campaign
+
+        db.execute = AsyncMock(side_effect=[leads_result, client_result, campaign_result])
         db.flush = AsyncMock()
 
         progress_cb = MagicMock()
@@ -476,7 +495,7 @@ class TestWriteDmsBatch:
 
     @pytest.mark.asyncio
     async def test_write_dms_batch_uses_client_config_from_db(
-        self, copywriting_service, mock_lead, mock_client
+        self, copywriting_service, mock_lead, mock_client, mock_campaign
     ):
         lead1 = mock_lead("user1", score=80)
         mock_client.id = lead1.client_id
@@ -491,7 +510,10 @@ class TestWriteDmsBatch:
         client_result = MagicMock()
         client_result.scalar_one_or_none.return_value = mock_client
 
-        db.execute = AsyncMock(side_effect=[leads_result, client_result])
+        campaign_result = MagicMock()
+        campaign_result.scalar_one_or_none.return_value = mock_campaign
+
+        db.execute = AsyncMock(side_effect=[leads_result, client_result, campaign_result])
         db.flush = AsyncMock()
 
         with patch.object(

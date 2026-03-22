@@ -92,8 +92,8 @@ ig-dm-engine/
 ├── tests/                         # 12 test files
 │   ├── conftest.py
 │   ├── test_api.py, test_clients.py, test_enums.py
-│   ├── test_scoring.py            # ⚠️ OUTDATED - calls non-existent methods
-│   ├── test_copywriting.py        # ⚠️ OUTDATED - calls non-existent methods
+│   ├── test_scoring.py            # ✅ 17 tests (batch scoring, auto-score, edge cases)
+│   ├── test_copywriting.py        # ✅ 21 tests (single DM, batch, write_dms_batch)
 │   ├── test_dm_sender.py          # ✅ Phase 2 tests (62 passed, 3 skipped)
 │   ├── test_export.py, test_research.py
 │   ├── test_tasks_config.py, test_utils.py
@@ -287,9 +287,9 @@ Phase 3 — Inbox & Follow-up:
 - MUST `commit()` (not `flush()`) before calling `update_progress()` to avoid deadlocks (row lock held by session 1, update_progress opens session 2 on same row)
 - `sync_update_progress()` exists for ThreadPoolExecutor callbacks (creates its own event loop per thread)
 - Model names must be exact — wrong model name causes silent failures (errors caught by safe wrappers)
-- **Tests outdated**: `test_scoring.py` calls `score_lead()` (singular) but implementation only has `score_leads_batch()`. Same issue in `test_copywriting.py` — calls `generate_dm()` but actual methods are `generate_single_dm()` and `generate_dms_batch()`. Tests need to be rewritten to match batch API.
+- **Tests fixed**: `test_scoring.py` and `test_copywriting.py` have been updated to match batch API methods. All 103 tests pass (3 skipped for encryption in non-Docker env).
 - **"followers" Apify actor**: Currently maps to profile scraper (free-tier fallback), not actual followers list
-- **Research API key check is brittle**: Uses `"XXXXX" not in api_key` — could use length check instead
+- **Research API key check**: Uses `len(key.strip()) >= 20` validation (previously used brittle `"XXXXX" not in` check)
 - **Free-tier comment limits**: Each Apify actor returns ~15 comments on free tier. Multi-actor strategy yields ~45 max. For more, scrape comments from multiple posts or upgrade Apify plan.
 
 ### Thresholds (configurable via env)
@@ -302,7 +302,8 @@ Phase 3 — Inbox & Follow-up:
 - Mock external APIs (Anthropic, Gemini, Perplexity, Apify, instagrapi) in tests
 - Test files mirror source structure: `tests/test_scoring.py`, etc.
 - `test_dm_sender.py` — 62 passed, 3 skipped (encryption tests require working `cryptography` package)
-- **⚠️ test_scoring.py and test_copywriting.py are BROKEN** — call methods that were refactored to batch. Must be rewritten before adding new tests.
+- `test_scoring.py` — 17 tests covering batch scoring, auto-score for empty/private profiles, progress callbacks, API failure handling
+- `test_copywriting.py` — 21 tests covering single DM generation, batch DMs, write_dms_batch with campaign/client mocks, progress callbacks
 
 ## API Keys & Secrets
 - **NEVER** commit API keys or secrets to the repository
