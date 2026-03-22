@@ -75,15 +75,20 @@ def main():
 
     elif mode == "login":
         print("=" * 60)
-        print("TESTING INSTAGRAM LOGIN (1 account only)")
+        print("TESTING INSTAGRAM LOGIN")
         print("=" * 60)
-        # Only test first account to avoid triggering Instagram
-        acc = ACCOUNTS[0]
-        print(f"  Testing {acc['username']}...")
-        result = test_ig_login(acc)
-        status_icon = "✓" if result["status"] == "OK" else "✗"
-        detail = result.get("user_id", result.get("error", ""))
-        print(f"  {status_icon} {result['status']}: {detail}")
+        # Test only the 2 real IG accounts
+        real_accounts = [a for a in ACCOUNTS if a["username"] in ("kalnesf8", "on1eojge")]
+        if not real_accounts:
+            print("  No real IG accounts found in ACCOUNTS list")
+            return
+        for acc in real_accounts:
+            print(f"  Testing {acc['username']}...")
+            result = test_ig_login(acc)
+            status_icon = "✓" if result["status"] == "OK" else "✗"
+            detail = result.get("user_id", result.get("error", ""))
+            print(f"  {status_icon} {result['status']}: {detail}")
+            time.sleep(5)  # Wait between logins to avoid suspicion
 
     else:
         print("Usage: python test_connections.py [proxy|login]")
