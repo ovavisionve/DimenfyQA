@@ -6,18 +6,10 @@ import requests
 import time
 import sys
 
-# 10 IG accounts with their assigned Webshare proxies
+# 2 cuentas reales de IG con proxies Webshare
 ACCOUNTS = [
-    {"username": "obapivs3", "password": "r0k9JXOrnT", "proxy": "http://fddwhmln:tye1hvbkhnz5@31.59.20.176:6754"},
-    {"username": "km5x79y1", "password": "GGusv44OX5", "proxy": "http://fddwhmln:tye1hvbkhnz5@23.95.150.145:6114"},
-    {"username": "ybbhqmuk", "password": "SU7JyJvyfA", "proxy": "http://fddwhmln:tye1hvbkhnz5@198.23.239.134:6540"},
     {"username": "kalnesf8", "password": "52SBilB8G8", "proxy": "http://fddwhmln:tye1hvbkhnz5@45.38.107.97:6014"},
     {"username": "on1eojge", "password": "nBBJfEtMXy", "proxy": "http://fddwhmln:tye1hvbkhnz5@107.172.163.27:6543"},
-    {"username": "ioq1gstnf", "password": "xY7sZB4kzt", "proxy": "http://fddwhmln:tye1hvbkhnz5@198.105.121.200:6462"},
-    {"username": "ln7cx7qv", "password": "4qU1UEC6uJh", "proxy": "http://fddwhmln:tye1hvbkhnz5@64.137.96.74:6641"},
-    {"username": "f0tmjwuy", "password": "0faoBBhCECzF", "proxy": "http://fddwhmln:tye1hvbkhnz5@216.10.27.159:6837"},
-    {"username": "jofiqzge", "password": "HhvqXtokbMz", "proxy": "http://fddwhmln:tye1hvbkhnz5@142.111.67.146:5611"},
-    {"username": "usnsmcty", "password": "mXq2rD1oqv9Y", "proxy": "http://fddwhmln:tye1hvbkhnz5@191.96.254.138:6185"},
 ]
 
 
@@ -79,7 +71,7 @@ def main():
             print(f"  [{i:2d}] {acc['username']:12s} → {status_icon} {result['status']}  (IP: {detail})")
             if result["status"] == "OK":
                 ok += 1
-        print(f"\nResult: {ok}/10 proxies working")
+        print(f"\nResult: {ok}/{len(ACCOUNTS)} proxies working")
 
     elif mode == "login":
         print("=" * 60)
