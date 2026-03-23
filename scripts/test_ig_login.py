@@ -17,12 +17,17 @@ if env_path.exists():
 
 from instagrapi import Client
 
-USERNAME = os.getenv("IG_USERNAME", "kalnesf8")
-PASSWORD = os.getenv("IG_PASSWORD", "52SBilB8G8")
+USERNAME = os.getenv("IG_USERNAME", "")
+PASSWORD = os.getenv("IG_PASSWORD", "")
 PROXY = os.getenv("PROXY_URL", "")
 
+if not USERNAME or not PASSWORD:
+    print("ERROR: Set IG_USERNAME and IG_PASSWORD in .env or environment")
+    print("  Supports username or email for login")
+    sys.exit(1)
+
 print(f"=== Instagram Login Test ===")
-print(f"Username: @{USERNAME}")
+print(f"Username: {USERNAME}")
 print(f"Proxy: {PROXY or '(none)'}")
 print()
 
