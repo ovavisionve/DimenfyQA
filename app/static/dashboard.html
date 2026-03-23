@@ -1053,6 +1053,7 @@
             <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
             <button class="btn btn-success" onclick="showNewCampaignModal()" style="font-weight:700">+ New Campaign</button>
             <button class="btn btn-primary" id="startBtn" onclick="startPipeline()">Start Pipeline</button>
+            <button class="btn btn-primary" id="sendBtn" onclick="sendDMs()" style="display:none">Send DMs</button>
             <button class="btn btn-secondary" id="pauseBtn" onclick="pauseCampaign()" style="display:none">Pause Sending</button>
             <button class="btn btn-success" id="resumeBtn" onclick="resumeSending()" style="display:none">Resume Sending</button>
             <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
@@ -1950,6 +1951,7 @@
                     ['step-scraping','step-scoring','step-research','step-dms','step-sending','step-done'].forEach(id => {
                         document.getElementById(id).textContent = '-';
                     });
+                    document.getElementById('sendBtn').style.display = 'none';
                     document.getElementById('pauseBtn').style.display = 'none';
                     document.getElementById('resumeBtn').style.display = 'none';
                     document.querySelectorAll('.pipe-step').forEach(s => s.classList.remove('active','done'));
@@ -2036,7 +2038,8 @@
             };
             statusEl.style.color = statusMap[campaign.status] || 'var(--text2)';
 
-            // Show/hide pause and resume buttons
+            // Show/hide action buttons based on campaign status
+            document.getElementById('sendBtn').style.display = campaign.status === 'ready' ? '' : 'none';
             document.getElementById('pauseBtn').style.display = campaign.status === 'sending' ? '' : 'none';
             document.getElementById('resumeBtn').style.display = campaign.status === 'paused' ? '' : 'none';
 
@@ -2578,6 +2581,25 @@
                 } else {
                     const err = await res.json();
                     log('Error: ' + (err.detail || 'Could not pause'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function sendDMs() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/resume-sending`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Sending DMs: ${data.leads_to_send} leads queued`, 'success');
+                    pipelineRunning = true;
+                    startTimer();
+                    startPolling();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not start sending'), 'error');
                 }
             } catch(e) {
                 log('Error: ' + e.message, 'error');

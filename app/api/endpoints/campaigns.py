@@ -183,10 +183,10 @@ async def resume_sending(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status != "paused":
+    if campaign.status not in ("paused", "ready"):
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is '{campaign.status}', can only resume from paused.",
+            detail=f"Campaign is '{campaign.status}', can only send from paused or ready.",
         )
 
     from app.tasks.sending_tasks import send_dms_task
@@ -203,9 +203,12 @@ async def resume_sending(
     if not lead_ids:
         raise HTTPException(status_code=400, detail="No leads ready to send")
 
+    campaign.status = "sending"
+    await db.flush()
+
     task_result = send_dms_task.delay(lead_ids)
     return {
-        "message": "Sending resumed",
+        "message": "Sending started",
         "campaign_id": str(campaign_id),
         "task_id": task_result.id,
         "leads_to_send": len(lead_ids),
