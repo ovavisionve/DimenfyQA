@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     PRE_SEND_CHECK_PUBLIC: bool = True  # Verify target is public before sending DM
     SKIP_PRIVATE_ACCOUNTS: bool = True  # Filter out private accounts during scraping
 
+    # Playwright + Stealth (browser automation mode)
+    USE_PLAYWRIGHT: bool = False  # True = use Playwright, False = use instagrapi
+    PW_HEADLESS: bool = True  # Run browser headless (True for servers)
+    PW_SLOW_MO: int = 0  # Slow down Playwright actions by N ms (debugging)
+    PW_TYPING_MIN_DELAY: int = 50  # Min ms between keystrokes (human-like typing)
+    PW_TYPING_MAX_DELAY: int = 150  # Max ms between keystrokes
+    PW_SCREENSHOT_ON_ERROR: bool = True  # Save screenshot when errors occur
+    PW_BROWSER_DATA_DIR: str = "./pw_sessions"  # Persistent browser profiles
+
     # Phase 3 — Inbox Monitoring
     INBOX_CHECK_INTERVAL: int = 300  # seconds between inbox checks (default 5 min)
 

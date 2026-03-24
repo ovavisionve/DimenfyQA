@@ -3,7 +3,7 @@ import logging
 from app.tasks.celery_app import celery_app
 from app.tasks.base import _run_async, fail_campaign, update_progress, sync_update_progress, RETRY_KWARGS
 from app.database import create_worker_session
-from app.services.dm_sender_service import dm_sender_service
+from app.services.browser_manager import get_sender_service
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +48,22 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                             current=0, total=len(lead_ids),
                             detail="Establishing connection")
 
-            # Login to Instagram
-            logged_in = dm_sender_service.login()
+            # Get the right sender engine (Playwright or instagrapi)
+            sender = get_sender_service()
+            from app.config import settings
+            use_pw = settings.USE_PLAYWRIGHT
+
+            # Login to Instagram (async for Playwright, sync for instagrapi)
+            if use_pw:
+                logged_in = await sender.login()
+            else:
+                logged_in = sender.login()
+
             if not logged_in:
                 await update_progress(cid, "sending",
                                 "Instagram login failed — check credentials",
                                 current=0, total=len(lead_ids),
                                 detail="Login error")
-                # Mark campaign as paused, not failed — credentials can be fixed
                 campaign_result = await db.execute(
                     select(Campaign).where(Campaign.id == cid)
                 )
@@ -68,10 +76,11 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                     await db.commit()
                 return lead_ids
 
-            accounts_health = dm_sender_service.get_accounts_health()
+            engine_name = "Playwright" if use_pw else "instagrapi"
+            accounts_health = sender.get_accounts_health()
             active_accounts = sum(1 for h in accounts_health if h.get("logged_in"))
             await update_progress(cid, "sending",
-                            "Logged in. Starting DM delivery...",
+                            f"Logged in ({engine_name}). Starting DM delivery...",
                             current=0, total=len(lead_ids),
                             detail=f"Active accounts: {active_accounts}")
 
@@ -83,8 +92,7 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                                 current=cur, total=tot,
                                 detail=f"Delay {settings.DM_DELAY_MIN}-{settings.DM_DELAY_MAX}s between sends")
 
-            from app.config import settings
-            send_result = await dm_sender_service.send_campaign_dms(
+            send_result = await sender.send_campaign_dms(
                 cid, db, progress_callback=_sending_progress
             )
 
