@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -15,15 +17,27 @@ logger = logging.getLogger(__name__)
 
 APIFY_BASE_URL = "https://api.apify.com/v2"
 
-# Apify actors — using official/free-tier-compatible actors only
-# Profile scraper: $2.60/1K results, works with $5/month free credit (~1,900/month)
-# Comment scraper: $2.30/1K results, works with $5/month free credit (~2,100/month)
-# Followers scraper: requires cookies + paid plan — avoid for now
+# Apify actors
+# instagram-scraper: the MAIN official actor — handles posts, comments, profiles, etc.
+#   $2.30/1K results. Use resultsType to control what to scrape.
+# instagram-profile-scraper: dedicated profile scraper ($2.60/1K results)
 ACTORS = {
     "followers": "apify~instagram-profile-scraper",  # fallback to profile scraper
-    "comments": "apify~instagram-comment-scraper",    # official free-tier compatible
-    "profiles": "apify~instagram-profile-scraper",    # official free-tier compatible
+    "comments": "apify~instagram-scraper",            # main scraper with resultsType=comments
+    "profiles": "apify~instagram-profile-scraper",    # dedicated profile scraper
 }
+
+
+def _extract_shortcode(url: str) -> str:
+    """Extract Instagram shortcode from a post/reel URL."""
+    # Matches /p/SHORTCODE/, /reel/SHORTCODE/, /reels/SHORTCODE/
+    match = re.search(r"/(p|reel|reels)/([A-Za-z0-9_-]+)", url)
+    if match:
+        return match.group(2)
+    # If it's already a shortcode (no slashes), return as-is
+    if "/" not in url:
+        return url
+    return url
 
 
 class ApifyService:
@@ -106,6 +120,137 @@ class ApifyService:
                     logger.error(f"Apify actor returned error: {results[0].get('message', 'unknown error')}")
             return results
 
+    async def scrape_comments_multi_actor(
+        self, source_value: str, max_leads: int = 0,
+        progress_callback=None,
+    ) -> list[dict]:
+        """Scrape comments from an Instagram post using the main instagram-scraper actor.
+
+        Uses apify/instagram-scraper with resultsType="comments" which properly
+        respects the resultsLimit parameter on paid plans.
+        """
+        actor_id = ACTORS["comments"]  # apify~instagram-scraper
+        input_data = {
+            "directUrls": [source_value],
+            "resultsType": "comments",
+        }
+        if max_leads > 0:
+            input_data["resultsLimit"] = max_leads
+
+        logger.info(f"[Comments] Starting apify/instagram-scraper with input: {input_data}")
+        if progress_callback:
+            target = max_leads if max_leads > 0 else "all"
+            await progress_callback(f"Scraping up to {target} comments from post...")
+
+        try:
+            # Start the run
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{APIFY_BASE_URL}/acts/{actor_id}/runs",
+                    headers=self.headers,
+                    json=input_data,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                run_data = response.json()["data"]
+                run_id = run_data["id"]
+                logger.info(f"[Comments] Run started: {run_id}")
+
+            # Poll until complete (up to 15 min for large scrapes)
+            poll_interval = 5
+            max_poll_attempts = 180  # 15 minutes
+            for attempt in range(max_poll_attempts):
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"{APIFY_BASE_URL}/actor-runs/{run_id}",
+                        headers=self.headers,
+                        timeout=30,
+                    )
+                    response.raise_for_status()
+                    status_data = response.json()["data"]
+
+                run_status = status_data["status"]
+                stats = status_data.get("stats", {})
+                items_count = stats.get("itemsCount", 0) if isinstance(stats, dict) else 0
+
+                # Log progress periodically
+                if attempt > 0 and attempt % 12 == 0:
+                    elapsed_min = (attempt * poll_interval) / 60
+                    logger.info(f"[Comments] Still running after {elapsed_min:.0f}min, {items_count} items so far...")
+                    if progress_callback:
+                        await progress_callback(
+                            f"Scraping comments... {items_count} found ({elapsed_min:.0f}min elapsed)"
+                        )
+
+                if run_status == "SUCCEEDED":
+                    dataset_id = status_data["defaultDatasetId"]
+                    usage_usd = status_data.get("usageTotalUsd", "?")
+                    logger.info(f"[Comments] Succeeded. Dataset: {dataset_id}, cost: ${usage_usd}")
+
+                    # Fetch results with pagination
+                    all_items = []
+                    offset = 0
+                    page_size = 1000
+                    while True:
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(
+                                f"{APIFY_BASE_URL}/datasets/{dataset_id}/items",
+                                headers=self.headers,
+                                params={"format": "json", "offset": offset, "limit": page_size},
+                                timeout=120,
+                            )
+                            response.raise_for_status()
+                            page = response.json()
+                        all_items.extend(page)
+                        if len(page) < page_size:
+                            break
+                        offset += page_size
+
+                    logger.info(f"[Comments] Total items fetched: {len(all_items)}")
+                    if all_items:
+                        logger.info(f"[Comments] First item keys: {list(all_items[0].keys())[:10]}")
+                    if progress_callback:
+                        await progress_callback(f"Scraping complete: {len(all_items)} comments found (cost: ${usage_usd})")
+
+                    # Deduplicate by username
+                    return self._deduplicate_comments(all_items)
+
+                elif run_status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                    logger.error(f"[Comments] Run failed: {run_status}")
+                    if progress_callback:
+                        await progress_callback(f"Comment scraping failed: {run_status}")
+                    return []
+
+                await asyncio.sleep(poll_interval)
+
+            logger.warning(f"[Comments] Timed out after 15min of polling")
+            return []
+
+        except Exception as e:
+            logger.error(f"[Comments] Error: {e}")
+            if progress_callback:
+                await progress_callback(f"Comment scraping error: {e}")
+            return []
+
+    def _deduplicate_comments(self, comments: list[dict]) -> list[dict]:
+        """Deduplicate comments by username."""
+        unique_comments = []
+        seen_usernames = set()
+
+        for comment in comments:
+            uname = (
+                comment.get("ownerUsername")
+                or comment.get("username")
+                or comment.get("owner", {}).get("username", "")
+                or ""
+            )
+            if uname and uname not in seen_usernames:
+                seen_usernames.add(uname)
+                unique_comments.append(comment)
+
+        logger.info(f"[Comments] Deduplicated: {len(comments)} raw → {len(unique_comments)} unique usernames")
+        return unique_comments
+
     async def scrape_profiles_sync(self, usernames: list[str]) -> list[dict]:
         """Use synchronous Apify endpoint for profile scraping."""
         actor_id = ACTORS["profiles"]
@@ -134,7 +279,7 @@ class ApifyService:
         if profiles:
             logger.info(f"Sample profile keys: {list(profiles[0].keys())[:15]}")
         for profile in profiles:
-            username = profile.get("username", "")
+            username = profile.get("username") or profile.get("ownerUsername") or ""
             if not username:
                 logger.warning(f"Skipping profile with no username: {list(profile.keys())[:10]}")
                 continue
@@ -168,6 +313,24 @@ class ApifyService:
                 or ""
             )
 
+            # Capture latest posts/reels from the profile scraper
+            latest_posts = profile.get("latestPosts") or []
+            # Keep only useful fields per post to save DB space
+            posts_data = []
+            for post in latest_posts[:12]:  # max 12 posts
+                posts_data.append({
+                    "shortCode": post.get("shortCode", ""),
+                    "caption": (post.get("caption") or "")[:500],
+                    "likesCount": post.get("likesCount", 0),
+                    "commentsCount": post.get("commentsCount", 0),
+                    "timestamp": post.get("timestamp", ""),
+                    "type": post.get("type", post.get("__typename", "post")),
+                    "url": post.get("url", ""),
+                    "displayUrl": post.get("displayUrl", ""),
+                    "videoViewCount": post.get("videoViewCount"),
+                    "isVideo": post.get("isVideo", False),
+                })
+
             stmt = pg_insert(Lead).values(
                 campaign_id=campaign_id,
                 client_id=client_id,
@@ -180,6 +343,7 @@ class ApifyService:
                 ig_following_count=profile.get("followsCount"),
                 ig_is_private=profile.get("isPrivate", False),
                 ig_profile_pic_url=profile_pic,
+                ig_posts=posts_data if posts_data else None,
                 status="scraped",
                 scraped_at=datetime.now(timezone.utc),
             ).on_conflict_do_nothing(
@@ -201,10 +365,14 @@ class ApifyService:
                 usernames = [source_value]
             return {"usernames": usernames}
         elif source_type == "comments":
-            # apify~instagram-comment-scraper uses directUrls + resultsPerPage
-            data: dict = {"directUrls": [source_value]}
+            # apify~instagram-scraper with resultsType=comments
+            data: dict = {
+                "directUrls": [source_value],
+                "resultsType": "comments",
+                "searchLimit": 1,
+            }
             if max_leads > 0:
-                data["resultsPerPage"] = max_leads
+                data["resultsLimit"] = max_leads
             return data
         elif source_type == "profiles":
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]

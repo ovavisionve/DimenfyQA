@@ -223,6 +223,106 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
+        /* Analytics */
+        .analytics-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+
+        .analytics-panel-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .analytics-funnel .funnel-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .analytics-funnel .funnel-label {
+            width: 100px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+            text-transform: capitalize;
+        }
+
+        .analytics-funnel .funnel-bar-track {
+            flex: 1;
+            height: 28px;
+            background: var(--surface2);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .analytics-funnel .funnel-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .analytics-funnel .funnel-bar-fill.stage-scraped { background: var(--blue); }
+        .analytics-funnel .funnel-bar-fill.stage-scored { background: var(--accent); }
+        .analytics-funnel .funnel-bar-fill.stage-researched { background: var(--yellow); }
+        .analytics-funnel .funnel-bar-fill.stage-dm_ready { background: var(--orange); }
+        .analytics-funnel .funnel-bar-fill.stage-sent { background: var(--cyan); }
+        .analytics-funnel .funnel-bar-fill.stage-replied { background: var(--green); }
+
+        .analytics-funnel .funnel-value {
+            width: 80px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .analytics-chart .chart-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .analytics-chart .chart-label {
+            width: 80px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .analytics-chart .chart-bar-track {
+            flex: 1;
+            height: 24px;
+            background: var(--surface2);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .analytics-chart .chart-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .analytics-chart .chart-value {
+            width: 50px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
         /* Pipeline steps */
         .pipeline {
             display: flex;
@@ -302,6 +402,24 @@
             color: var(--text2);
             font-variant-numeric: tabular-nums;
         }
+
+        /* A/B Testing bars */
+        .ab-bar-track {
+            width: 100%;
+            height: 8px;
+            background: var(--surface3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .ab-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .ab-bar-a { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+        .ab-bar-b { background: linear-gradient(90deg, var(--orange), #fbbf24); }
 
         /* Lead table */
         .leads-section {
@@ -412,6 +530,11 @@
         .status-scored { background: var(--orange-dim); color: var(--orange); }
         .status-researched { background: var(--cyan-dim); color: var(--cyan); }
         .status-dm_ready { background: var(--green-dim); color: var(--green); }
+        .status-sending { background: var(--yellow-dim); color: var(--yellow); }
+        .status-sent { background: var(--green-dim); color: var(--green); }
+        .status-delivered { background: var(--green-dim); color: var(--green); }
+        .status-failed { background: var(--red-dim); color: var(--red); }
+        .status-retry { background: var(--orange-dim); color: var(--orange); }
 
         .spinner {
             display: inline-block;
@@ -928,8 +1051,43 @@
     <div class="container">
         <div class="campaign-bar">
             <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
+            <button class="btn btn-success" onclick="showNewCampaignModal()" style="font-weight:700">+ New Campaign</button>
             <button class="btn btn-primary" id="startBtn" onclick="startPipeline()">Start Pipeline</button>
+            <button class="btn btn-primary" id="sendBtn" onclick="sendDMs()" style="display:none">Send DMs</button>
+            <button class="btn btn-secondary" id="pauseBtn" onclick="pauseCampaign()" style="display:none">Pause Sending</button>
+            <button class="btn btn-success" id="resumeBtn" onclick="resumeSending()" style="display:none">Resume Sending</button>
             <button class="btn btn-danger" id="resetBtn" onclick="resetCampaign()">Reset</button>
+        </div>
+
+        <!-- Content Analysis Panel -->
+        <div class="card" id="contentAnalysisPanel" style="margin-bottom:16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+            <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleContentPanel()">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:16px;font-weight:700;color:var(--text)">Content Analysis</span>
+                    <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-glow);color:var(--accent2);font-weight:600">AI MULTIMODAL</span>
+                    <span id="contentStatusBadge" style="display:none;font-size:11px;padding:2px 8px;border-radius:4px;background:var(--green-dim);color:var(--green);font-weight:600">ANALYZED</span>
+                </div>
+                <span id="contentToggleIcon" style="color:var(--text2);font-size:18px">&#x25BC;</span>
+            </div>
+            <div id="contentPanelBody" style="display:none;margin-top:12px">
+                <p style="color:var(--text2);font-size:13px;margin-bottom:12px">
+                    Agrega links de videos, imágenes o páginas web de tu negocio. Gemini AI los analiza para generar DMs mucho más personalizados y relevantes. Esto es lo que hace la diferencia vs DMs genéricos.
+                </p>
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <input type="text" id="contentUrlInput" placeholder="URL de video, imagen o página web..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter')addContentUrl()" />
+                    <button class="btn btn-secondary" onclick="addContentUrl()" style="white-space:nowrap;font-size:12px;padding:8px 12px">+ Add</button>
+                </div>
+                <div id="contentUrlList" style="margin-bottom:8px"></div>
+                <textarea id="contentTextInput" placeholder="O describe tu negocio/servicio aquí... (opcional, complementa los URLs)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:60px;font-family:inherit" rows="2"></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                    <button class="btn btn-primary" onclick="analyzeContent()" id="analyzeBtn" style="font-size:13px;padding:8px 16px">Analyze with Gemini</button>
+                    <span id="analyzeStatus" style="font-size:12px;color:var(--text2)"></span>
+                </div>
+                <div id="contentAnalysisResult" style="display:none;margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+                    <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">Analysis Complete</div>
+                    <div id="analysisDetails" style="font-size:12px;color:var(--text2);line-height:1.6"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Tab navigation -->
@@ -939,6 +1097,12 @@
             </button>
             <button class="tab" onclick="switchTab('dms')" id="tab-dms">
                 DMs <span class="tab-badge" id="dmsBadge">0</span>
+            </button>
+            <button class="tab" onclick="switchTab('ab')" id="tab-ab">
+                A/B Testing
+            </button>
+            <button class="tab" onclick="switchTab('analytics')" id="tab-analytics">
+                Analytics
             </button>
             <button class="tab" onclick="switchTab('export')" id="tab-export">
                 Export
@@ -968,9 +1132,14 @@
                     <div class="step-value" id="step-dms">-</div>
                 </div>
                 <div class="pipe-arrow">&#x2192;</div>
-                <div class="pipe-step" data-step="ready">
-                    <div class="step-label">Ready</div>
-                    <div class="step-value" id="step-ready">-</div>
+                <div class="pipe-step" data-step="sending">
+                    <div class="step-label">Sending</div>
+                    <div class="step-value" id="step-sending">-</div>
+                </div>
+                <div class="pipe-arrow">&#x2192;</div>
+                <div class="pipe-step" data-step="completed">
+                    <div class="step-label">Done</div>
+                    <div class="step-value" id="step-done">-</div>
                 </div>
             </div>
 
@@ -989,7 +1158,7 @@
                 <div class="progress-counter" id="progressCounter"></div>
             </div>
 
-            <div class="stats-row">
+            <div class="stats-row" style="grid-template-columns: repeat(6, 1fr)">
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
                     <div class="stat-label">Total Leads</div>
@@ -1005,6 +1174,10 @@
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--cyan)" id="dmsGenerated">0</div>
                     <div class="stat-label">DMs Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--green)" id="dmsSent">0</div>
+                    <div class="stat-label">DMs Sent</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
@@ -1035,6 +1208,17 @@
                             <tr><td colspan="8" class="empty-state"><div class="empty-icon">&#x1F50D;</div>Select a campaign and start the pipeline</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Account Health -->
+            <div class="activity-section" id="accountHealthSection" style="margin-top:24px;display:none">
+                <div class="activity-header" style="display:flex;align-items:center;justify-content:space-between">
+                    IG Account Health
+                    <button class="btn btn-secondary btn-sm" onclick="refreshAccountHealth()">Refresh</button>
+                </div>
+                <div style="padding:16px 20px" id="accountHealthBody">
+                    <div style="color:var(--text3)">Loading account health...</div>
                 </div>
             </div>
 
@@ -1126,9 +1310,247 @@
                 </div>
             </div>
         </div>
+        <!-- =============== A/B TESTING TAB =============== -->
+        <div class="tab-content" id="content-ab">
+            <div class="ab-section">
+                <div class="ab-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                    <h2 style="font-size:18px;font-weight:700">A/B Test Results</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadABResults()">Refresh</button>
+                </div>
+
+                <div id="abLoading" style="display:none;text-align:center;padding:40px;color:var(--text2)">
+                    <span class="spinner"></span> Loading A/B results...
+                </div>
+
+                <div id="abEmpty" style="text-align:center;padding:40px">
+                    <div class="empty-icon" style="font-size:48px;margin-bottom:12px">&#x1F4CA;</div>
+                    <div style="color:var(--text2)">No A/B test data yet. Send DMs to see results.</div>
+                </div>
+
+                <div id="abResults" style="display:none">
+                    <!-- Summary cards -->
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--blue)" id="abTotalSent">0</div>
+                            <div class="stat-label">Total Sent</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="abWinner" style="color:var(--green)">-</div>
+                            <div class="stat-label">Winner</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="abConfidence" style="color:var(--yellow)">-</div>
+                            <div class="stat-label">Confidence</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--accent)" id="abSplit">50/50</div>
+                            <div class="stat-label">A/B Split</div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation -->
+                    <div id="abRecommendation" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;font-size:14px;color:var(--text2)"></div>
+
+                    <!-- Side-by-side comparison -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+                        <!-- Variant A -->
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                                <span style="background:var(--accent-glow);color:var(--accent2);padding:4px 12px;border-radius:6px;font-weight:700;font-size:14px">A</span>
+                                <span style="font-weight:600;font-size:16px">Variant A</span>
+                                <span id="abWinnerBadgeA" style="display:none;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">WINNER</span>
+                            </div>
+                            <div style="display:grid;gap:16px">
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sent</div>
+                                    <div style="font-size:24px;font-weight:800" id="abSentA">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Reply Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--cyan)" id="abReplyRateA">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abRepliedA">0</span> replies)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-a" id="abBarReplyA" style="width:0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Conversion Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--green)" id="abConvRateA">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abPositiveA">0</span> positive)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-a" id="abBarConvA" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Variant B -->
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                                <span style="background:var(--orange-dim);color:var(--orange);padding:4px 12px;border-radius:6px;font-weight:700;font-size:14px">B</span>
+                                <span style="font-weight:600;font-size:16px">Variant B</span>
+                                <span id="abWinnerBadgeB" style="display:none;background:var(--green-dim);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">WINNER</span>
+                            </div>
+                            <div style="display:grid;gap:16px">
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sent</div>
+                                    <div style="font-size:24px;font-weight:800" id="abSentB">0</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Reply Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--cyan)" id="abReplyRateB">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abRepliedB">0</span> replies)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-b" id="abBarReplyB" style="width:0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Conversion Rate</div>
+                                    <div style="display:flex;align-items:center;gap:12px">
+                                        <div style="font-size:24px;font-weight:800;color:var(--green)" id="abConvRateB">0%</div>
+                                        <div style="font-size:13px;color:var(--text2)">(<span id="abPositiveB">0</span> positive)</div>
+                                    </div>
+                                    <div class="ab-bar-track" style="margin-top:8px">
+                                        <div class="ab-bar-fill ab-bar-b" id="abBarConvB" style="width:0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+        <!-- =============== ANALYTICS TAB =============== -->
+        <div class="tab-content" id="content-analytics">
+            <div class="analytics-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                    <h2 style="font-size:18px;font-weight:700">Campaign Analytics</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadAnalytics()">Refresh</button>
+                </div>
+
+                <div id="analyticsLoading" style="display:none;text-align:center;padding:40px;color:var(--text2)">
+                    <span class="spinner"></span> Loading analytics...
+                </div>
+
+                <div id="analyticsEmpty" style="text-align:center;padding:40px">
+                    <div style="font-size:48px;margin-bottom:12px">&#x1F4C8;</div>
+                    <div style="color:var(--text2)">Select a campaign to view analytics.</div>
+                </div>
+
+                <div id="analyticsContent" style="display:none">
+                    <!-- Summary cards -->
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--blue)" id="anTotalLeads">0</div>
+                            <div class="stat-label">Total Leads</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--accent)" id="anAvgScore">0</div>
+                            <div class="stat-label">Avg Score</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--green)" id="anResponseRate">0%</div>
+                            <div class="stat-label">Response Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" style="color:var(--cyan)" id="anConversionRate">0%</div>
+                            <div class="stat-label">Conversion Rate</div>
+                        </div>
+                    </div>
+
+                    <!-- Funnel visualization -->
+                    <div class="analytics-panel" style="margin-bottom:24px">
+                        <h3 class="analytics-panel-title">Lead Funnel</h3>
+                        <div id="anFunnel" class="analytics-funnel"></div>
+                    </div>
+
+                    <!-- Score distribution + Category breakdown side by side -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+                        <div class="analytics-panel">
+                            <h3 class="analytics-panel-title">Score Distribution</h3>
+                            <div id="anScoreDist" class="analytics-chart"></div>
+                        </div>
+                        <div class="analytics-panel">
+                            <h3 class="analytics-panel-title">Category Breakdown</h3>
+                            <div id="anCategoryBreakdown" class="analytics-chart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline table -->
+                    <div class="analytics-panel">
+                        <h3 class="analytics-panel-title">Daily Timeline</h3>
+                        <div class="table-scroll" style="max-height:300px">
+                            <table class="lead-table" id="anTimelineTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Sent</th>
+                                        <th>Replied</th>
+                                        <th>Response Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="anTimelineBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="anTimelineEmpty" style="text-align:center;padding:24px;color:var(--text3);display:none">
+                            No sending data yet.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     <!-- DM Modal -->
+    <!-- New Campaign Modal -->
+    <div class="modal-overlay" id="newCampaignModal" onclick="if(event.target===this)closeNewCampaignModal()">
+        <div class="modal" style="max-width:560px">
+            <h3 style="color:var(--accent2)">New Campaign</h3>
+            <div style="display:flex;flex-direction:column;gap:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Campaign Name</label>
+                    <input id="ncName" type="text" placeholder="e.g. Comentarios de @nike post viral" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Source Type</label>
+                    <select id="ncSourceType" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px" onchange="updateSourceHelp()">
+                        <option value="comments">Comments — Scrapea comentaristas de un post</option>
+                        <option value="followers">Followers — Scrapea perfiles por username</option>
+                        <option value="profiles">Profiles — Scrapea lista de usernames</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px" id="ncSourceLabel">Post URL (Instagram)</label>
+                    <input id="ncSourceValue" type="text" placeholder="https://www.instagram.com/p/XXXXX/" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    <div id="ncSourceHelp" style="font-size:11px;color:var(--text3);margin-top:4px">Pega la URL de un post con muchos comentarios (100+). Los comentaristas se scrapean como leads.</div>
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Max Leads (0 = sin límite)</label>
+                    <input id="ncMaxLeads" type="number" value="100" min="0" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Client</label>
+                    <select id="ncClientId" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px">
+                        <option value="">Loading clients...</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <button class="btn btn-primary" style="flex:1;padding:12px;font-size:15px;font-weight:700" onclick="createNewCampaign()">Create Campaign</button>
+                    <button class="btn btn-secondary" style="flex:1;padding:12px" onclick="closeNewCampaignModal()">Cancel</button>
+                </div>
+                <div id="ncError" style="display:none;padding:8px 12px;background:rgba(255,50,50,0.15);border:1px solid rgba(255,50,50,0.3);border-radius:8px;color:#ff6666;font-size:13px"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="dmModal" onclick="if(event.target===this)closeDM()">
         <div class="modal">
             <h3 id="dmModalTitle">DM Preview</h3>
@@ -1157,6 +1579,158 @@
         let pollInterval = null;
         let pipelineRunning = false;
 
+        // ===== CONTENT ANALYSIS =====
+        let contentUrls = [];
+
+        function toggleContentPanel() {
+            const body = document.getElementById('contentPanelBody');
+            const icon = document.getElementById('contentToggleIcon');
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.innerHTML = '&#x25B2;';
+            } else {
+                body.style.display = 'none';
+                icon.innerHTML = '&#x25BC;';
+            }
+        }
+
+        function addContentUrl() {
+            const input = document.getElementById('contentUrlInput');
+            const url = input.value.trim();
+            if (!url) return;
+            contentUrls.push(url);
+            input.value = '';
+            renderContentUrls();
+        }
+
+        function removeContentUrl(index) {
+            contentUrls.splice(index, 1);
+            renderContentUrls();
+        }
+
+        function renderContentUrls() {
+            const list = document.getElementById('contentUrlList');
+            if (contentUrls.length === 0) {
+                list.innerHTML = '';
+                return;
+            }
+            list.innerHTML = contentUrls.map((url, i) => {
+                const type = detectUrlType(url);
+                const typeColors = {video: 'var(--red)', image: 'var(--cyan)', webpage: 'var(--blue)'};
+                return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin-bottom:4px;background:var(--surface2);border-radius:6px;font-size:12px">
+                    <span style="color:${typeColors[type] || 'var(--text2)'};font-weight:600;text-transform:uppercase;font-size:10px;min-width:50px">${type}</span>
+                    <span style="color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${url}</span>
+                    <span style="cursor:pointer;color:var(--red);font-size:14px" onclick="removeContentUrl(${i})">&#x2715;</span>
+                </div>`;
+            }).join('');
+        }
+
+        function detectUrlType(url) {
+            const u = url.toLowerCase();
+            if (u.includes('youtube.com') || u.includes('youtu.be') || u.includes('instagram.com/reel') ||
+                u.includes('tiktok.com') || u.includes('vimeo.com') || u.includes('loom.com') ||
+                u.endsWith('.mp4') || u.endsWith('.mov') || u.endsWith('.webm')) return 'video';
+            if (u.endsWith('.jpg') || u.endsWith('.jpeg') || u.endsWith('.png') ||
+                u.endsWith('.gif') || u.endsWith('.webp')) return 'image';
+            return 'webpage';
+        }
+
+        async function analyzeContent() {
+            if (!activeCampaignId) { alert('Select a campaign first'); return; }
+            const text = document.getElementById('contentTextInput').value.trim();
+            if (contentUrls.length === 0 && !text) { alert('Add at least one URL or description'); return; }
+
+            const btn = document.getElementById('analyzeBtn');
+            const status = document.getElementById('analyzeStatus');
+            btn.disabled = true;
+            btn.textContent = 'Analyzing...';
+            status.textContent = 'Gemini is analyzing your content...';
+            status.style.color = 'var(--yellow)';
+
+            try {
+                const res = await fetch(`${API}/content/analyze-for-campaign`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        campaign_id: activeCampaignId,
+                        content_urls: contentUrls.length > 0 ? contentUrls : null,
+                        content_text: text || null,
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    showAnalysisResult(data.analysis);
+                    status.textContent = 'Analysis saved! Will be used in pipeline.';
+                    status.style.color = 'var(--green)';
+                    log('Content analysis complete — DMs will be enriched with this context', 'success');
+                    document.getElementById('contentStatusBadge').style.display = 'inline';
+                } else {
+                    const err = await res.json();
+                    status.textContent = 'Error: ' + (err.detail || 'Analysis failed');
+                    status.style.color = 'var(--red)';
+                    log('Content analysis failed: ' + (err.detail || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                status.textContent = 'Network error: ' + e.message;
+                status.style.color = 'var(--red)';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Analyze with Gemini';
+        }
+
+        function showAnalysisResult(analysis) {
+            const container = document.getElementById('contentAnalysisResult');
+            const details = document.getElementById('analysisDetails');
+            container.style.display = 'block';
+
+            let html = '';
+            if (analysis.business_summary) html += `<div><strong>Negocio:</strong> ${analysis.business_summary}</div>`;
+            if (analysis.value_propositions && analysis.value_propositions.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Propuestas de valor:</strong></div>`;
+                html += analysis.value_propositions.map(vp => `<div style="padding-left:12px">• ${vp}</div>`).join('');
+            }
+            if (analysis.target_audience) html += `<div style="margin-top:6px"><strong>Audiencia:</strong> ${analysis.target_audience}</div>`;
+            if (analysis.tone_style) html += `<div><strong>Tono:</strong> ${analysis.tone_style}</div>`;
+            if (analysis.pain_points_addressed && analysis.pain_points_addressed.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Problemas que resuelve:</strong></div>`;
+                html += analysis.pain_points_addressed.map(pp => `<div style="padding-left:12px">• ${pp}</div>`).join('');
+            }
+            if (analysis.key_differentiators && analysis.key_differentiators.length > 0) {
+                html += `<div style="margin-top:6px"><strong>Diferenciadores:</strong></div>`;
+                html += analysis.key_differentiators.map(d => `<div style="padding-left:12px">• ${d}</div>`).join('');
+            }
+            if (analysis.content_type_detected) html += `<div style="margin-top:6px"><strong>Tipo detectado:</strong> ${analysis.content_type_detected}</div>`;
+
+            details.innerHTML = html;
+        }
+
+        async function loadExistingAnalysis() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/content/campaign/${activeCampaignId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.has_analysis) {
+                        showAnalysisResult(data.analysis);
+                        document.getElementById('contentStatusBadge').style.display = 'inline';
+                        if (data.content_urls) {
+                            contentUrls = data.content_urls;
+                            renderContentUrls();
+                        }
+                        document.getElementById('analyzeStatus').textContent = 'Analysis loaded from campaign';
+                        document.getElementById('analyzeStatus').style.color = 'var(--green)';
+                    } else {
+                        document.getElementById('contentStatusBadge').style.display = 'none';
+                        document.getElementById('contentAnalysisResult').style.display = 'none';
+                        document.getElementById('analyzeStatus').textContent = '';
+                        contentUrls = [];
+                        renderContentUrls();
+                    }
+                }
+            } catch (e) { /* silently fail */ }
+        }
+
         // ===== INIT =====
         async function init() {
             await loadCampaigns();
@@ -1171,6 +1745,8 @@
             document.getElementById(`content-${tab}`).classList.add('active');
 
             if (tab === 'dms') renderDMGallery();
+            if (tab === 'ab') loadABResults();
+            if (tab === 'analytics') loadAnalytics();
             if (tab === 'export') updateExportStats();
         }
 
@@ -1194,6 +1770,7 @@
                         stopPolling();
                         refreshAll();
                         startPolling();
+                        loadExistingAnalysis();
                     }
                 };
                 if (campaigns.length > 0) {
@@ -1202,6 +1779,7 @@
                     activeCampaignId = last.id;
                     previousLeads = {};
                     refreshAll();
+                    loadExistingAnalysis();
                     // Only start polling if campaign is active
                     if (ACTIVE_STATUSES.includes(last.status)) {
                         startPolling();
@@ -1209,6 +1787,119 @@
                 }
             } catch (e) {
                 log('Error loading campaigns: ' + e.message, 'error');
+            }
+        }
+
+        // ===== NEW CAMPAIGN =====
+        function updateSourceHelp() {
+            const type = document.getElementById('ncSourceType').value;
+            const label = document.getElementById('ncSourceLabel');
+            const input = document.getElementById('ncSourceValue');
+            const help = document.getElementById('ncSourceHelp');
+            if (type === 'comments') {
+                label.textContent = 'Post URL (Instagram)';
+                input.placeholder = 'https://www.instagram.com/p/XXXXX/';
+                help.textContent = 'Pega la URL de un post con muchos comentarios (100+). Los comentaristas se scrapean como leads con sus perfiles completos y posts.';
+            } else if (type === 'followers') {
+                label.textContent = 'Username(s)';
+                input.placeholder = 'username1, username2, username3';
+                help.textContent = 'Usernames separados por coma. Se scrapean sus perfiles completos (bio, followers, posts recientes).';
+            } else {
+                label.textContent = 'Username(s)';
+                input.placeholder = 'username1, username2, username3';
+                help.textContent = 'Lista de usernames separados por coma para scrapear perfiles directamente.';
+            }
+        }
+
+        async function showNewCampaignModal() {
+            // Load clients — auto-create one if none exist
+            try {
+                let res = await fetch(`${API}/clients/`);
+                let clients = await res.json();
+
+                if (clients.length === 0) {
+                    // Auto-create a default client
+                    const createRes = await fetch(`${API}/clients/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: 'Mi Agencia', business_type: 'Marketing Agency' }),
+                    });
+                    if (createRes.ok) {
+                        const newClient = await createRes.json();
+                        clients = [newClient];
+                        log('Default client "Mi Agencia" created automatically', 'success');
+                    }
+                }
+
+                const sel = document.getElementById('ncClientId');
+                sel.innerHTML = '';
+                if (clients.length === 0) {
+                    sel.innerHTML = '<option value="">Error creating client</option>';
+                } else {
+                    clients.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.name || c.business_type || c.id;
+                        sel.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                log('Error loading clients: ' + e.message, 'error');
+            }
+            document.getElementById('ncError').style.display = 'none';
+            document.getElementById('newCampaignModal').classList.add('show');
+        }
+
+        function closeNewCampaignModal() {
+            document.getElementById('newCampaignModal').classList.remove('show');
+        }
+
+        async function createNewCampaign() {
+            const name = document.getElementById('ncName').value.trim();
+            const sourceType = document.getElementById('ncSourceType').value;
+            const sourceValue = document.getElementById('ncSourceValue').value.trim();
+            const maxLeads = parseInt(document.getElementById('ncMaxLeads').value) || 0;
+            const clientId = document.getElementById('ncClientId').value;
+            const errDiv = document.getElementById('ncError');
+
+            if (!name || !sourceValue || !clientId) {
+                errDiv.textContent = 'All fields are required. Fill in name, source, and select a client.';
+                errDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/campaigns/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        name: name,
+                        source_type: sourceType,
+                        source_value: sourceValue,
+                        settings: maxLeads > 0 ? { max_leads: maxLeads } : {},
+                    }),
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${res.status}`);
+                }
+
+                const campaign = await res.json();
+                log(`Campaign created: ${campaign.name}`, 'success');
+                closeNewCampaignModal();
+                await loadCampaigns();
+                // Select the new campaign
+                const sel = document.getElementById('campaignSelect');
+                sel.value = campaign.id;
+                activeCampaignId = campaign.id;
+                previousLeads = {};
+                refreshAll();
+                loadExistingAnalysis();
+            } catch (e) {
+                errDiv.textContent = `Error: ${e.message}`;
+                errDiv.style.display = 'block';
             }
         }
 
@@ -1254,11 +1945,15 @@
                     document.getElementById('avgScore').textContent = '-';
                     document.getElementById('qualified').textContent = '0';
                     document.getElementById('dmsGenerated').textContent = '0';
+                    document.getElementById('dmsSent').textContent = '0';
                     document.getElementById('campaignStatus').textContent = 'PENDING';
                     document.getElementById('campaignStatus').style.color = 'var(--text3)';
-                    ['step-scraping','step-scoring','step-research','step-dms','step-ready'].forEach(id => {
+                    ['step-scraping','step-scoring','step-research','step-dms','step-sending','step-done'].forEach(id => {
                         document.getElementById(id).textContent = '-';
                     });
+                    document.getElementById('sendBtn').style.display = 'none';
+                    document.getElementById('pauseBtn').style.display = 'none';
+                    document.getElementById('resumeBtn').style.display = 'none';
                     document.querySelectorAll('.pipe-step').forEach(s => s.classList.remove('active','done'));
                     document.querySelectorAll('.pipe-arrow').forEach(a => a.classList.remove('done'));
                     document.getElementById('activityLog').innerHTML = '';
@@ -1276,7 +1971,7 @@
         }
 
         // ===== POLLING =====
-        const ACTIVE_STATUSES = ['scraping', 'scoring', 'researching', 'writing_dms'];
+        const ACTIVE_STATUSES = ['scraping', 'scoring', 'researching', 'writing_dms', 'sending'];
 
         function startPolling() {
             if (pollInterval) clearInterval(pollInterval);
@@ -1310,6 +2005,11 @@
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
 
+                // Refresh account health during sending phases
+                if (['sending', 'paused', 'completed'].includes(campaign.status)) {
+                    refreshAccountHealth();
+                }
+
                 // Stop polling when campaign is not actively running
                 if (!ACTIVE_STATUSES.includes(campaign.status)) {
                     stopPolling();
@@ -1331,21 +2031,31 @@
                 'scoring': 'var(--accent)',
                 'researching': 'var(--cyan)',
                 'writing_dms': 'var(--orange)',
+                'sending': 'var(--orange)',
                 'completed': 'var(--green)',
+                'paused': 'var(--yellow)',
                 'failed': 'var(--red)'
             };
             statusEl.style.color = statusMap[campaign.status] || 'var(--text2)';
 
-            if (['scraping','scoring','researching','writing_dms'].includes(campaign.status)) {
+            // Show/hide action buttons based on campaign status
+            document.getElementById('sendBtn').style.display = campaign.status === 'ready' ? '' : 'none';
+            document.getElementById('pauseBtn').style.display = campaign.status === 'sending' ? '' : 'none';
+            document.getElementById('resumeBtn').style.display = campaign.status === 'paused' ? '' : 'none';
+
+            if (ACTIVE_STATUSES.includes(campaign.status)) {
                 if (!pipelineRunning) {
                     pipelineRunning = true;
                     startTimer();
                 }
             }
-            if (['completed','ready','failed'].includes(campaign.status) && pipelineRunning) {
+            if (['completed','ready','failed','paused'].includes(campaign.status) && pipelineRunning) {
                 pipelineRunning = false;
                 if (campaign.status === 'completed') {
                     log('Pipeline completed!', 'success');
+                }
+                if (campaign.status === 'paused') {
+                    log('Campaign paused — click Resume to continue sending', 'warn');
                 }
             }
 
@@ -1356,7 +2066,7 @@
         function updateProgressBar(campaign) {
             const section = document.getElementById('progressSection');
             const progress = campaign.stats?.progress;
-            const isActive = ['scraping','scoring','researching','writing_dms'].includes(campaign.status);
+            const isActive = ACTIVE_STATUSES.includes(campaign.status);
 
             if (!isActive || !progress) {
                 section.classList.remove('active');
@@ -1383,14 +2093,16 @@
         function updatePipeline(campaign, leads) {
             let totalScraped = leads.length;
             let totalScored = leads.filter(l => l.score !== null && l.score !== undefined).length;
-            let totalResearched = leads.filter(l => ['researched','dm_ready'].includes(l.status)).length;
-            let totalDMReady = leads.filter(l => l.status === 'dm_ready').length;
+            let totalResearched = leads.filter(l => ['researched','dm_ready','sending','sent','delivered'].includes(l.status)).length;
+            let totalDMReady = leads.filter(l => ['dm_ready','sending','sent','delivered'].includes(l.status)).length;
+            let totalSent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
 
             document.getElementById('step-scraping').textContent = totalScraped || '-';
             document.getElementById('step-scoring').textContent = totalScored || '-';
             document.getElementById('step-research').textContent = totalResearched || '-';
             document.getElementById('step-dms').textContent = totalDMReady || '-';
-            document.getElementById('step-ready').textContent = totalDMReady || '-';
+            document.getElementById('step-sending').textContent = totalSent || '-';
+            document.getElementById('step-done').textContent = totalSent || '-';
 
             const status = campaign.status;
             const steps = document.querySelectorAll('.pipe-step');
@@ -1400,7 +2112,8 @@
             arrows.forEach(a => { a.classList.remove('done'); });
 
             const statusToPhase = {
-                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'completed': 4
+                'scraping': 0, 'scoring': 1, 'researching': 2, 'writing_dms': 3, 'ready': 3,
+                'sending': 4, 'paused': 4, 'completed': 5
             };
 
             const currentIdx = statusToPhase[status] ?? -1;
@@ -1431,6 +2144,9 @@
             const dms = leads.filter(l => l.dm_message).length;
             document.getElementById('dmsGenerated').textContent = dms;
 
+            const sent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
+            document.getElementById('dmsSent').textContent = sent;
+
             document.getElementById('leadsCount').textContent = `${leads.length} leads`;
         }
 
@@ -1443,9 +2159,9 @@
             }
 
             leads.sort((a, b) => {
-                const order = { dm_ready: 0, researched: 1, scored: 2, scraped: 3 };
-                const oa = order[a.status] ?? 5;
-                const ob = order[b.status] ?? 5;
+                const order = { sent: 0, delivered: 0, sending: 1, dm_ready: 2, researched: 3, scored: 4, scraped: 5, retry: 6, failed: 7 };
+                const oa = order[a.status] ?? 8;
+                const ob = order[b.status] ?? 8;
                 if (oa !== ob) return oa - ob;
                 return (b.score || 0) - (a.score || 0);
             });
@@ -1466,12 +2182,18 @@
                 if (wasUpdated && lead.status === 'dm_ready') {
                     log(`DM generated for @${lead.ig_username}`, 'success');
                 }
+                if (wasUpdated && lead.status === 'sent') {
+                    log(`DM sent to @${lead.ig_username}`, 'success');
+                }
+                if (wasUpdated && lead.status === 'failed') {
+                    log(`Failed to send DM to @${lead.ig_username}`, 'error');
+                }
 
                 const scoreHTML = lead.score !== null && lead.score !== undefined
                     ? `<span class="score-badge ${lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low'} ${scoreChanged ? 'pop' : ''}">${lead.score}</span>`
                     : `<span class="score-badge score-pending"><span class="spinner"></span></span>`;
 
-                const statusHTML = `<span class="status-pill status-${lead.status}">${lead.status === 'scraped' ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
+                const statusHTML = `<span class="status-pill status-${lead.status}">${['scraped','sending'].includes(lead.status) ? '<span class="spinner"></span>' : ''}${lead.status}</span>`;
                 const catHTML = lead.lead_category ? `<span class="category-tag">${lead.lead_category}</span>` : '-';
 
                 const dmHTML = lead.dm_message
@@ -1480,10 +2202,14 @@
 
                 const followers = lead.ig_follower_count != null ? formatNum(lead.ig_follower_count) : '-';
 
+                const postsIndicator = lead.ig_post_analysis
+                    ? '<span title="Posts analyzed by Gemini AI" style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--cyan-dim);color:var(--cyan);margin-left:4px;font-weight:600">AI</span>'
+                    : (lead.ig_posts ? '<span title="Posts scraped" style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--surface3);color:var(--text3);margin-left:4px">' + (Array.isArray(lead.ig_posts) ? lead.ig_posts.length : '?') + 'p</span>' : '');
+
                 return `<tr class="${rowClass}">
                     <td style="color:var(--text3)">${i + 1}</td>
                     <td><div class="lead-user">
-                        <span class="lead-username">@${lead.ig_username || '—'}</span>
+                        <span class="lead-username">@${lead.ig_username || '—'}${postsIndicator}</span>
                         <span class="lead-fullname">${lead.ig_full_name || ''}</span>
                     </div></td>
                     <td><div class="lead-bio" title="${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '')}">${escapeHTML(lead.ig_bio_clean || lead.ig_bio || '-')}</div></td>
@@ -1661,6 +2387,84 @@
             }
         }
 
+        // ===== A/B TESTING =====
+        async function loadABResults() {
+            if (!activeCampaignId) return;
+
+            const loading = document.getElementById('abLoading');
+            const empty = document.getElementById('abEmpty');
+            const results = document.getElementById('abResults');
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            results.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/ab-results`);
+                if (!res.ok) {
+                    loading.style.display = 'none';
+                    empty.style.display = 'block';
+                    return;
+                }
+                const data = await res.json();
+                loading.style.display = 'none';
+
+                if (data.total_sent === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                results.style.display = 'block';
+
+                // Summary cards
+                document.getElementById('abTotalSent').textContent = data.total_sent;
+                document.getElementById('abWinner').textContent = data.winner || 'TBD';
+                document.getElementById('abWinner').style.color = data.winner ? 'var(--green)' : 'var(--text3)';
+                document.getElementById('abConfidence').textContent = data.confidence.toUpperCase();
+                const confColor = data.confidence === 'high' ? 'var(--green)' : data.confidence === 'medium' ? 'var(--yellow)' : 'var(--text3)';
+                document.getElementById('abConfidence').style.color = confColor;
+
+                const a = data.variant_a;
+                const b = data.variant_b;
+                const splitA = data.total_sent > 0 ? Math.round((a.sent / data.total_sent) * 100) : 50;
+                const splitB = 100 - splitA;
+                document.getElementById('abSplit').textContent = `${splitA}/${splitB}`;
+
+                // Recommendation
+                document.getElementById('abRecommendation').textContent = data.recommendation;
+
+                // Variant A stats
+                document.getElementById('abSentA').textContent = a.sent;
+                document.getElementById('abReplyRateA').textContent = (a.reply_rate * 100).toFixed(1) + '%';
+                document.getElementById('abRepliedA').textContent = a.replied;
+                document.getElementById('abConvRateA').textContent = (a.conversion_rate * 100).toFixed(1) + '%';
+                document.getElementById('abPositiveA').textContent = a.positive_replies;
+
+                // Variant B stats
+                document.getElementById('abSentB').textContent = b.sent;
+                document.getElementById('abReplyRateB').textContent = (b.reply_rate * 100).toFixed(1) + '%';
+                document.getElementById('abRepliedB').textContent = b.replied;
+                document.getElementById('abConvRateB').textContent = (b.conversion_rate * 100).toFixed(1) + '%';
+                document.getElementById('abPositiveB').textContent = b.positive_replies;
+
+                // Bar charts — scale to max value
+                const maxReply = Math.max(a.reply_rate, b.reply_rate, 0.01);
+                const maxConv = Math.max(a.conversion_rate, b.conversion_rate, 0.01);
+                document.getElementById('abBarReplyA').style.width = ((a.reply_rate / maxReply) * 100) + '%';
+                document.getElementById('abBarReplyB').style.width = ((b.reply_rate / maxReply) * 100) + '%';
+                document.getElementById('abBarConvA').style.width = ((a.conversion_rate / maxConv) * 100) + '%';
+                document.getElementById('abBarConvB').style.width = ((b.conversion_rate / maxConv) * 100) + '%';
+
+                // Winner badges
+                document.getElementById('abWinnerBadgeA').style.display = data.winner === 'A' ? 'inline' : 'none';
+                document.getElementById('abWinnerBadgeB').style.display = data.winner === 'B' ? 'inline' : 'none';
+
+            } catch(e) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
+            }
+        }
+
         // ===== HELPERS =====
         function formatNum(n) {
             if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -1730,6 +2534,245 @@
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ===== ACCOUNT HEALTH =====
+        async function refreshAccountHealth() {
+            try {
+                const res = await fetch(`${API}/campaigns/ig-accounts/health`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const section = document.getElementById('accountHealthSection');
+                const body = document.getElementById('accountHealthBody');
+
+                if (!data.accounts || data.accounts.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+                body.innerHTML = data.accounts.map(acc => {
+                    const statusColor = acc.is_blocked ? 'var(--red)' : acc.logged_in ? 'var(--green)' : 'var(--yellow)';
+                    const statusText = acc.is_blocked ? 'BLOCKED' : acc.logged_in ? 'ACTIVE' : 'OFFLINE';
+                    const rateColor = acc.success_rate >= 90 ? 'var(--green)' : acc.success_rate >= 70 ? 'var(--yellow)' : 'var(--red)';
+                    return `<div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border)">
+                        <span style="font-weight:700;min-width:120px">@${acc.username}</span>
+                        <span style="color:${statusColor};font-weight:600;font-size:12px">${statusText}</span>
+                        <span style="font-size:12px;color:var(--text2)">Sent: <b style="color:var(--text)">${acc.total_sent}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Failed: <b style="color:var(--text)">${acc.total_failed}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Rate: <b style="color:${rateColor}">${acc.success_rate}%</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Challenges: <b style="color:var(--text)">${acc.challenges}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Daily limit: <b style="color:var(--accent)">${acc.warmup_limit}</b></span>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                // silent
+            }
+        }
+
+        // ===== PAUSE / RESUME =====
+        async function pauseCampaign() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/pause`, { method: 'POST' });
+                if (res.ok) {
+                    log('Campaign paused', 'warn');
+                    refreshAll();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not pause'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function sendDMs() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/resume-sending`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Sending DMs: ${data.leads_to_send} leads queued`, 'success');
+                    pipelineRunning = true;
+                    startTimer();
+                    startPolling();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not start sending'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function resumeSending() {
+            if (!activeCampaignId) return;
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/resume-sending`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Resumed sending: ${data.leads_to_send} leads queued`, 'success');
+                    pipelineRunning = true;
+                    startTimer();
+                    startPolling();
+                } else {
+                    const err = await res.json();
+                    log('Error: ' + (err.detail || 'Could not resume'), 'error');
+                }
+            } catch(e) {
+                log('Error: ' + e.message, 'error');
+            }
+        }
+
+        // ===== ANALYTICS =====
+        async function loadAnalytics() {
+            if (!activeCampaignId) return;
+
+            const loading = document.getElementById('analyticsLoading');
+            const empty = document.getElementById('analyticsEmpty');
+            const content = document.getElementById('analyticsContent');
+
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API}/campaigns/${activeCampaignId}/analytics`);
+                if (!res.ok) throw new Error('Failed to load analytics');
+                const data = await res.json();
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+                // Summary cards
+                document.getElementById('anTotalLeads').textContent = data.total_leads;
+                document.getElementById('anAvgScore').textContent = data.avg_score;
+                document.getElementById('anResponseRate').textContent = data.response_rate + '%';
+
+                // Conversion rate: dm_ready / scored
+                const scored = data.funnel.find(f => f.name === 'scored');
+                const dmReady = data.funnel.find(f => f.name === 'dm_ready');
+                const convRate = scored && scored.count > 0
+                    ? Math.round(dmReady.count / scored.count * 100 * 10) / 10
+                    : 0;
+                document.getElementById('anConversionRate').textContent = convRate + '%';
+
+                // Funnel
+                renderAnalyticsFunnel(data.funnel);
+
+                // Score distribution
+                renderScoreDistribution(data.score_distribution);
+
+                // Category breakdown
+                renderCategoryBreakdown(data.category_breakdown);
+
+                // Timeline
+                renderTimeline(data.timeline);
+
+            } catch (e) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
+                log('Analytics error: ' + e.message, 'error');
+            }
+        }
+
+        function renderAnalyticsFunnel(funnel) {
+            const container = document.getElementById('anFunnel');
+            container.innerHTML = '';
+            const maxCount = Math.max(...funnel.map(f => f.count), 1);
+
+            funnel.forEach(stage => {
+                const widthPct = Math.max((stage.count / maxCount) * 100, 1);
+                container.innerHTML += `
+                    <div class="funnel-row">
+                        <div class="funnel-label">${stage.name.replace('_', ' ')}</div>
+                        <div class="funnel-bar-track">
+                            <div class="funnel-bar-fill stage-${stage.name}" style="width:${widthPct}%"></div>
+                        </div>
+                        <div class="funnel-value">${stage.count} (${stage.percentage}%)</div>
+                    </div>`;
+            });
+        }
+
+        function renderScoreDistribution(distribution) {
+            const container = document.getElementById('anScoreDist');
+            container.innerHTML = '';
+            const maxCount = Math.max(...distribution.map(d => d.count), 1);
+            const colors = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--blue)', 'var(--green)'];
+
+            distribution.forEach((bucket, i) => {
+                const widthPct = Math.max((bucket.count / maxCount) * 100, 1);
+                container.innerHTML += `
+                    <div class="chart-row">
+                        <div class="chart-label">${bucket.range_label}</div>
+                        <div class="chart-bar-track">
+                            <div class="chart-bar-fill" style="width:${widthPct}%;background:${colors[i]}"></div>
+                        </div>
+                        <div class="chart-value">${bucket.count}</div>
+                    </div>`;
+            });
+        }
+
+        function renderCategoryBreakdown(categories) {
+            const container = document.getElementById('anCategoryBreakdown');
+            container.innerHTML = '';
+            if (!categories.length) {
+                container.innerHTML = '<div style="color:var(--text3);padding:12px">No category data yet.</div>';
+                return;
+            }
+            const maxCount = Math.max(...categories.map(c => c.count), 1);
+            const catColors = {
+                coach: 'var(--accent)',
+                ecommerce: 'var(--green)',
+                saas: 'var(--blue)',
+                agency: 'var(--cyan)',
+                creator: 'var(--yellow)',
+                local_business: 'var(--orange)',
+                other: 'var(--text3)',
+            };
+
+            categories.forEach(cat => {
+                const widthPct = Math.max((cat.count / maxCount) * 100, 1);
+                const color = catColors[cat.category] || 'var(--text3)';
+                container.innerHTML += `
+                    <div class="chart-row">
+                        <div class="chart-label">${cat.category.replace('_', ' ')}</div>
+                        <div class="chart-bar-track">
+                            <div class="chart-bar-fill" style="width:${widthPct}%;background:${color}"></div>
+                        </div>
+                        <div class="chart-value">${cat.count}</div>
+                    </div>`;
+            });
+        }
+
+        function renderTimeline(timeline) {
+            const tbody = document.getElementById('anTimelineBody');
+            const emptyMsg = document.getElementById('anTimelineEmpty');
+            const table = document.getElementById('anTimelineTable');
+
+            if (!timeline.length) {
+                table.style.display = 'none';
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyMsg.style.display = 'none';
+            tbody.innerHTML = '';
+
+            timeline.forEach(point => {
+                const rate = point.sent_count > 0
+                    ? Math.round(point.replied_count / point.sent_count * 100 * 10) / 10
+                    : 0;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${point.date}</td>
+                        <td>${point.sent_count}</td>
+                        <td>${point.replied_count}</td>
+                        <td>${rate}%</td>
+                    </tr>`;
+            });
         }
 
         // Start

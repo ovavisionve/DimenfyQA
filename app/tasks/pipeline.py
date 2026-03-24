@@ -12,11 +12,13 @@ logger = logging.getLogger(__name__)
 
 def run_campaign_pipeline(campaign_id: str):
     """
-    Run the full pipeline for a campaign:
+    Run the pipeline for a campaign (stops at DM generation, sending is manual):
     1. Scrape leads
     2. Score each lead (parallel within task)
     3. Research leads with score >= 60 (parallel within task)
     4. Write DMs for leads with score >= 70 (parallel within task)
+    → STOPS here. Campaign status becomes "ready".
+    → User reviews DMs and clicks "Send DMs" button to start sending.
 
     Each task receives the lead_ids from the previous step.
     """

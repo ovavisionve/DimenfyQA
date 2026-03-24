@@ -25,3 +25,4 @@ class Campaign(Base, UUIDMixin, TimestampMixin):
     client = relationship("Client", back_populates="campaigns")
     leads = relationship("Lead", back_populates="campaign", lazy="selectin")
     scrape_jobs = relationship("ScrapeJob", back_populates="campaign", lazy="selectin")
+    follow_up_rules = relationship("FollowUpRule", back_populates="campaign", lazy="selectin")

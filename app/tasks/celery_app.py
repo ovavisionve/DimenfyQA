@@ -17,4 +17,10 @@ celery_app.config_from_object({
 })
 
 # Auto-discover tasks in the tasks package
-celery_app.autodiscover_tasks(["app.tasks"])
+celery_app.autodiscover_tasks([
+    "app.tasks.scraping_tasks",
+    "app.tasks.scoring_tasks",
+    "app.tasks.research_tasks",
+    "app.tasks.copywriting_tasks",
+    "app.tasks.sending_tasks",
+])

@@ -22,11 +22,14 @@ Website: {website}
 Bio: {bio}
 Categoría: {category}
 
+{content_context}
+
 Busca:
 1. Logros recientes o noticias
 2. Información personal relevante (ciudades, intereses)
 3. Tipo de negocio y qué venden
 4. Cualquier dato que permita un mensaje personal y auténtico
+5. Conexiones potenciales entre el lead y nuestro servicio
 
 Responde en un párrafo corto y conciso con los datos más útiles."""
 
@@ -40,14 +43,30 @@ class ResearchService:
     def _use_google(self) -> bool:
         return bool(self.google_api_key)
 
-    async def research_lead(self, lead_data: dict) -> str:
+    async def research_lead(self, lead_data: dict, content_analysis: dict | None = None) -> str:
         """Research a single lead using Google Gemini or Perplexity API."""
+        # Build content context from campaign content analysis
+        content_context = ""
+        if content_analysis and "error" not in content_analysis:
+            summary = content_analysis.get("business_summary", "")
+            audience = content_analysis.get("target_audience", "")
+            pain_points = ", ".join(content_analysis.get("pain_points_addressed", []))
+            if summary:
+                content_context = (
+                    f"## Contexto de nuestro servicio (para encontrar conexiones relevantes):\n"
+                    f"Nuestro negocio: {summary}\n"
+                    f"Audiencia ideal: {audience}\n"
+                    f"Problemas que resolvemos: {pain_points}\n"
+                    f"Busca conexiones entre este lead y lo que ofrecemos."
+                )
+
         prompt = RESEARCH_PROMPT.format(
             full_name=lead_data.get("ig_full_name", ""),
             username=lead_data.get("ig_username", ""),
             website=lead_data.get("ig_website", ""),
             bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
             category=lead_data.get("lead_category", ""),
+            content_context=content_context,
         )
 
         if self._use_google:
@@ -96,9 +115,9 @@ class ResearchService:
     @property
     def _has_api_key(self) -> bool:
         """Check if any research API key is properly configured."""
-        if self.google_api_key and "XXXXX" not in self.google_api_key:
+        if self.google_api_key and len(self.google_api_key.strip()) >= 20:
             return True
-        if self.perplexity_api_key and "XXXXX" not in self.perplexity_api_key:
+        if self.perplexity_api_key and len(self.perplexity_api_key.strip()) >= 20:
             return True
         return False
 
@@ -117,6 +136,19 @@ class ResearchService:
             )
         )
         leads = result.scalars().all()
+
+        # Load campaign content analysis if available
+        content_analysis = None
+        if leads:
+            from app.models.campaign import Campaign
+            campaign_result = await db.execute(
+                select(Campaign).where(Campaign.id == leads[0].campaign_id)
+            )
+            campaign = campaign_result.scalar_one_or_none()
+            if campaign:
+                content_analysis = (campaign.settings or {}).get("content_analysis")
+                if content_analysis:
+                    logger.info("Using campaign content analysis for enriched research")
 
         # If no research API key is configured, skip research and mark as researched
         if not self._has_api_key:
@@ -146,8 +178,37 @@ class ResearchService:
                     "ig_website": lead.ig_website,
                     "lead_category": lead.lead_category,
                 }
+
+                # Auto-analyze lead's posts with Gemini if available
+                if lead.ig_posts and self.google_api_key:
+                    try:
+                        from app.services.content_analysis_service import content_analysis_service
+                        post_analysis = await content_analysis_service.analyze_lead_content(
+                            username=lead.ig_username,
+                            full_name=lead.ig_full_name or "",
+                            bio=lead.ig_bio_clean or lead.ig_bio or "",
+                            posts_data=lead.ig_posts,
+                        )
+                        if post_analysis:
+                            lead.ig_post_analysis = post_analysis
+                            logger.info(f"Analyzed {len(lead.ig_posts)} posts for @{lead.ig_username}")
+                    except Exception as e:
+                        logger.warning(f"Post analysis failed for @{lead.ig_username}: {e}")
+
                 try:
-                    research_text = await self.research_lead(lead_data)
+                    research_text = await self.research_lead(lead_data, content_analysis=content_analysis)
+
+                    # Enrich research with post analysis if available
+                    if lead.ig_post_analysis:
+                        hooks = lead.ig_post_analysis.get("personalization_hooks", [])
+                        approach = lead.ig_post_analysis.get("best_approach", "")
+                        if hooks or approach:
+                            research_text += f"\n\nAnálisis de posts recientes:"
+                            if hooks:
+                                research_text += f"\nHooks de personalización: {', '.join(hooks[:3])}"
+                            if approach:
+                                research_text += f"\nMejor ángulo: {approach}"
+
                     lead.research_data = research_text
                     lead.research_summary = research_text[:500]
                     logger.info(f"Researched lead {lead.ig_username}")

@@ -1,8 +1,8 @@
 # API
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
-pydantic==2.9.0
-pydantic-settings==2.5.0
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
 
 # Database
 sqlalchemy[asyncio]==2.0.35
@@ -16,6 +16,14 @@ redis==5.1.0
 # AI
 anthropic==0.40.0
 httpx==0.27.0
+
+# Instagram DM Sending (Phase 2)
+instagrapi>=2.1.2
+cryptography>=42.0.0
+
+# Browser Automation (Playwright + Stealth)
+playwright>=1.49.0
+playwright-stealth>=1.0.6
 
 # Utilities
 python-dotenv==1.0.1
