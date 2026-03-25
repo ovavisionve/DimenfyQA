@@ -196,6 +196,7 @@ async def generate_comments(campaign_id: str):
     from app.database import async_session
     from sqlalchemy import select, func
     from app.models.lead import Lead
+    from app.config import settings
 
     try:
         async with async_session() as db:
