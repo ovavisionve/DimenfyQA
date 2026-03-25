@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.auth import verify_api_key
-from app.api.endpoints import auth, campaigns, clients, content_analysis, crm, follow_ups, leads, messages, scraping, export, unibox, webhooks
+from app.api.endpoints import auth, billing, campaigns, clients, content_analysis, crm, follow_ups, lead_import, leads, messages, scraping, export, templates, unibox, webhooks
 
 api_router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -20,3 +20,6 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"]
 api_router.include_router(content_analysis.router, prefix="/content", tags=["content-analysis"])
 api_router.include_router(unibox.router, prefix="/unibox", tags=["unibox"])
 api_router.include_router(crm.router, prefix="/crm", tags=["crm"])
+api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
+api_router.include_router(lead_import.router, prefix="/lead-import", tags=["lead-import"])
+api_router.include_router(billing.router, prefix="/billing", tags=["billing"])

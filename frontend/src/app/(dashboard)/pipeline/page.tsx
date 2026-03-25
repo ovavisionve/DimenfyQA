@@ -455,6 +455,53 @@ export default function PipelinePage() {
             className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4"
           >
             <h2 className="text-lg font-semibold">Nueva Campaña</h2>
+
+            {/* Template Selector */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">
+                Plantilla (opcional)
+              </label>
+              <select
+                onChange={async (e) => {
+                  const tid = e.target.value;
+                  if (!tid) return;
+                  try {
+                    const tpl = await api<{
+                      id: string;
+                      name: string;
+                      source_type: string;
+                      suggested_source_value: string;
+                      settings: Record<string, unknown>;
+                    }>(`/api/v1/templates/${tid}`);
+                    setNewCampaign((prev) => ({
+                      ...prev,
+                      name: prev.name || tpl.name,
+                      source_type: tpl.source_type || prev.source_type,
+                      source_value: tpl.suggested_source_value || prev.source_value,
+                      max_leads: (tpl.settings.max_leads as number) || prev.max_leads,
+                    }));
+                    if (tpl.settings.bio_keywords) setBioKeywords(tpl.settings.bio_keywords as string[]);
+                    if (tpl.settings.sending_hours_start) {
+                      setScheduleEnabled(true);
+                      setSendingStart(tpl.settings.sending_hours_start as string);
+                      setSendingEnd(tpl.settings.sending_hours_end as string);
+                      setSendingTimezone(tpl.settings.sending_timezone as string);
+                    }
+                  } catch { /* ignore */ }
+                  e.target.value = "";
+                }}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+              >
+                <option value="">Seleccionar plantilla...</option>
+                <option value="agency_outreach">Agencias de Marketing</option>
+                <option value="coach_outreach">Coaches y Consultores</option>
+                <option value="ecommerce_outreach">E-Commerce / Tiendas Online</option>
+                <option value="saas_outreach">SaaS / Software</option>
+                <option value="restaurant_outreach">Restaurantes y Comida</option>
+                <option value="fitness_outreach">Fitness y Bienestar</option>
+              </select>
+            </div>
+
             <input
               placeholder="Nombre de la campaña"
               value={newCampaign.name}
