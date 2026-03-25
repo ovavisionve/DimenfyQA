@@ -173,7 +173,55 @@ async def get_system_settings():
             "followup_check_interval": settings.FOLLOWUP_CHECK_INTERVAL,
             "max_follow_up_steps": settings.MAX_FOLLOW_UP_STEPS,
         },
+        "comments": {
+            "comment_enabled": settings.COMMENT_ENABLED,
+            "comment_score_threshold": settings.COMMENT_SCORE_THRESHOLD,
+            "daily_comment_limit": settings.DAILY_COMMENT_LIMIT,
+            "hourly_comment_limit": settings.HOURLY_COMMENT_LIMIT,
+            "comment_delay_min": settings.COMMENT_DELAY_MIN,
+            "comment_delay_max": settings.COMMENT_DELAY_MAX,
+        },
     }
+
+
+# ---------------------------------------------------------------------------
+# Comment endpoints
+# ---------------------------------------------------------------------------
+@app.post("/api/v1/campaigns/{campaign_id}/generate-comments")
+async def generate_comments(campaign_id: str):
+    """Generate A/B comments for leads in a campaign."""
+    from app.database import async_session
+    from sqlalchemy import select
+    from app.models.lead import Lead
+    from app.tasks.comment_tasks import generate_comments_task
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(Lead.id).where(
+                Lead.campaign_id == campaign_id,
+                Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
+                Lead.ig_posts.isnot(None),
+                Lead.comment_message.is_(None),
+            )
+        )
+        lead_ids = [str(r) for r in result.scalars().all()]
+
+    if not lead_ids:
+        return {"status": "no_leads", "message": "No hay leads elegibles para generar comentarios"}
+
+    task = generate_comments_task.delay(lead_ids)
+    return {"status": "started", "task_id": task.id, "lead_count": len(lead_ids)}
+
+
+@app.post("/api/v1/campaigns/{campaign_id}/send-comments")
+async def send_comments(campaign_id: str, lead_id: Optional[str] = Query(None)):
+    """Send comments. If lead_id provided, send only that one. Otherwise bulk send."""
+    from app.tasks.comment_tasks import send_comments_task
+
+    lead_ids = [lead_id] if lead_id else None
+    task = send_comments_task.delay(campaign_id, lead_ids)
+    mode = "individual" if lead_id else "masivo"
+    return {"status": "started", "task_id": task.id, "mode": mode}
 
 
 @app.get("/api/v1/system/health")

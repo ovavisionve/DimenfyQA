@@ -39,6 +39,14 @@ class LeadRead(BaseModel):
     follow_up_count: int = 0
     last_follow_up_at: Optional[datetime] = None
     next_follow_up_at: Optional[datetime] = None
+    comment_message: Optional[str] = None
+    comment_variant_b: Optional[str] = None
+    comment_status: Optional[str] = None
+    comment_variant_used: Optional[str] = None
+    commented_post_shortcode: Optional[str] = None
+    comment_sent_at: Optional[datetime] = None
+    comment_error: Optional[str] = None
+    comment_attempts: int = 0
     scraped_at: Optional[datetime]
     sent_at: Optional[datetime] = None
     scored_at: Optional[datetime]

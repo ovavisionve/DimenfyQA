@@ -1514,6 +1514,10 @@
                 <i data-lucide="send" class="nav-lucide"></i> DMs
                 <span class="nav-badge" id="dmsBadgeSidebar" style="display:none">0</span>
             </button>
+            <button class="nav-item" onclick="navigateTo('comments')" data-page="comments">
+                <i data-lucide="message-square" class="nav-lucide"></i> Comentarios
+                <span class="nav-badge" id="commentsBadgeSidebar" style="display:none">0</span>
+            </button>
 
             <div class="sidebar-section">Management</div>
             <button class="nav-item" onclick="navigateTo('clients')" data-page="clients">
@@ -2045,6 +2049,38 @@
         </div>
     </div>
 
+    <!-- =============== PAGE: COMMENTS =============== -->
+    <div class="page-section" id="page-comments">
+        <div class="container">
+            <div class="page-header">
+                <h2>Comentarios en Posts</h2>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn btn-primary btn-sm" id="genCommentsBtn" onclick="generateComments()">Generar Comentarios</button>
+                    <button class="btn btn-success btn-sm" id="sendAllCommentsBtn" onclick="sendAllComments()">Enviar Masivo</button>
+                </div>
+            </div>
+            <div style="background:var(--cyan-dim);border:1px solid rgba(8,145,178,0.15);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+                <i data-lucide="info" style="width:18px;height:18px;color:var(--cyan);flex-shrink:0"></i>
+                <div style="font-size:12px;color:var(--text2)">
+                    Los comentarios se generan automaticamente para leads con score alto y posts disponibles. Revisa las variantes A/B antes de enviar. El envio masivo respeta los limites de seguridad configurados.
+                </div>
+            </div>
+            <div class="dm-search-bar" style="margin-bottom:16px">
+                <input type="text" placeholder="Buscar comentarios..." id="commentSearch" oninput="filterComments()">
+                <select id="commentStatusFilter" onchange="filterComments()">
+                    <option value="">Todos</option>
+                    <option value="pending">Pendientes</option>
+                    <option value="sent">Enviados</option>
+                    <option value="failed">Fallidos</option>
+                </select>
+            </div>
+            <div id="commentStats" style="display:flex;gap:16px;margin-bottom:16px;font-size:13px;color:var(--text2)"></div>
+            <div class="dm-gallery" id="commentGallery">
+                <div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay comentarios generados. Selecciona una campana y haz clic en "Generar Comentarios".</div>
+            </div>
+        </div>
+    </div>
+
     <!-- =============== PAGE: CLIENTS =============== -->
     <div class="page-section" id="page-clients">
         <div class="container">
@@ -2320,6 +2356,7 @@
             if (navEl) navEl.classList.add('active');
 
             if (page === 'dms') { renderDMGallery(); }
+            if (page === 'comments') { renderCommentGallery(); }
             if (page === 'clients') { loadClients(); }
             if (page === 'settings') { loadSettings(); }
             if (page === 'logs') { connectLogWS(); }
@@ -2765,6 +2802,14 @@
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
 
+                // Update Comments badge
+                const commentCount = leads.filter(l => l.comment_message).length;
+                const commentBadge = document.getElementById('commentsBadgeSidebar');
+                if (commentBadge) {
+                    commentBadge.textContent = commentCount;
+                    commentBadge.style.display = commentCount > 0 ? 'inline-flex' : 'none';
+                }
+
                 // Refresh account health during sending phases
                 if (['sending', 'paused', 'completed'].includes(campaign.status)) {
                     refreshAccountHealth();
@@ -3099,6 +3144,171 @@
             if (text) {
                 navigator.clipboard.writeText(text);
                 showToast(`Copied ${variant === 'A' ? 'Variant A' : 'Variant B'}`);
+            }
+        }
+
+        // ===== COMMENTS PAGE =====
+        function renderCommentGallery() {
+            const gallery = document.getElementById('commentGallery');
+            if (!gallery) return;
+
+            const commentLeads = getCommentFilteredLeads();
+            const statsEl = document.getElementById('commentStats');
+
+            // Update stats
+            const total = currentLeads.filter(l => l.comment_message).length;
+            const pending = currentLeads.filter(l => l.comment_status === 'pending').length;
+            const sent = currentLeads.filter(l => l.comment_status === 'sent').length;
+            const failed = currentLeads.filter(l => l.comment_status === 'failed').length;
+            if (statsEl) {
+                statsEl.innerHTML = `
+                    <span style="padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">Total: <strong>${total}</strong></span>
+                    <span style="padding:4px 10px;background:var(--yellow-dim);border:1px solid rgba(234,179,8,0.15);border-radius:6px;color:var(--yellow)">Pendientes: <strong>${pending}</strong></span>
+                    <span style="padding:4px 10px;background:var(--green-dim);border:1px solid rgba(34,197,94,0.15);border-radius:6px;color:var(--green)">Enviados: <strong>${sent}</strong></span>
+                    ${failed > 0 ? `<span style="padding:4px 10px;background:var(--red-dim);border:1px solid rgba(220,38,38,0.15);border-radius:6px;color:var(--red)">Fallidos: <strong>${failed}</strong></span>` : ''}
+                `;
+            }
+
+            if (commentLeads.length === 0) {
+                gallery.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay comentarios generados. Selecciona una campana y haz clic en "Generar Comentarios".</div>';
+                return;
+            }
+
+            gallery.innerHTML = commentLeads.map(lead => {
+                const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
+                const hasB = !!lead.comment_variant_b;
+                const leadId = lead.id.replace(/-/g, '');
+                const statusBadge = lead.comment_status === 'sent'
+                    ? '<span style="font-size:10px;padding:2px 6px;background:var(--green-dim);color:var(--green);border-radius:4px;font-weight:600">ENVIADO</span>'
+                    : lead.comment_status === 'failed'
+                    ? '<span style="font-size:10px;padding:2px 6px;background:var(--red-dim);color:var(--red);border-radius:4px;font-weight:600">FALLIDO</span>'
+                    : '<span style="font-size:10px;padding:2px 6px;background:var(--yellow-dim);color:var(--yellow);border-radius:4px;font-weight:600">PENDIENTE</span>';
+
+                const postInfo = lead.commented_post_shortcode
+                    ? `<span style="font-size:11px;color:var(--text3)">Post: ${lead.commented_post_shortcode}</span>`
+                    : '';
+
+                return `<div class="dm-card" style="border-left:3px solid ${lead.comment_status === 'sent' ? 'var(--green)' : lead.comment_status === 'failed' ? 'var(--red)' : 'var(--yellow)'}">
+                    <div class="dm-card-header">
+                        <div class="dm-card-user">
+                            <div>
+                                <div class="username">@${lead.ig_username || '—'}</div>
+                                <div class="fullname">${lead.ig_full_name || ''}</div>
+                            </div>
+                            <span class="score-badge ${scoreClass}" style="margin-left:12px">${lead.score}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="dm-card-actions">
+                            ${lead.comment_status === 'pending' ? `<button class="btn btn-success btn-sm" onclick="sendSingleComment('${lead.id}')">Enviar</button>` : ''}
+                            <button class="btn btn-secondary btn-sm" onclick="copyComment('${leadId}', 'A')">Copy A</button>
+                            ${hasB ? `<button class="btn btn-secondary btn-sm" onclick="copyComment('${leadId}', 'B')">Copy B</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="dm-card-body">
+                        <div class="dm-variant-toggle">
+                            <button class="dm-variant-btn active" onclick="toggleCommentVariant(this, '${leadId}', 'A')">Variante A</button>
+                            ${hasB ? `<button class="dm-variant-btn" onclick="toggleCommentVariant(this, '${leadId}', 'B')">Variante B</button>` : ''}
+                        </div>
+                        <div class="dm-card-text" id="comment-text-${leadId}">${escapeHTML(lead.comment_message || '')}</div>
+                        <div class="dm-card-meta">
+                            ${postInfo}
+                            <span>${lead.lead_category || 'other'}</span>
+                            <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function getCommentFilteredLeads() {
+            const searchEl = document.getElementById('commentSearch');
+            const statusEl = document.getElementById('commentStatusFilter');
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const status = statusEl ? statusEl.value : '';
+
+            return currentLeads.filter(l => {
+                if (!l.comment_message) return false;
+                if (status && l.comment_status !== status) return false;
+                if (search) {
+                    const hay = `${l.ig_username||''} ${l.ig_full_name||''} ${l.comment_message||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        function filterComments() {
+            renderCommentGallery();
+        }
+
+        function toggleCommentVariant(btn, leadId, variant) {
+            const card = btn.closest('.dm-card-body');
+            card.querySelectorAll('.dm-variant-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const textEl = document.getElementById(`comment-text-${leadId}`);
+            textEl.textContent = variant === 'A' ? (lead.comment_message || '') : (lead.comment_variant_b || '');
+        }
+
+        function copyComment(leadId, variant) {
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const text = variant === 'A' ? lead.comment_message : (lead.comment_variant_b || lead.comment_message);
+            navigator.clipboard.writeText(text);
+            showToast(`Comentario variante ${variant} copiado`);
+        }
+
+        async function generateComments() {
+            if (!activeCampaignId) { showToast('Selecciona una campana primero'); return; }
+            const btn = document.getElementById('genCommentsBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generando...';
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/generate-comments`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'started') {
+                    showToast(`Generando comentarios para ${data.lead_count} leads...`);
+                } else {
+                    showToast(data.message || 'No hay leads elegibles');
+                }
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Generar Comentarios';
+            }
+        }
+
+        async function sendSingleComment(leadId) {
+            if (!activeCampaignId) return;
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/send-comments?lead_id=${leadId}`, { method: 'POST' });
+                const data = await res.json();
+                showToast('Enviando comentario...');
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            }
+        }
+
+        async function sendAllComments() {
+            if (!activeCampaignId) { showToast('Selecciona una campana primero'); return; }
+            const pending = currentLeads.filter(l => l.comment_status === 'pending').length;
+            if (pending === 0) { showToast('No hay comentarios pendientes'); return; }
+            if (!confirm(`Enviar ${pending} comentarios de forma masiva? Se respetaran los limites de seguridad.`)) return;
+
+            const btn = document.getElementById('sendAllCommentsBtn');
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/send-comments`, { method: 'POST' });
+                const data = await res.json();
+                showToast(`Envio masivo iniciado (${data.mode})`);
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Enviar Masivo';
             }
         }
 
@@ -3707,6 +3917,21 @@
                         ${sliderHTML('s_ab_split', 'Division A/B', 'Porcentaje de leads que reciben la variante A. El resto recibe variante B', Math.round(s.inbox.ab_test_split * 100), 10, 90, 5, '%')}
                         ${sliderHTML('s_followup_int', 'Revisar follow-ups cada', 'Cada cuantos segundos el bot verifica si hay leads pendientes de seguimiento', s.inbox.followup_check_interval, 300, 7200, 300, 's')}
                         ${sliderHTML('s_max_followup', 'Maximo de follow-ups', 'Cuantos mensajes de seguimiento se envian como maximo si el lead no responde', s.inbox.max_follow_up_steps, 1, 10, 1, '')}
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="message-square" style="width:16px;height:16px"></i> Comentarios en Posts</h3>
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Comentarios activos</div>
+                                <div class="setting-slider-desc">Habilita o deshabilita la funcionalidad de comentar publicaciones de leads</div>
+                            </div>
+                            <button class="setting-toggle ${s.comments.comment_enabled ? 'on' : ''}" onclick="this.classList.toggle('on')"></button>
+                        </div>
+                        ${sliderHTML('s_comment_score', 'Score minimo para comentar', 'Solo se generan comentarios para leads con este puntaje o superior', s.comments.comment_score_threshold, 0, 100, 5, '')}
+                        ${sliderHTML('s_comment_daily', 'Limite diario de comentarios', 'Maximo de comentarios por dia por cuenta. Valores bajos (5-10) son mas seguros', s.comments.daily_comment_limit, 1, 30, 1, '')}
+                        ${sliderHTML('s_comment_hourly', 'Limite por hora', 'Maximo de comentarios por hora. Controla velocidad para parecer natural', s.comments.hourly_comment_limit, 1, 10, 1, '')}
+                        ${sliderHTML('s_comment_delay_min', 'Delay minimo entre comentarios', 'Segundos minimos de espera entre cada comentario', s.comments.comment_delay_min, 30, 300, 10, 's')}
+                        ${sliderHTML('s_comment_delay_max', 'Delay maximo entre comentarios', 'Limite superior del delay aleatorio entre comentarios', s.comments.comment_delay_max, 60, 600, 10, 's')}
                     </div>
                     <div class="settings-card full-width">
                         <h3><i data-lucide="brain" style="width:16px;height:16px"></i> Prompts de IA (Globales)</h3>
