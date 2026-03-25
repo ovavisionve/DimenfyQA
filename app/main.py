@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -24,6 +25,25 @@ app = FastAPI(
     description="AI-powered Instagram DM lead generation and personalization platform",
     version="0.2.0",
 )
+
+# CORS — allow Next.js frontend (dev + production)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def startup_recover_campaigns():
+    """On server start, check for interrupted campaigns and resume them."""
+    try:
+        from app.tasks.pipeline import recover_interrupted_campaigns
+        await recover_interrupted_campaigns()
+    except Exception as e:
+        logger.error(f"Campaign recovery on startup failed: {e}")
 
 
 # ---------------------------------------------------------------------------

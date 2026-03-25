@@ -21,6 +21,10 @@ class Campaign(Base, UUIDMixin, TimestampMixin):
     settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
     stats: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
+    # Task tracking for recovery on restart
+    celery_task_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    last_phase: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     # Relationships
     client = relationship("Client", back_populates="campaigns")
     leads = relationship("Lead", back_populates="campaign", lazy="selectin")

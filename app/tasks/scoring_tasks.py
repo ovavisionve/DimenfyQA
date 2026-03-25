@@ -17,7 +17,7 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
         async with create_worker_session()() as db:
             campaign_id = None
 
-            # Update campaign status
+            # Update campaign status + last_phase for recovery
             if lead_ids:
                 from sqlalchemy import select
                 from app.models.lead import Lead
@@ -34,6 +34,7 @@ def score_leads_task(self, lead_ids: list[str]) -> list[str]:
                     campaign = campaign_result.scalar_one_or_none()
                     if campaign:
                         campaign.status = "scoring"
+                        campaign.last_phase = "score"
                         await db.commit()
 
             cid = str(campaign_id) if campaign_id else None

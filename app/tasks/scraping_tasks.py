@@ -178,6 +178,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 raise ValueError(f"Campaign {campaign_id} not found")
 
             campaign.status = "scraping"
+            campaign.last_phase = "scrape"
             await db.commit()
 
             # Target number of quality leads
