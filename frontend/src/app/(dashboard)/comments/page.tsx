@@ -39,7 +39,7 @@ export default function CommentsPage() {
 
   useEffect(() => {
     if (!selectedCampaign) return;
-    api<Lead[]>(`/api/v1/campaigns/${selectedCampaign}/leads?limit=500`)
+    api<Lead[]>(`/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`)
       .then(setLeads)
       .catch(() => {});
   }, [selectedCampaign]);
@@ -53,7 +53,7 @@ export default function CommentsPage() {
       });
       const poll = setInterval(async () => {
         const data = await api<Lead[]>(
-          `/api/v1/campaigns/${selectedCampaign}/leads?limit=500`
+          `/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`
         );
         setLeads(data);
         if (data.some((l) => l.comment_message)) {
@@ -76,7 +76,7 @@ export default function CommentsPage() {
       { method: "POST" }
     );
     const data = await api<Lead[]>(
-      `/api/v1/campaigns/${selectedCampaign}/leads?limit=500`
+      `/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`
     );
     setLeads(data);
   };
@@ -88,7 +88,7 @@ export default function CommentsPage() {
         method: "POST",
       });
       const data = await api<Lead[]>(
-        `/api/v1/campaigns/${selectedCampaign}/leads?limit=500`
+        `/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`
       );
       setLeads(data);
     } catch {

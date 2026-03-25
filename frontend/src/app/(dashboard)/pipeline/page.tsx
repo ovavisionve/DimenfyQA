@@ -185,7 +185,7 @@ export default function PipelinePage() {
   const loadLeads = useCallback(async (campaignId: string) => {
     try {
       const data = await api<Lead[]>(
-        `/api/v1/campaigns/${campaignId}/leads?limit=500`
+        `/api/v1/leads/?campaign_id=${campaignId}&limit=500`
       );
       setLeads(data);
     } catch {
