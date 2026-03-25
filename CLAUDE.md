@@ -402,6 +402,158 @@ Runs on every push to `main`/`develop` and on PRs:
 - `instagrapi` simulates the Instagram mobile app — not officially supported by Meta. Use at your own risk.
 - Always use residential proxies for Instagram accounts to avoid detection
 
+## Phase 6 (in progress): Competitive Feature Parity + AI Advantage
+
+**Goal:** Match and surpass ColdDMs ($99/mo competitor) with 4 new features, each leveraging AI to go beyond basic functionality. ColdDMs uses a Chrome extension (requires PC on); we run on Docker 24/7. ColdDMs has basic inbox and CRM; ours will have AI-assisted replies and dynamic scoring.
+
+**Order of implementation:** Feature 1 → 2 → 3 → 4 (Unibox closes sales, CRM shows value, Keywords/Schedules optimize).
+
+### Feature 1: UNIBOX — Unified Inbox with AI-Assisted Replies
+
+Unified view of ALL conversations across ALL Instagram accounts. Users read full conversation history, reply directly, and receive AI-generated reply suggestions (3 per message: Close, Nurture, Qualify).
+
+**Backend:**
+- `app/services/unibox_service.py` — Core service:
+  - `get_all_conversations(filters)` — All conversations with pagination + filters (campaign, account, status, classification, crm_stage, text search, sort by recency/unread/score)
+  - `get_conversation_thread(lead_id)` — Full message history + lead info (bio, score, research, crm_stage)
+  - `send_reply(lead_id, account_id, message)` — Reply via instagrapi with same anti-detection delays as dm_sender_service
+  - `generate_reply_suggestion(lead_id)` — Claude API call with full context (conversation, lead info, campaign context, client prompts). Returns 3 suggestions: Close (schedule call/sale), Nurture (answer + keep talking), Qualify (ask fit questions)
+  - `auto_suggest_on_new_reply(lead_id)` — Called automatically by inbox_tasks.py when new reply detected. Pre-generates suggestions and stores in DB so they're ready when user opens conversation
+  - `mark_as_read(lead_id)` / `mark_as_starred(lead_id)` — State management
+- `app/routers/unibox.py` — REST endpoints:
+  - `GET /api/v1/unibox/conversations` — List with filters + pagination
+  - `GET /api/v1/unibox/conversations/{lead_id}/thread` — Conversation history
+  - `POST /api/v1/unibox/conversations/{lead_id}/reply` — Send reply
+  - `GET /api/v1/unibox/conversations/{lead_id}/suggestions` — Pre-generated suggestions
+  - `POST /api/v1/unibox/conversations/{lead_id}/suggest` — Force regenerate suggestions
+  - `PATCH /api/v1/unibox/conversations/{lead_id}` — Update state (read, starred, classification)
+  - `GET /api/v1/unibox/stats` — Unread count, by classification, avg response time
+  - JWT protected: admin/manager can reply, viewer read-only
+- **Models:**
+  - `is_read` (boolean) + `is_starred` (boolean) on messages/replies
+  - New table `reply_suggestions` (id, lead_id, suggestions JSONB, generated_at, was_used boolean)
+  - `crm_stage` field on lead model (shared with Feature 2)
+- **Integration:** inbox_tasks.py → on new reply → call `auto_suggest_on_new_reply()` to pre-generate suggestions
+- **Migration:** Alembic 009
+
+**Frontend — "Unibox" tab in dashboard:**
+- 2-panel layout: conversation list (left) + thread (right)
+- Conversation list: avatar/initials, username, last message preview, unread badge, timestamp, score badge (color-coded), crm_stage badge
+- Filter bar: campaign, account, status, classification, text search
+- Sort: most recent, unread first, highest score
+- Thread: WhatsApp-style chat bubbles (sent = amber right, received = dark gray left)
+- Thread header: username, score, crm_stage, view full profile button
+- Reply input at bottom with send button
+- **AI Suggestions section** above input: 3 clickable cards (Close/Nurture/Qualify) with message preview. Click → loads into input for edit/send. "Regenerate" button if none fit
+- Unread counter badge in sidebar (poll every 30s)
+- IG account indicator showing which account will send the reply
+- Dark theme, amber accents, Space Grotesk font
+
+### Feature 2: CRM KANBAN — Visual Pipeline with Dynamic Scoring
+
+Kanban board where users drag leads between funnel stages. Lead scores update automatically based on conversation — a lead asking about price goes up, "no thanks" goes down.
+
+**Backend:**
+- `app/services/crm_service.py` — Core service:
+  - `get_pipeline_board(campaign_id?)` — All leads by stage, sorted by score DESC within each column
+  - `move_lead(lead_id, new_stage)` — Move lead + audit log
+  - `get_lead_detail(lead_id)` — Full info: bio, current score, score history, research, DM history, replies, follow-ups, notes
+  - `add_note(lead_id, note)` — Manual note with user_id
+  - `auto_classify_stage(lead_id)` — Automatic stage transitions:
+    - DM sent → `contacted`
+    - Reply received → `replied`
+    - Reply classified positive → `interested`
+    - Lead mentions "precio/costo/cuánto/agendar/llamada" → `interested`
+    - Lead mentions "no gracias/no me interesa" → `closed_lost`
+    - `call_scheduled` and `closed_won` are manual only (drag & drop)
+  - `update_conversation_score(lead_id)` — **DYNAMIC SCORING:** On new reply, Claude evaluates purchase intent (-20 to +20 points):
+    - "¿Cuánto cuesta?" → +15
+    - "Cuéntame más" → +10
+    - "Interesante, pero ahora no" → -5
+    - "No me interesa" → -20
+    - Spam → -10
+    - Score history stored in `score_history` table
+- `app/routers/crm.py` — REST endpoints:
+  - `GET /api/v1/crm/board` — Full board with campaign filter
+  - `GET /api/v1/crm/board/stats` — Metrics per stage: count, avg score, estimated value
+  - `PATCH /api/v1/crm/leads/{lead_id}/stage` — Move lead
+  - `GET /api/v1/crm/leads/{lead_id}` — Lead detail with score history
+  - `POST /api/v1/crm/leads/{lead_id}/notes` — Add note
+  - `GET /api/v1/crm/leads/{lead_id}/score-history` — Score change timeline
+  - JWT protected
+- **Models:**
+  - `crm_stage` enum on lead: `new`, `contacted`, `replied`, `interested`, `call_scheduled`, `closed_won`, `closed_lost`
+  - New table `lead_notes` (id, lead_id, user_id, content, created_at)
+  - New table `score_history` (id, lead_id, old_score, new_score, delta, reason, created_at)
+  - Migration: Alembic 010
+- **Integration:**
+  - dm_sender_service → on DM sent → `auto_classify_stage` → `contacted`
+  - inbox_service → on reply → `auto_classify_stage` + `update_conversation_score`
+  - inbox_service → positive classification → `interested`
+
+**Frontend — "CRM" tab in dashboard:**
+- Kanban columns: Nuevo → Contactado → Respondió → Interesado → Llamada Agendada → Cerrado (Ganado) → Cerrado (Perdido)
+- Lead cards: avatar/initials, username, score badge (green >70, amber 40-70, red <40), score trend (↑↓=), last message preview, timestamp
+- HTML5 Drag & Drop (no external libraries)
+- Click card → side panel with full detail: score evolution mini-chart, bio, research, conversation history, score history timeline, team notes, "Open in Unibox" button
+- Column counters + avg score per column
+- Campaign filter
+- Top bar metrics: total leads, response rate, interest rate, closed count
+- Dark theme, amber accents
+
+### Feature 3: Pre-Scraping Bio Keyword Filter
+
+Filter leads BEFORE AI scoring to save API costs. User defines keywords that MUST appear in lead's bio.
+
+**Backend:**
+- Modify `app/services/apify_service.py`:
+  - Add `bio_keywords` parameter to scraping function
+  - After Apify results, before scoring: if keywords defined, keep only leads with at least one keyword in bio (case-insensitive)
+  - Log how many leads were filtered out
+- Add `bio_keywords` field (JSON array) to campaign model
+- Pass keywords through pipeline to scraping phase
+- Migration: part of 009 or 010
+
+**Frontend:**
+- In campaign creation/edit: "Bio Keyword Filter" section
+- Tag input: type keyword → Enter → chip/badge appears
+- X button on each chip to remove
+- Help text: "Only leads with at least one of these words in their Instagram bio will be processed. Leave empty to process all."
+- Position between scraping config and execute button
+
+### Feature 4: Campaign Sending Schedule with Timezone
+
+Per-campaign sending hours with timezone support. DMs only sent during configured hours.
+
+**Backend:**
+- Add to campaign model:
+  - `sending_hours_start` (time, default 09:00)
+  - `sending_hours_end` (time, default 21:00)
+  - `sending_timezone` (string, default "America/Caracas")
+- Modify `app/services/dm_sender_service.py`:
+  - Before each DM: check if current time (in campaign timezone) is within allowed range
+  - If outside hours → don't send, re-enqueue for next available slot
+  - Log when sends are postponed
+- Migration: part of 009 or 010
+
+**Frontend:**
+- In campaign creation/edit: "Sending Schedule" section
+- Two time selectors: "From" and "To" (dropdowns, 30-min intervals)
+- Timezone dropdown (common LATAM, US, Europe zones)
+- Preview: "DMs will be sent between 9:00 AM and 9:00 PM (Caracas time)"
+- Position after campaign name/description
+
+### Competitive Advantages to Leverage
+
+| Feature | ColdDMs ($99/mo) | IG DM Engine |
+|---------|-------------------|--------------|
+| Unibox | Static, manual read/reply | AI pre-generates 3 reply suggestions per message |
+| CRM | Basic static columns | Dynamic scoring — score changes with each interaction |
+| Infrastructure | Chrome extension (PC must be on) | Docker 24/7, no human intervention |
+| Comments | Not available | Phase 5 complete — comment + DM combo |
+| Research | Not available | Gemini auto-research per lead, shown in Unibox + CRM |
+| Bio filter | Basic keyword filter | Same + AI scoring on top |
+
 ## SaaS Roadmap — Remaining Items
 
 ### Done
@@ -410,9 +562,14 @@ Runs on every push to `main`/`develop` and on PRs:
 - [x] GitHub Actions CI/CD pipeline
 - [x] In-app notification center with dashboard dropdown
 
-### TODO
+### In Progress (Phase 6)
+- [ ] Unibox — Unified inbox with AI-assisted replies
+- [ ] CRM Kanban — Visual pipeline with dynamic scoring
+- [ ] Pre-scraping bio keyword filter
+- [ ] Campaign sending schedule with timezone
+
+### TODO (Future)
 - [ ] Next.js dashboard (currently vanilla JS SPA — functional but not production-grade for SaaS)
-- [ ] CRM pipeline visual (kanban: scraped → qualified → DM sent → replied → closed)
 - [ ] User onboarding flow (guided setup wizard for new clients)
 - [ ] API documentation (auto-generated Swagger is available at /docs, but needs customer-facing docs)
 - [ ] WhatsApp notifications (complement Slack for mobile-first clients)
