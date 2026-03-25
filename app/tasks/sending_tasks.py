@@ -128,6 +128,24 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                             current=sent, total=sent + failed + skipped,
                             detail=detail)
 
+            # Send in-app + Slack notification
+            try:
+                from app.services.notification_service import notification_service
+                campaign_name = campaign.name if campaign else cid
+                if paused:
+                    await notification_service.notify(
+                        db, title="Campaign Paused",
+                        message=f"*{campaign_name}*: {sent} sent, {failed} failed. Reason: {reason}",
+                        level="warning", link=f"/campaigns/{cid}",
+                    )
+                else:
+                    await notification_service.on_campaign_completed(
+                        db, campaign_name=campaign_name, campaign_id=cid,
+                        stats={"total_leads": sent + failed + skipped, "sent": sent},
+                    )
+            except Exception:
+                pass
+
             logger.info(f"DM sending complete: {sent} sent, {failed} failed, {skipped} skipped, paused={paused}")
 
             # Return all lead_ids for downstream (export)

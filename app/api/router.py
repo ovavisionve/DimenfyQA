@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends
 
 from app.api.auth import verify_api_key
-from app.api.endpoints import campaigns, clients, content_analysis, follow_ups, leads, messages, scraping, export, webhooks
+from app.api.endpoints import auth, campaigns, clients, content_analysis, follow_ups, leads, messages, scraping, export, webhooks
 
 api_router = APIRouter(dependencies=[Depends(verify_api_key)])
+
+# Auth routes — NO API key required (they issue their own tokens)
+auth_router = APIRouter()
+auth_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 api_router.include_router(clients.router, prefix="/clients", tags=["clients"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])

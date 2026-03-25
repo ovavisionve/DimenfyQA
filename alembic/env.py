@@ -9,7 +9,7 @@ from app.config import settings
 from app.models.base import Base
 
 # Import all models so they are registered with Base.metadata
-from app.models import Client, Campaign, Lead, Message, ScrapeJob  # noqa: F401
+from app.models import Client, Campaign, Lead, Message, ScrapeJob, User, AuditLog, Notification  # noqa: F401
 
 config = context.config
 

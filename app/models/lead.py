@@ -79,6 +79,16 @@ class Lead(Base, UUIDMixin, TimestampMixin):
     last_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     next_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # Phase 5 — Post Commenting
+    comment_message: Mapped[Optional[str]] = mapped_column(Text)  # Comment variant A
+    comment_variant_b: Mapped[Optional[str]] = mapped_column(Text)  # Comment variant B
+    comment_status: Mapped[Optional[str]] = mapped_column(String(50))  # pending, sent, failed, skipped
+    comment_variant_used: Mapped[Optional[str]] = mapped_column(String(10))  # A or B
+    commented_post_shortcode: Mapped[Optional[str]] = mapped_column(String(100))  # shortCode of commented post
+    comment_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    comment_error: Mapped[Optional[str]] = mapped_column(Text)
+    comment_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     # Timestamps
     scraped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

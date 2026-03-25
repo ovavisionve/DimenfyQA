@@ -10,6 +10,7 @@ from app.models.lead import Lead
 from app.schemas.enums import ConversationStatus, ReplyClassification
 from app.services.dm_sender_service import DMSenderService, IGAccount
 from app.services.webhook_service import webhook_service
+from app.services.notification_service import notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,17 @@ class InboxService:
                             "classification": classification,
                         },
                         db=db,
+                    )
+                except Exception:
+                    pass
+
+                # Send in-app + Slack notification
+                try:
+                    await notification_service.on_reply_received(
+                        db=db,
+                        lead_username=lead.ig_username,
+                        classification=classification,
+                        campaign_id=str(lead.campaign_id),
                     )
                 except Exception:
                     pass

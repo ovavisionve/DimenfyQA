@@ -5,39 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IG DM Engine — Live Pipeline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --bg: #06060b;
-            --surface: #0d0d14;
-            --surface2: #14141e;
-            --surface3: #1c1c2a;
-            --border: #222236;
-            --border2: #2e2e44;
-            --text: #eeeef5;
-            --text2: #7a7a95;
-            --text3: #50506a;
-            --accent: #7c5cfc;
-            --accent2: #a78bfa;
-            --accent-glow: rgba(124, 92, 252, 0.15);
-            --green: #34d399;
-            --green-dim: rgba(52, 211, 153, 0.12);
-            --yellow: #fbbf24;
-            --yellow-dim: rgba(251, 191, 36, 0.12);
-            --red: #f87171;
-            --red-dim: rgba(248, 113, 113, 0.12);
-            --blue: #60a5fa;
-            --blue-dim: rgba(96, 165, 250, 0.12);
-            --cyan: #22d3ee;
-            --cyan-dim: rgba(34, 211, 238, 0.12);
-            --orange: #fb923c;
-            --orange-dim: rgba(251, 146, 60, 0.12);
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --surface2: #f0f0f2;
+            --surface3: #e8e8ec;
+            --border: #e0e0e6;
+            --border2: #d0d0d8;
+            --text: #111111;
+            --text2: #6b6b76;
+            --text3: #9b9ba8;
+            --accent: #111111;
+            --accent2: #333333;
+            --accent-glow: rgba(0, 0, 0, 0.06);
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.08);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.08);
+            --red: #dc2626;
+            --red-dim: rgba(220, 38, 38, 0.06);
+            --blue: #2563eb;
+            --blue-dim: rgba(37, 99, 235, 0.06);
+            --cyan: #0891b2;
+            --cyan-dim: rgba(8, 145, 178, 0.06);
+            --orange: #ea580c;
+            --orange-dim: rgba(234, 88, 12, 0.06);
+            --sidebar-bg: #111111;
+            --sidebar-text: #a0a0a0;
+            --sidebar-text2: #666666;
+            --sidebar-border: #222222;
+            --sidebar-hover: #1a1a1a;
+            --sidebar-active: rgba(255,255,255,0.08);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            font-family: 'Space Grotesk', -apple-system, system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
@@ -45,7 +52,7 @@
         }
 
         .header {
-            background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
             padding: 16px 32px;
             display: flex;
@@ -55,10 +62,8 @@
 
         .logo {
             font-size: 20px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            color: var(--accent);
             letter-spacing: -0.5px;
         }
 
@@ -86,14 +91,13 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
-            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
         }
 
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px 32px;
+            max-width: 100%;
+            width: 100%;
         }
 
         /* Campaign selector */
@@ -132,17 +136,17 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, #6344e0 100%);
-            color: white;
+            background: var(--accent);
+            color: #ffffff;
         }
 
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.1); }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         .btn-danger {
             background: var(--red-dim);
             color: var(--red);
-            border: 1px solid rgba(248,113,113,0.2);
+            border: 1px solid rgba(220,38,38,0.15);
         }
 
         .btn-secondary {
@@ -196,8 +200,7 @@
 
         .tab.active {
             background: var(--accent-glow);
-            color: var(--accent2);
-            box-shadow: 0 0 20px rgba(124,92,252,0.08);
+            color: var(--accent);
         }
 
         .tab-badge {
@@ -216,8 +219,8 @@
         }
 
         .tab.active .tab-badge {
-            background: rgba(124,92,252,0.3);
-            color: var(--accent2);
+            background: rgba(226,168,75,0.25);
+            color: var(--accent);
         }
 
         .tab-content { display: none; }
@@ -511,7 +514,7 @@
 
         .score-high { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
         .score-mid { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
-        .score-low { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+        .score-low { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.15); }
         .score-pending { background: var(--surface3); color: var(--text3); border: 1px solid var(--border); }
         .score-badge.pop { animation: scorePopIn 0.4s ease-out; }
 
@@ -743,7 +746,7 @@
 
         .progress-bar-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--accent) 0%, var(--cyan) 100%);
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
             border-radius: 4px;
             transition: width 0.5s ease-out;
             position: relative;
@@ -874,8 +877,8 @@
 
         .dm-variant-btn.active {
             background: var(--accent-glow);
-            color: var(--accent2);
-            border-color: rgba(124,92,252,0.3);
+            color: var(--accent);
+            border-color: rgba(226,168,75,0.3);
         }
 
         .dm-card-text {
@@ -926,7 +929,6 @@
 
         .export-card:hover {
             border-color: var(--accent);
-            box-shadow: 0 0 30px var(--accent-glow);
             transform: translateY(-2px);
         }
 
@@ -1034,20 +1036,529 @@
             .export-stats { grid-template-columns: repeat(2, 1fr); }
             .container { padding: 16px; }
             .pipeline { flex-wrap: wrap; }
+            .sidebar { transform: translateX(-100%); position: fixed; z-index: 999; height: 100vh; top: 0; left: 0; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { width: 100% !important; }
+            .mobile-toggle { display: flex !important; }
+        }
+
+        /* ===== SIDEBAR LAYOUT ===== */
+        .app-layout { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: none;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            z-index: 50;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-logo {
+            padding: 24px 20px 20px;
+            border-bottom: 1px solid var(--sidebar-border);
+        }
+
+        .sidebar-logo h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--sidebar-text2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 16px 12px 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--sidebar-text);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+        }
+
+        .nav-item:hover { background: var(--sidebar-hover); color: #ffffff; }
+        .nav-item.active { background: var(--sidebar-active); color: #ffffff; font-weight: 600; }
+        .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+        .nav-item .nav-badge {
+            margin-left: auto;
+            background: var(--red);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--sidebar-border);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+        }
+
+        .sidebar-user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .sidebar-user-info { flex: 1; min-width: 0; }
+        .sidebar-user-name { font-size: 13px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-user-role { font-size: 11px; color: var(--sidebar-text2); text-transform: capitalize; }
+
+        .sidebar-logout {
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--sidebar-border);
+            border-radius: 6px;
+            color: var(--sidebar-text);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .sidebar-logout:hover { background: rgba(220,38,38,0.15); color: #ef4444; border-color: rgba(220,38,38,0.3); }
+
+        .main-content {
+            flex: 1;
+            min-width: 0;
+            min-height: 100vh;
+        }
+
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 100;
+            width: 36px;
+            height: 36px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 18px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Hide old header when sidebar is present */
+        .has-sidebar .header { display: none; }
+
+        /* ===== NEW PAGE SECTIONS ===== */
+        .page-section { display: none; padding: 32px 40px; }
+        .page-section.active { display: block; }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        .page-header h2 { font-size: 20px; font-weight: 700; }
+
+        /* Client cards */
+        .client-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; }
+        .client-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .client-card:hover { border-color: var(--accent); }
+        .client-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .client-card .client-type { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+        .client-card .client-stats { display: flex; gap: 16px; font-size: 12px; color: var(--text3); }
+
+        /* Settings panel */
+        .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .settings-card.full-width { grid-column: 1 / -1; }
+        .settings-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .settings-card h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-label { font-size: 13px; color: var(--text); }
+        .setting-value { font-size: 13px; font-weight: 700; color: var(--accent2); }
+        .setting-locked {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--red-dim);
+            color: var(--red);
+            font-weight: 600;
+        }
+
+        /* Terminal log viewer */
+        .log-terminal {
+            background: #0a0a0a;
+            border-radius: 12px;
+            border: 1px solid #222;
+            overflow: hidden;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        }
+        .log-terminal-header {
+            background: #111;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #222;
+        }
+        .log-terminal-dots { display: flex; gap: 6px; }
+        .log-terminal-dots span { width: 10px; height: 10px; border-radius: 50%; }
+        .log-terminal-body {
+            padding: 12px 16px;
+            height: 500px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-terminal-body::-webkit-scrollbar { width: 6px; }
+        .log-terminal-body::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .log-line { white-space: pre-wrap; word-break: break-all; }
+        .log-line .ts { color: #555; }
+        .log-line.DEBUG .lvl { color: #666; }
+        .log-line.INFO .lvl { color: #60a5fa; }
+        .log-line.WARNING .lvl { color: #fbbf24; }
+        .log-line.ERROR .lvl { color: #f87171; font-weight: 700; }
+        .log-line.CRITICAL .lvl { color: #f87171; font-weight: 900; text-decoration: underline; }
+        .log-line .logger { color: #888; }
+        .log-line .msg { color: #ccc; }
+        .log-filter-bar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .log-filter-btn {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text2);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .log-filter-btn.active { background: var(--accent-glow); color: var(--accent2); border-color: var(--accent); }
+
+        /* Health cards */
+        .health-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .health-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .health-card .health-indicator {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .health-card .health-indicator.ok { background: var(--green-dim); color: var(--green); }
+        .health-card .health-indicator.err { background: var(--red-dim); color: var(--red); }
+        .health-card .health-indicator.warn { background: var(--yellow-dim); color: var(--yellow); }
+        .health-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .health-card .health-status { font-size: 12px; }
+
+        /* Notification dropdown */
+        .notif-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 8px;
+            right: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            z-index: 200;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            margin-bottom: 8px;
+        }
+        .notif-dropdown.show { display: block; }
+        .notif-item {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .notif-item:hover { background: var(--surface2); }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item.unread { border-left: 3px solid var(--accent); }
+        .notif-item .notif-title { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+        .notif-item .notif-msg { color: var(--text2); }
+        .notif-item .notif-time { color: var(--text3); font-size: 10px; margin-top: 4px; }
+
+        /* Lucide nav icons */
+        .nav-lucide { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 1.75; }
+
+        /* ===== SLIDER CONTROLS (Bot Settings) ===== */
+        .setting-slider-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+            gap: 16px;
+        }
+        .setting-slider-row:last-child { border-bottom: none; }
+        .setting-slider-info { flex: 1; min-width: 0; }
+        .setting-slider-label { font-size: 13px; font-weight: 500; color: var(--text); }
+        .setting-slider-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
+        .setting-slider-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .setting-slider-val {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 48px;
+            text-align: right;
+        }
+        .slider-track {
+            width: 140px;
+            height: 6px;
+            background: var(--surface3);
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+        .slider-track input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: transparent;
+            position: absolute;
+            top: 0;
+            left: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+        .slider-track input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill, 50%), var(--surface3) var(--fill, 50%), var(--surface3) 100%);
+        }
+        .slider-track input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 3px solid var(--bg);
+            margin-top: -6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .slider-track input[type="range"]::-moz-range-track {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--surface3);
+        }
+        .slider-track input[type="range"]::-moz-range-progress {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--accent);
+        }
+        .slider-track input[type="range"]::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 3px solid var(--bg);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .slider-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            padding: 0 2px;
+        }
+        .slider-steps span {
+            font-size: 9px;
+            color: var(--text3);
+        }
+        .setting-toggle {
+            width: 40px;
+            height: 22px;
+            border-radius: 11px;
+            background: var(--surface3);
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+            padding: 0;
+        }
+        .setting-toggle.on { background: var(--accent); }
+        .setting-toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            transition: transform 0.2s;
+        }
+        .setting-toggle.on::after { transform: translateX(18px); }
+
+        .setting-locked-badge {
+            font-size: 10px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            background: var(--green-dim);
+            color: var(--green);
+            font-weight: 700;
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="logo">IG DM Engine</div>
-        <div class="header-right">
-            <div class="live-badge">
-                <span class="live-dot"></span>
-                LIVE <span class="timer" id="timer">00:00</span>
-            </div>
-        </div>
-    </div>
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
 
+    <div class="app-layout has-sidebar">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <h1>IG DM Engine</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">Pipeline</div>
+            <button class="nav-item active" onclick="navigateTo('pipeline')" data-page="pipeline">
+                <i data-lucide="workflow" class="nav-lucide"></i> Pipeline
+                <span class="timer" id="timer" style="font-size:11px;color:var(--text3);margin-left:auto">00:00</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('dms')" data-page="dms">
+                <i data-lucide="send" class="nav-lucide"></i> DMs
+                <span class="nav-badge" id="dmsBadgeSidebar" style="display:none">0</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('comments')" data-page="comments">
+                <i data-lucide="message-square" class="nav-lucide"></i> Comentarios
+                <span class="nav-badge" id="commentsBadgeSidebar" style="display:none">0</span>
+            </button>
+
+            <div class="sidebar-section">Management</div>
+            <button class="nav-item" onclick="navigateTo('clients')" data-page="clients">
+                <i data-lucide="users" class="nav-lucide"></i> Clients
+            </button>
+            <button class="nav-item" onclick="navigateTo('settings')" data-page="settings">
+                <i data-lucide="sliders-horizontal" class="nav-lucide"></i> Bot Settings
+            </button>
+
+            <div class="sidebar-section">Monitoring</div>
+            <button class="nav-item" onclick="navigateTo('logs')" data-page="logs">
+                <i data-lucide="terminal" class="nav-lucide"></i> Live Logs
+            </button>
+            <button class="nav-item" onclick="navigateTo('system')" data-page="system">
+                <i data-lucide="heart-pulse" class="nav-lucide"></i> System Health
+            </button>
+
+        </nav>
+
+        <div class="sidebar-footer" style="position:relative">
+            <div class="notif-dropdown" id="notifDropdown"></div>
+            <button class="nav-item" onclick="toggleNotifications()" style="margin-bottom:4px">
+                <i data-lucide="bell" class="nav-lucide"></i> Notifications
+                <span class="nav-badge" id="notifBadge" style="display:none">0</span>
+            </button>
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar" id="userAvatar">?</div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name" id="userName">Loading...</div>
+                    <div class="sidebar-user-role" id="userRole">-</div>
+                </div>
+            </div>
+            <button class="sidebar-logout" onclick="logout()">Cerrar Sesion</button>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="main-content">
+
+    <!-- =============== PAGE: PIPELINE (original dashboard) =============== -->
+    <div class="page-section active" id="page-pipeline">
     <div class="container">
         <div class="campaign-bar">
             <select id="campaignSelect"><option value="">Cargando campanas...</option></select>
@@ -1097,6 +1608,9 @@
             </button>
             <button class="tab" onclick="switchTab('dms')" id="tab-dms">
                 DMs <span class="tab-badge" id="dmsBadge">0</span>
+            </button>
+            <button class="tab" onclick="switchTab('comentarios')" id="tab-comentarios">
+                Comentarios <span class="tab-badge" id="commentsBadge">0</span>
             </button>
             <button class="tab" onclick="switchTab('ab')" id="tab-ab">
                 A/B Testing
@@ -1158,7 +1672,7 @@
                 <div class="progress-counter" id="progressCounter"></div>
             </div>
 
-            <div class="stats-row" style="grid-template-columns: repeat(6, 1fr)">
+            <div class="stats-row" style="grid-template-columns: repeat(8, 1fr)">
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
                     <div class="stat-label">Total Leads</div>
@@ -1178,6 +1692,14 @@
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--green)" id="dmsSent">0</div>
                     <div class="stat-label">DMs Sent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--purple, #a855f7)" id="commentsGenerated">0</div>
+                    <div class="stat-label">Comments Gen</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--purple, #a855f7)" id="commentsSent">0</div>
+                    <div class="stat-label">Comments Sent</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
@@ -1249,6 +1771,32 @@
                 <div class="empty-state">
                     <div class="empty-icon">&#x1F4AC;</div>
                     No DMs generated yet. Run the pipeline first.
+                </div>
+            </div>
+        </div>
+
+        <!-- =============== COMENTARIOS TAB =============== -->
+        <div class="tab-content" id="content-comentarios">
+            <div class="dm-search-bar">
+                <input type="text" id="commentSearch" placeholder="Search by username, name, or comment content..." oninput="filterComments()">
+                <select id="commentCategoryFilter" onchange="filterComments()">
+                    <option value="">All Categories</option>
+                    <option value="coach">Coach</option>
+                    <option value="ecommerce">E-commerce</option>
+                    <option value="saas">SaaS</option>
+                    <option value="agency">Agency</option>
+                    <option value="creator">Creator</option>
+                    <option value="local_business">Local Business</option>
+                    <option value="other">Other</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="generateComments()">Generate Comments</button>
+                <button class="btn btn-success btn-sm" onclick="sendMasivoComments()">Enviar Masivo</button>
+            </div>
+
+            <div class="dm-gallery" id="commentGallery">
+                <div class="empty-state">
+                    <div class="empty-icon">💬</div>
+                    No comments generated yet. Run the pipeline first, then generate comments.
                 </div>
             </div>
         </div>
@@ -1509,6 +2057,235 @@
             </div>
         </div>
 
+    </div><!-- /.container -->
+    </div><!-- /#page-pipeline -->
+
+    <!-- =============== PAGE: DMS (standalone page) =============== -->
+    <div class="page-section" id="page-dms">
+        <div class="container">
+            <div class="page-header">
+                <h2>DM Gallery</h2>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-success btn-sm" onclick="copyAllDMs()">Copy All</button>
+                </div>
+            </div>
+            <div class="dm-search-bar">
+                <input type="text" placeholder="Search DMs..." id="dmSearch2" oninput="filterDMs()">
+                <select id="dmCategoryFilter2" onchange="filterDMs()">
+                    <option value="">All Categories</option>
+                    <option value="coach">Coach</option>
+                    <option value="ecommerce">Ecommerce</option>
+                    <option value="saas">SaaS</option>
+                    <option value="agency">Agency</option>
+                    <option value="creator">Creator</option>
+                    <option value="local_business">Local Business</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="dm-gallery" id="dmGallery2"></div>
+        </div>
+    </div>
+
+    <!-- =============== PAGE: COMMENTS =============== -->
+    <div class="page-section" id="page-comments">
+        <div class="container">
+            <div class="page-header">
+                <h2>Comentarios en Posts</h2>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn btn-primary btn-sm" id="genCommentsBtn" onclick="generateComments()">Generar Comentarios</button>
+                    <button class="btn btn-success btn-sm" id="sendAllCommentsBtn" onclick="sendAllComments()">Enviar Masivo</button>
+                </div>
+            </div>
+            <div style="background:var(--cyan-dim);border:1px solid rgba(8,145,178,0.15);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+                <i data-lucide="info" style="width:18px;height:18px;color:var(--cyan);flex-shrink:0"></i>
+                <div style="font-size:12px;color:var(--text2)">
+                    Los comentarios se generan automaticamente para leads con score alto y posts disponibles. Revisa las variantes A/B antes de enviar. El envio masivo respeta los limites de seguridad configurados.
+                </div>
+            </div>
+            <div class="dm-search-bar" style="margin-bottom:16px">
+                <input type="text" placeholder="Buscar comentarios..." id="commentSearch" oninput="filterComments()">
+                <select id="commentStatusFilter" onchange="filterComments()">
+                    <option value="">Todos</option>
+                    <option value="pending">Pendientes</option>
+                    <option value="sent">Enviados</option>
+                    <option value="failed">Fallidos</option>
+                </select>
+            </div>
+            <div id="commentStats" style="display:flex;gap:16px;margin-bottom:16px;font-size:13px;color:var(--text2)"></div>
+            <div class="dm-gallery" id="commentGallery">
+                <div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay comentarios generados. Selecciona una campana y haz clic en "Generar Comentarios".</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== PAGE: CLIENTS =============== -->
+    <div class="page-section" id="page-clients">
+        <div class="container">
+            <div class="page-header">
+                <h2>Client Management</h2>
+                <button class="btn btn-primary" onclick="showCreateClientModal()">+ New Client</button>
+            </div>
+            <div class="client-grid" id="clientGrid">
+                <div style="text-align:center;padding:40px;color:var(--text3)">Loading clients...</div>
+            </div>
+        </div>
+
+        <!-- Edit Client Modal -->
+        <div class="modal-overlay" id="editClientModal" onclick="if(event.target===this)closeEditClient()">
+            <div class="modal" style="max-width:600px">
+                <h3 style="color:var(--accent2)">Edit Client</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Name</label>
+                        <input id="ecName" type="text" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Business Type</label>
+                        <input id="ecBusinessType" type="text" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Custom DM Prompt <span style="color:var(--text3)">(instrucciones para Claude al generar DMs)</span></label>
+                        <textarea id="ecDMPrompt" rows="4" placeholder="Ej: Usa un tono casual, menciona que somos de Venezuela, enfocate en ROI..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Custom Scoring Prompt <span style="color:var(--text3)">(instrucciones para Claude al puntuar leads)</span></label>
+                        <textarea id="ecScoringPrompt" rows="3" placeholder="Ej: Puntua mas alto a coaches y consultores, ignora cuentas de memes..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Max Daily DMs for this Client</label>
+                        <input id="ecMaxDMs" type="number" value="30" min="1" max="100" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    </div>
+                    <input type="hidden" id="ecClientId">
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                        <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveClient()">Save Changes</button>
+                        <button class="btn btn-secondary" style="flex:1;padding:12px" onclick="closeEditClient()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Client Modal -->
+        <div class="modal-overlay" id="createClientModal" onclick="if(event.target===this)closeCreateClient()">
+            <div class="modal" style="max-width:480px">
+                <h3 style="color:var(--accent2)">New Client</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Name</label>
+                        <input id="ccName" type="text" placeholder="Nombre del cliente" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Business Type</label>
+                        <input id="ccBusinessType" type="text" placeholder="Ej: Agency, Coach, SaaS..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;box-sizing:border-box">
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                        <button class="btn btn-primary" style="flex:1;padding:12px" onclick="createClient()">Create Client</button>
+                        <button class="btn btn-secondary" style="flex:1;padding:12px" onclick="closeCreateClient()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== PAGE: SETTINGS =============== -->
+    <div class="page-section" id="page-settings">
+        <div class="container">
+            <div class="page-header">
+                <h2>Configuracion del Bot</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadSettings()">Actualizar</button>
+            </div>
+
+            <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,0.15);border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px">
+                <i data-lucide="shield-alert" style="width:22px;height:22px;color:var(--red);flex-shrink:0"></i>
+                <div>
+                    <div style="font-weight:700;color:var(--red);font-size:14px">Proteccion de Cuentas Privadas — SIEMPRE ACTIVO</div>
+                    <div style="color:var(--text2);font-size:12px">El bot NUNCA enviara DMs a cuentas privadas. Esta regla de seguridad no se puede desactivar.</div>
+                </div>
+            </div>
+
+            <div class="settings-grid" id="settingsGrid">
+                <div style="text-align:center;padding:40px;color:var(--text3)">Loading settings...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== PAGE: LOGS =============== -->
+    <div class="page-section" id="page-logs">
+        <div class="container">
+            <div class="page-header">
+                <h2>Live System Logs</h2>
+                <div class="log-filter-bar">
+                    <input type="text" id="logSearchInput" placeholder="Filter logs..." style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:inherit;width:200px" oninput="filterLogs()">
+                    <button class="log-filter-btn active" onclick="setLogLevel(this,'ALL')">ALL</button>
+                    <button class="log-filter-btn" onclick="setLogLevel(this,'DEBUG')">DEBUG</button>
+                    <button class="log-filter-btn" onclick="setLogLevel(this,'INFO')">INFO</button>
+                    <button class="log-filter-btn" onclick="setLogLevel(this,'WARNING')">WARN</button>
+                    <button class="log-filter-btn" onclick="setLogLevel(this,'ERROR')">ERROR</button>
+                    <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear</button>
+                </div>
+            </div>
+            <div class="log-terminal">
+                <div class="log-terminal-header">
+                    <div class="log-terminal-dots">
+                        <span style="background:var(--red)"></span>
+                        <span style="background:var(--yellow)"></span>
+                        <span style="background:var(--green)"></span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text3)" id="logConnectionStatus">Connecting...</div>
+                </div>
+                <div class="log-terminal-body" id="logTerminalBody">
+                    <div class="log-line INFO"><span class="ts">--:--:--</span> <span class="lvl">INFO</span> <span class="msg">Connecting to log stream...</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== PAGE: SYSTEM HEALTH =============== -->
+    <div class="page-section" id="page-system">
+        <div class="container">
+            <div class="page-header">
+                <h2>System Health</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadSystemHealth()">Refresh</button>
+            </div>
+            <div class="health-grid" id="healthGrid">
+                <div class="health-card">
+                    <div class="health-indicator warn" id="healthDB">&#128450;</div>
+                    <h3>Database</h3>
+                    <div class="health-status" id="healthDBStatus" style="color:var(--text3)">Checking...</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-indicator warn" id="healthRedis">&#9889;</div>
+                    <h3>Redis</h3>
+                    <div class="health-status" id="healthRedisStatus" style="color:var(--text3)">Checking...</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-indicator warn" id="healthCelery">&#9881;</div>
+                    <h3>Celery Workers</h3>
+                    <div class="health-status" id="healthCeleryStatus" style="color:var(--text3)">Checking...</div>
+                </div>
+            </div>
+
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">IG Account Health</h3>
+            <div id="systemAccountHealth" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+                <div style="color:var(--text3);font-size:13px">Loading account health...</div>
+            </div>
+
+            <h3 style="font-size:16px;font-weight:700;margin:24px 0 16px">Audit Log</h3>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+                <div class="table-scroll" style="max-height:400px">
+                    <table class="leads-table" style="width:100%">
+                        <thead><tr>
+                            <th>Time</th><th>User</th><th>Action</th><th>Resource</th><th>Details</th>
+                        </tr></thead>
+                        <tbody id="auditLogBody">
+                            <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <!-- DM Modal -->
     <!-- New Campaign Modal -->
     <div class="modal-overlay" id="newCampaignModal" onclick="if(event.target===this)closeNewCampaignModal()">
@@ -1566,10 +2343,66 @@
         </div>
     </div>
 
+    </div><!-- /.main-content -->
+    </div><!-- /.app-layout -->
+
     <!-- Copy Toast -->
     <div class="copy-toast" id="copyToast">Copied to clipboard!</div>
 
     <script>
+        // ===== AUTH CHECK =====
+        const _token = localStorage.getItem('access_token');
+        if (!_token) { window.location.href = '/login'; }
+
+        const _user = JSON.parse(localStorage.getItem('user') || '{}');
+        function authHeaders() {
+            return { 'Authorization': 'Bearer ' + localStorage.getItem('access_token'), 'Content-Type': 'application/json' };
+        }
+        async function authFetch(url, opts = {}) {
+            opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+            const res = await fetch(url, opts);
+            if (res.status === 401) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            }
+            return res;
+        }
+
+        // Populate user info in sidebar
+        document.getElementById('userName').textContent = _user.full_name || _user.email || '?';
+        document.getElementById('userRole').textContent = _user.role || 'viewer';
+        document.getElementById('userAvatar').textContent = (_user.full_name || _user.email || '?')[0].toUpperCase();
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+
+        // ===== SIDEBAR NAVIGATION =====
+        let currentPage = 'pipeline';
+        function navigateTo(page) {
+            currentPage = page;
+            document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const pageEl = document.getElementById('page-' + page);
+            if (pageEl) pageEl.classList.add('active');
+            const navEl = document.querySelector(`[data-page="${page}"]`);
+            if (navEl) navEl.classList.add('active');
+
+            if (page === 'dms') { renderDMGallery(); }
+            if (page === 'comments') { renderCommentGallery(); }
+            if (page === 'clients') { loadClients(); }
+            if (page === 'settings') { loadSettings(); }
+            if (page === 'logs') { connectLogWS(); }
+            if (page === 'system') { loadSystemHealth(); loadAuditLog(); }
+
+            // Close mobile sidebar
+            document.querySelector('.sidebar').classList.remove('open');
+        }
+
         const API = '/api/v1';
         let activeCampaignId = null;
         let previousLeads = {};
@@ -1733,6 +2566,7 @@
 
         // ===== INIT =====
         async function init() {
+            lucide.createIcons();
             await loadCampaigns();
             log('Dashboard initialized', 'info');
         }
@@ -1745,6 +2579,7 @@
             document.getElementById(`content-${tab}`).classList.add('active');
 
             if (tab === 'dms') renderDMGallery();
+            if (tab === 'comentarios') renderCommentGallery();
             if (tab === 'ab') loadABResults();
             if (tab === 'analytics') loadAnalytics();
             if (tab === 'export') updateExportStats();
@@ -2005,6 +2840,18 @@
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
 
+                // Update Comments badges (tab + sidebar)
+                const commentCount = leads.filter(l => l.comment_message).length;
+                const commentBadge = document.getElementById('commentsBadgeSidebar');
+                if (commentBadge) {
+                    commentBadge.textContent = commentCount;
+                    commentBadge.style.display = commentCount > 0 ? 'inline-flex' : 'none';
+                }
+                const commentTabBadge = document.getElementById('commentsBadge');
+                if (commentTabBadge) {
+                    commentTabBadge.textContent = commentCount;
+                }
+
                 // Refresh account health during sending phases
                 if (['sending', 'paused', 'completed'].includes(campaign.status)) {
                     refreshAccountHealth();
@@ -2147,6 +2994,13 @@
             const sent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
             document.getElementById('dmsSent').textContent = sent;
 
+            // Comment stats
+            const commentsGen = leads.filter(l => l.comment_message).length;
+            document.getElementById('commentsGenerated').textContent = commentsGen;
+
+            const commentsSent = leads.filter(l => l.comment_status === 'comment_sent').length;
+            document.getElementById('commentsSent').textContent = commentsSent;
+
             document.getElementById('leadsCount').textContent = `${leads.length} leads`;
         }
 
@@ -2228,16 +3082,11 @@
         }
 
         // ===== DM GALLERY =====
-        function renderDMGallery() {
-            const gallery = document.getElementById('dmGallery');
-            const dmLeads = getDMFilteredLeads();
-
+        function buildDMCardsHTML(dmLeads) {
             if (dmLeads.length === 0) {
-                gallery.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No DMs generated yet. Run the pipeline first.</div>';
-                return;
+                return '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay DMs generados aun. Ejecuta el pipeline primero.</div>';
             }
-
-            gallery.innerHTML = dmLeads.map(lead => {
+            return dmLeads.map(lead => {
                 const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
                 const hasB = !!lead.dm_variant_b;
                 const leadId = lead.id.replace(/-/g, '');
@@ -2266,16 +3115,31 @@
                         <div class="dm-card-meta">
                             <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
                             <span>${lead.lead_category || 'other'}</span>
-                            ${lead.research_summary ? '<span>Has research</span>' : ''}
+                            ${lead.research_summary ? '<span>Investigado</span>' : ''}
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function getDMFilteredLeads() {
-            const search = (document.getElementById('dmSearch').value || '').toLowerCase();
-            const category = document.getElementById('dmCategoryFilter').value;
+        function renderDMGallery() {
+            // Pipeline tab gallery
+            const gallery1 = document.getElementById('dmGallery');
+            if (gallery1) {
+                gallery1.innerHTML = buildDMCardsHTML(getDMFilteredLeads('dmSearch', 'dmCategoryFilter'));
+            }
+            // Standalone DMs page gallery
+            const gallery2 = document.getElementById('dmGallery2');
+            if (gallery2) {
+                gallery2.innerHTML = buildDMCardsHTML(getDMFilteredLeads('dmSearch2', 'dmCategoryFilter2'));
+            }
+        }
+
+        function getDMFilteredLeads(searchId, filterId) {
+            const searchEl = document.getElementById(searchId);
+            const filterEl = document.getElementById(filterId);
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const category = filterEl ? filterEl.value : '';
 
             return currentLeads.filter(l => {
                 if (!l.dm_message) return false;
@@ -2290,6 +3154,141 @@
 
         function filterDMs() {
             renderDMGallery();
+        }
+
+        // ===== COMMENT GALLERY =====
+        function buildCommentCardsHTML(leads) {
+            if (leads.length === 0) {
+                return '<div class="empty-state"><div class="empty-icon">💬</div>No comments generated yet. Generate comments first.</div>';
+            }
+            return leads.map(lead => {
+                const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
+                const hasB = !!lead.comment_variant_b;
+                const leadId = lead.id.replace(/-/g, '');
+                const postLink = lead.comment_target_post ? `https://www.instagram.com/p/${lead.comment_target_post}/` : '#';
+                const statusBadge = lead.comment_status ? `<span class="category-tag" style="margin-left:8px;font-size:10px">${lead.comment_status}</span>` : '';
+
+                return `<div class="dm-card" data-username="${(lead.ig_username||'').toLowerCase()}" data-category="${lead.lead_category||''}" data-name="${(lead.ig_full_name||'').toLowerCase()}" data-dm="${(lead.comment_message||'').toLowerCase()}">
+                    <div class="dm-card-header">
+                        <div class="dm-card-user">
+                            <div>
+                                <div class="username">@${lead.ig_username || '—'}</div>
+                                <div class="fullname">${lead.ig_full_name || ''}</div>
+                            </div>
+                            <span class="score-badge ${scoreClass}" style="margin-left:12px">${lead.score}</span>
+                            <span class="category-tag" style="margin-left:8px">${lead.lead_category || 'other'}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="dm-card-actions">
+                            ${lead.comment_status !== 'comment_sent' ? `<button class="btn btn-success btn-sm" onclick="sendSingleComment('${lead.id}')">Send</button>` : ''}
+                            <button class="btn btn-secondary btn-sm" onclick="copyComment('${escapeHTML(lead.ig_username)}', 'A')">Copy A</button>
+                            ${hasB ? `<button class="btn btn-secondary btn-sm" onclick="copyComment('${escapeHTML(lead.ig_username)}', 'B')">Copy B</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="dm-card-body">
+                        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">
+                            Post: <a href="${postLink}" target="_blank" style="color:var(--accent)">${lead.comment_target_post || '—'}</a>
+                        </div>
+                        <div class="dm-variant-toggle">
+                            <button class="dm-variant-btn active" onclick="toggleCommentVariant(this, '${leadId}', 'A')">Variant A</button>
+                            ${hasB ? `<button class="dm-variant-btn" onclick="toggleCommentVariant(this, '${leadId}', 'B')">Variant B</button>` : ''}
+                        </div>
+                        <div class="dm-card-text" id="comment-text-${leadId}">${escapeHTML(lead.comment_message || '')}</div>
+                        <div class="dm-card-meta">
+                            <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
+                            <span>${lead.lead_category || 'other'}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function getCommentFilteredLeads() {
+            const searchEl = document.getElementById('commentSearch');
+            const filterEl = document.getElementById('commentCategoryFilter');
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const category = filterEl ? filterEl.value : '';
+
+            return currentLeads.filter(l => {
+                if (!l.comment_message) return false;
+                if (category && l.lead_category !== category) return false;
+                if (search) {
+                    const hay = `${l.ig_username||''} ${l.ig_full_name||''} ${l.comment_message||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        function renderCommentGallery() {
+            const gallery = document.getElementById('commentGallery');
+            if (gallery) {
+                gallery.innerHTML = buildCommentCardsHTML(getCommentFilteredLeads());
+            }
+        }
+
+        function filterComments() {
+            renderCommentGallery();
+        }
+
+        function toggleCommentVariant(btn, leadId, variant) {
+            const card = btn.closest('.dm-card-body');
+            card.querySelectorAll('.dm-variant-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const textEl = document.getElementById(`comment-text-${leadId}`);
+            textEl.textContent = variant === 'A' ? (lead.comment_message || '') : (lead.comment_variant_b || '');
+        }
+
+        function copyComment(username, variant) {
+            const lead = currentLeads.find(l => l.ig_username === username);
+            if (!lead) return;
+            const text = variant === 'A' ? lead.comment_message : lead.comment_variant_b;
+            if (text) {
+                navigator.clipboard.writeText(text);
+                showToast(`Copied comment ${variant} for @${username}`);
+            }
+        }
+
+        async function generateComments() {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/generate`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`Generating comments... Task: ${data.task_id || 'started'}`);
+                } else {
+                    showToast('Failed to generate comments', 'error');
+                }
+            } catch(e) { showToast('Error generating comments', 'error'); }
+        }
+
+        async function sendSingleComment(leadId) {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/send-single/${leadId}`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(data.success ? 'Comment sent!' : `Failed: ${data.error || 'unknown'}`);
+                    renderCommentGallery();
+                } else {
+                    showToast('Failed to send comment', 'error');
+                }
+            } catch(e) { showToast('Error sending comment', 'error'); }
+        }
+
+        async function sendMasivoComments() {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/send-masivo`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`Sending ${data.count || 0} comments... Task: ${data.task_id || 'started'}`);
+                } else {
+                    showToast('Failed to send comments', 'error');
+                }
+            } catch(e) { showToast('Error sending comments', 'error'); }
         }
 
         function toggleVariant(btn, leadId, variant) {
@@ -2329,6 +3328,226 @@
             if (text) {
                 navigator.clipboard.writeText(text);
                 showToast(`Copied ${variant === 'A' ? 'Variant A' : 'Variant B'}`);
+            }
+        }
+
+        // ===== COMMENTS PAGE =====
+        function renderCommentGallery() {
+            const gallery = document.getElementById('commentGallery');
+            if (!gallery) return;
+
+            const commentLeads = getCommentFilteredLeads();
+            const statsEl = document.getElementById('commentStats');
+
+            // Update stats
+            const total = currentLeads.filter(l => l.comment_message).length;
+            const pending = currentLeads.filter(l => l.comment_status === 'pending').length;
+            const sent = currentLeads.filter(l => l.comment_status === 'sent').length;
+            const failed = currentLeads.filter(l => l.comment_status === 'failed').length;
+            if (statsEl) {
+                statsEl.innerHTML = `
+                    <span style="padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">Total: <strong>${total}</strong></span>
+                    <span style="padding:4px 10px;background:var(--yellow-dim);border:1px solid rgba(234,179,8,0.15);border-radius:6px;color:var(--yellow)">Pendientes: <strong>${pending}</strong></span>
+                    <span style="padding:4px 10px;background:var(--green-dim);border:1px solid rgba(34,197,94,0.15);border-radius:6px;color:var(--green)">Enviados: <strong>${sent}</strong></span>
+                    ${failed > 0 ? `<span style="padding:4px 10px;background:var(--red-dim);border:1px solid rgba(220,38,38,0.15);border-radius:6px;color:var(--red)">Fallidos: <strong>${failed}</strong></span>` : ''}
+                `;
+            }
+
+            if (commentLeads.length === 0) {
+                gallery.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay comentarios generados. Selecciona una campana y haz clic en "Generar Comentarios".</div>';
+                return;
+            }
+
+            gallery.innerHTML = commentLeads.map(lead => {
+                const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
+                const hasB = !!lead.comment_variant_b;
+                const leadId = lead.id.replace(/-/g, '');
+                const statusBadge = lead.comment_status === 'sent'
+                    ? '<span style="font-size:10px;padding:2px 6px;background:var(--green-dim);color:var(--green);border-radius:4px;font-weight:600">ENVIADO</span>'
+                    : lead.comment_status === 'failed'
+                    ? '<span style="font-size:10px;padding:2px 6px;background:var(--red-dim);color:var(--red);border-radius:4px;font-weight:600">FALLIDO</span>'
+                    : '<span style="font-size:10px;padding:2px 6px;background:var(--yellow-dim);color:var(--yellow);border-radius:4px;font-weight:600">PENDIENTE</span>';
+
+                const postInfo = lead.commented_post_shortcode
+                    ? `<span style="font-size:11px;color:var(--text3)">Post: ${lead.commented_post_shortcode}</span>`
+                    : '';
+
+                return `<div class="dm-card" style="border-left:3px solid ${lead.comment_status === 'sent' ? 'var(--green)' : lead.comment_status === 'failed' ? 'var(--red)' : 'var(--yellow)'}">
+                    <div class="dm-card-header">
+                        <div class="dm-card-user">
+                            <div>
+                                <div class="username">@${lead.ig_username || '—'}</div>
+                                <div class="fullname">${lead.ig_full_name || ''}</div>
+                            </div>
+                            <span class="score-badge ${scoreClass}" style="margin-left:12px">${lead.score}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="dm-card-actions">
+                            ${lead.comment_status === 'pending' ? `<button class="btn btn-success btn-sm" onclick="sendSingleComment('${lead.id}')">Enviar</button>` : ''}
+                            <button class="btn btn-secondary btn-sm" onclick="copyComment('${leadId}', 'A')">Copy A</button>
+                            ${hasB ? `<button class="btn btn-secondary btn-sm" onclick="copyComment('${leadId}', 'B')">Copy B</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="dm-card-body">
+                        <div class="dm-variant-toggle">
+                            <button class="dm-variant-btn active" onclick="toggleCommentVariant(this, '${leadId}', 'A')">Variante A</button>
+                            ${hasB ? `<button class="dm-variant-btn" onclick="toggleCommentVariant(this, '${leadId}', 'B')">Variante B</button>` : ''}
+                        </div>
+                        <div class="dm-card-text" id="comment-text-${leadId}">${escapeHTML(lead.comment_message || '')}</div>
+                        <div class="dm-card-meta">
+                            ${postInfo}
+                            <span>${lead.lead_category || 'other'}</span>
+                            <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function getCommentFilteredLeads() {
+            const searchEl = document.getElementById('commentSearch');
+            const statusEl = document.getElementById('commentStatusFilter');
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const status = statusEl ? statusEl.value : '';
+
+            return currentLeads.filter(l => {
+                if (!l.comment_message) return false;
+                if (status && l.comment_status !== status) return false;
+                if (search) {
+                    const hay = `${l.ig_username||''} ${l.ig_full_name||''} ${l.comment_message||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        function filterComments() {
+            renderCommentGallery();
+        }
+
+        function toggleCommentVariant(btn, leadId, variant) {
+            const card = btn.closest('.dm-card-body');
+            card.querySelectorAll('.dm-variant-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const textEl = document.getElementById(`comment-text-${leadId}`);
+            textEl.textContent = variant === 'A' ? (lead.comment_message || '') : (lead.comment_variant_b || '');
+        }
+
+        function copyComment(leadId, variant) {
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const text = variant === 'A' ? lead.comment_message : (lead.comment_variant_b || lead.comment_message);
+            navigator.clipboard.writeText(text);
+            showToast(`Comentario variante ${variant} copiado`);
+        }
+
+        let commentPollInterval = null;
+        let commentPollExpectedCount = 0;
+
+        async function generateComments() {
+            if (!activeCampaignId) { showToast('Selecciona una campana primero'); return; }
+            const btn = document.getElementById('genCommentsBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generando...';
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/generate-comments`, { method: 'POST' });
+                if (!res.ok) {
+                    let msg = `Error del servidor (${res.status})`;
+                    try { const err = await res.json(); msg = err.message || msg; } catch(_) {}
+                    showToast(msg, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Generar Comentarios';
+                    return;
+                }
+                const data = await res.json();
+                if (data.status === 'started') {
+                    const msg = data.message || `Generando comentarios para ${data.lead_count} leads...`;
+                    showToast(msg, 'success');
+                    commentPollExpectedCount = data.lead_count || 0;
+                    startCommentPolling();
+                } else {
+                    showToast(data.message || 'No hay leads elegibles', 'warning');
+                    btn.disabled = false;
+                    btn.textContent = 'Generar Comentarios';
+                }
+            } catch(e) {
+                showToast('Error: ' + e.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Generar Comentarios';
+            }
+        }
+
+        function startCommentPolling() {
+            if (commentPollInterval) clearInterval(commentPollInterval);
+            const btn = document.getElementById('genCommentsBtn');
+            let dots = 0;
+            commentPollInterval = setInterval(async () => {
+                dots = (dots + 1) % 4;
+                btn.textContent = 'Generando' + '.'.repeat(dots);
+                try {
+                    const res = await authFetch(`${API}/leads/?campaign_id=${activeCampaignId}&limit=500`);
+                    const leads = await res.json();
+                    currentLeads = leads;
+                    const commentCount = leads.filter(l => l.comment_message).length;
+                    const badgeEl = document.getElementById('commentsBadge');
+                    if (badgeEl) badgeEl.textContent = commentCount;
+                    renderCommentGallery();
+
+                    if (commentCount >= commentPollExpectedCount && commentPollExpectedCount > 0) {
+                        stopCommentPolling();
+                        showToast(`${commentCount} comentarios generados`, 'success');
+                    }
+                } catch(_) {}
+            }, 3000);
+
+            // Safety: stop after 5 minutes
+            setTimeout(() => { if (commentPollInterval) stopCommentPolling(); }, 300000);
+        }
+
+        function stopCommentPolling() {
+            if (commentPollInterval) {
+                clearInterval(commentPollInterval);
+                commentPollInterval = null;
+            }
+            const btn = document.getElementById('genCommentsBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Generar Comentarios';
+            }
+            renderCommentGallery();
+        }
+
+        async function sendSingleComment(leadId) {
+            if (!activeCampaignId) return;
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/send-comments?lead_id=${leadId}`, { method: 'POST' });
+                const data = await res.json();
+                showToast('Enviando comentario...');
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            }
+        }
+
+        async function sendAllComments() {
+            if (!activeCampaignId) { showToast('Selecciona una campana primero'); return; }
+            const pending = currentLeads.filter(l => l.comment_status === 'pending').length;
+            if (pending === 0) { showToast('No hay comentarios pendientes'); return; }
+            if (!confirm(`Enviar ${pending} comentarios de forma masiva? Se respetaran los limites de seguridad.`)) return;
+
+            const btn = document.getElementById('sendAllCommentsBtn');
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            try {
+                const res = await authFetch(`${API}/campaigns/${activeCampaignId}/send-comments`, { method: 'POST' });
+                const data = await res.json();
+                showToast(`Envio masivo iniciado (${data.mode})`);
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Enviar Masivo';
             }
         }
 
@@ -2774,6 +3993,403 @@
                     </tr>`;
             });
         }
+
+        // ===== CLIENTS MANAGEMENT =====
+        let clientsData = [];
+        async function loadClients() {
+            try {
+                const res = await authFetch(`${API}/clients/`);
+                const clients = await res.json();
+                clientsData = clients;
+                const grid = document.getElementById('clientGrid');
+                if (clients.length === 0) {
+                    grid.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:48px;margin-bottom:12px">&#128101;</div>No clients yet. Create your first client.</div>';
+                    return;
+                }
+                grid.innerHTML = clients.map(c => `
+                    <div class="client-card" onclick="editClient('${c.id}')">
+                        <h3>${escapeHTML(c.name)}</h3>
+                        <div class="client-type">${escapeHTML(c.business_type || 'No type')}</div>
+                        <div class="client-stats">
+                            <span>Campaigns: ${(c.campaigns || []).length}</span>
+                            <span>Active: ${c.is_active ? 'Yes' : 'No'}</span>
+                        </div>
+                        ${c.settings?.dm_prompt ? '<div style="margin-top:8px;font-size:11px;padding:4px 8px;background:var(--green-dim);color:var(--green);border-radius:4px;display:inline-block">Custom DM Prompt</div>' : ''}
+                        ${c.settings?.scoring_prompt ? '<div style="margin-top:4px;font-size:11px;padding:4px 8px;background:var(--cyan-dim);color:var(--cyan);border-radius:4px;display:inline-block">Custom Scoring</div>' : ''}
+                    </div>
+                `).join('');
+            } catch(e) { console.error('Error loading clients:', e); }
+        }
+
+        function showCreateClientModal() { document.getElementById('createClientModal').classList.add('show'); }
+        function closeCreateClient() { document.getElementById('createClientModal').classList.remove('show'); }
+
+        async function createClient() {
+            const name = document.getElementById('ccName').value.trim();
+            const btype = document.getElementById('ccBusinessType').value.trim();
+            if (!name) { alert('Name is required'); return; }
+            try {
+                const res = await authFetch(`${API}/clients/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ name, business_type: btype || null }),
+                });
+                if (res.ok) { closeCreateClient(); loadClients(); showToast('Client created'); }
+                else { const err = await res.json(); alert(err.detail || 'Error'); }
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        function editClient(id) {
+            const c = clientsData.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('ecClientId').value = id;
+            document.getElementById('ecName').value = c.name || '';
+            document.getElementById('ecBusinessType').value = c.business_type || '';
+            document.getElementById('ecDMPrompt').value = c.settings?.dm_prompt || '';
+            document.getElementById('ecScoringPrompt').value = c.settings?.scoring_prompt || '';
+            document.getElementById('ecMaxDMs').value = c.settings?.max_daily_dms || 30;
+            document.getElementById('editClientModal').classList.add('show');
+        }
+
+        function closeEditClient() { document.getElementById('editClientModal').classList.remove('show'); }
+
+        async function saveClient() {
+            const id = document.getElementById('ecClientId').value;
+            const name = document.getElementById('ecName').value.trim();
+            const btype = document.getElementById('ecBusinessType').value.trim();
+            const dmPrompt = document.getElementById('ecDMPrompt').value.trim();
+            const scoringPrompt = document.getElementById('ecScoringPrompt').value.trim();
+            const maxDMs = parseInt(document.getElementById('ecMaxDMs').value) || 30;
+
+            try {
+                const res = await authFetch(`${API}/clients/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        name, business_type: btype || null,
+                        settings: { dm_prompt: dmPrompt, scoring_prompt: scoringPrompt, max_daily_dms: maxDMs }
+                    }),
+                });
+                if (res.ok) { closeEditClient(); loadClients(); showToast('Client saved'); }
+                else { const err = await res.json(); alert(err.detail || 'Error'); }
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        // ===== BOT SETTINGS =====
+        function sliderHTML(id, label, desc, value, min, max, step, suffix) {
+            const pct = ((value - min) / (max - min)) * 100;
+            return `<div class="setting-slider-row">
+                <div class="setting-slider-info">
+                    <div class="setting-slider-label">${label}</div>
+                    ${desc ? `<div class="setting-slider-desc">${desc}</div>` : ''}
+                </div>
+                <div class="setting-slider-control">
+                    <div class="slider-track">
+                        <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}"
+                            style="--fill:${pct}%"
+                            oninput="this.style.setProperty('--fill',((this.value-${min})/${max-min})*100+'%');document.getElementById('${id}_val').textContent=this.value+'${suffix}'">
+                    </div>
+                    <div class="setting-slider-val" id="${id}_val">${value}${suffix}</div>
+                </div>
+            </div>`;
+        }
+
+        async function loadSettings() {
+            try {
+                const res = await authFetch(`${API}/system/settings`);
+                const s = await res.json();
+                const grid = document.getElementById('settingsGrid');
+                grid.innerHTML = `
+                    <div class="settings-card">
+                        <h3><i data-lucide="target" style="width:16px;height:16px"></i> Umbrales de Puntuacion</h3>
+                        ${sliderHTML('s_default', 'Puntuacion minima para conservar', 'Los leads con puntuacion menor a este valor se descartan automaticamente del pipeline', s.scoring.default_score_threshold, 0, 100, 5, '')}
+                        ${sliderHTML('s_research', 'Puntuacion minima para investigar', 'Solo se investiga (con Gemini/Perplexity) a leads que superen este score. Ahorra creditos de API', s.scoring.research_score_threshold, 0, 100, 5, '')}
+                        ${sliderHTML('s_dm', 'Puntuacion minima para generar DM', 'Solo se generan mensajes personalizados para leads con este score o mayor', s.scoring.dm_score_threshold, 0, 100, 5, '')}
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="gauge" style="width:16px;height:16px"></i> Limites de Envio</h3>
+                        ${sliderHTML('s_daily', 'Limite diario de DMs', 'Maximo de DMs que cada cuenta de IG puede enviar por dia. Valores altos aumentan riesgo de bloqueo', s.sending.daily_dm_limit, 5, 100, 5, '')}
+                        ${sliderHTML('s_hourly', 'Limite por hora', 'Maximo de DMs por hora por cuenta. Controla la velocidad de envio para parecer natural', s.sending.hourly_dm_limit, 1, 30, 1, '')}
+                        ${sliderHTML('s_delay_min', 'Delay minimo entre DMs', 'Segundos minimos de espera entre cada envio. Simula comportamiento humano', s.sending.dm_delay_min, 10, 180, 5, 's')}
+                        ${sliderHTML('s_delay_max', 'Delay maximo entre DMs', 'Limite superior del delay aleatorio. El bot espera entre el min y max segundos', s.sending.dm_delay_max, 30, 300, 5, 's')}
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Motor de envio</div>
+                                <div class="setting-slider-desc">Cliente de API que usa el bot para enviar DMs a Instagram</div>
+                            </div>
+                            <div class="setting-slider-val">${s.sending.use_playwright ? 'Playwright' : 'instagrapi'}</div>
+                        </div>
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="flame" style="width:16px;height:16px"></i> Calentamiento de Cuentas</h3>
+                        ${sliderHTML('s_warmup_days', 'Periodo de calentamiento', 'Dias que tarda una cuenta nueva en alcanzar el limite completo de DMs. Protege cuentas nuevas', s.warmup.warmup_days, 1, 21, 1, ' dias')}
+                        ${sliderHTML('s_warmup_start', 'DMs iniciales por dia', 'Cuantos DMs envia una cuenta nueva el primer dia. Sube gradualmente hasta el limite diario', s.warmup.warmup_start_limit, 1, 20, 1, '/dia')}
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="shield-check" style="width:16px;height:16px"></i> Seguridad</h3>
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Verificacion pre-envio</div>
+                                <div class="setting-slider-desc">Antes de cada DM, verifica que la cuenta destino sea publica</div>
+                            </div>
+                            <span class="setting-locked-badge">SIEMPRE ACTIVO</span>
+                        </div>
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Filtrar cuentas privadas</div>
+                                <div class="setting-slider-desc">Excluye automaticamente cuentas privadas durante el scraping</div>
+                            </div>
+                            <span class="setting-locked-badge">SIEMPRE ACTIVO</span>
+                        </div>
+                        ${sliderHTML('s_challenge_cd', 'Pausa tras challenge', 'Minutos que espera el bot despues de que Instagram pida verificacion. Evita bloqueos', s.safety.challenge_cooldown_minutes, 15, 180, 15, ' min')}
+                        ${sliderHTML('s_block_cd', 'Pausa tras bloqueo', 'Horas de espera despues de un bloqueo de Instagram. Periodos largos protegen la cuenta', s.safety.block_cooldown_hours, 1, 72, 1, 'h')}
+                        ${sliderHTML('s_max_challenges', 'Max challenges antes de pausar', 'Si la cuenta recibe este numero de challenges en un dia, se pausa automaticamente', s.safety.max_challenges_before_pause, 1, 10, 1, '')}
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="message-circle" style="width:16px;height:16px"></i> Bandeja de Entrada y Seguimiento</h3>
+                        ${sliderHTML('s_inbox_int', 'Revisar bandeja cada', 'Cada cuantos segundos el bot revisa si hay respuestas nuevas en Instagram', s.inbox.inbox_check_interval, 60, 900, 30, 's')}
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Pruebas A/B</div>
+                                <div class="setting-slider-desc">Envia dos variantes de DM para comparar cual tiene mejor tasa de respuesta</div>
+                            </div>
+                            <button class="setting-toggle ${s.inbox.ab_test_enabled ? 'on' : ''}" onclick="this.classList.toggle('on')"></button>
+                        </div>
+                        ${sliderHTML('s_ab_split', 'Division A/B', 'Porcentaje de leads que reciben la variante A. El resto recibe variante B', Math.round(s.inbox.ab_test_split * 100), 10, 90, 5, '%')}
+                        ${sliderHTML('s_followup_int', 'Revisar follow-ups cada', 'Cada cuantos segundos el bot verifica si hay leads pendientes de seguimiento', s.inbox.followup_check_interval, 300, 7200, 300, 's')}
+                        ${sliderHTML('s_max_followup', 'Maximo de follow-ups', 'Cuantos mensajes de seguimiento se envian como maximo si el lead no responde', s.inbox.max_follow_up_steps, 1, 10, 1, '')}
+                    </div>
+                    <div class="settings-card">
+                        <h3><i data-lucide="message-square" style="width:16px;height:16px"></i> Comentarios en Posts</h3>
+                        <div class="setting-slider-row">
+                            <div class="setting-slider-info">
+                                <div class="setting-slider-label">Comentarios activos</div>
+                                <div class="setting-slider-desc">Habilita o deshabilita la funcionalidad de comentar publicaciones de leads</div>
+                            </div>
+                            <button class="setting-toggle ${s.comments.comment_enabled ? 'on' : ''}" onclick="this.classList.toggle('on')"></button>
+                        </div>
+                        ${sliderHTML('s_comment_score', 'Score minimo para comentar', 'Solo se generan comentarios para leads con este puntaje o superior', s.comments.comment_score_threshold, 0, 100, 5, '')}
+                        ${sliderHTML('s_comment_daily', 'Limite diario de comentarios', 'Maximo de comentarios por dia por cuenta. Valores bajos (5-10) son mas seguros', s.comments.daily_comment_limit, 1, 30, 1, '')}
+                        ${sliderHTML('s_comment_hourly', 'Limite por hora', 'Maximo de comentarios por hora. Controla velocidad para parecer natural', s.comments.hourly_comment_limit, 1, 10, 1, '')}
+                        ${sliderHTML('s_comment_delay_min', 'Delay minimo entre comentarios', 'Segundos minimos de espera entre cada comentario', s.comments.comment_delay_min, 30, 300, 10, 's')}
+                        ${sliderHTML('s_comment_delay_max', 'Delay maximo entre comentarios', 'Limite superior del delay aleatorio entre comentarios', s.comments.comment_delay_max, 60, 600, 10, 's')}
+                    </div>
+                    <div class="settings-card full-width">
+                        <h3><i data-lucide="brain" style="width:16px;height:16px"></i> Prompts de IA (Globales)</h3>
+                        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Estos prompts se aplican a TODAS las campanas. Para personalizar por cliente, edita el cliente desde la pagina de Clients.</div>
+                        <div style="margin-bottom:16px">
+                            <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Prompt de Scoring</label>
+                            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Instrucciones que recibe Claude al puntuar leads (0-100). Define que tipo de perfiles son mas valiosos para tu negocio.</div>
+                            <textarea id="globalScoringPrompt" rows="4" placeholder="Ej: Prioriza cuentas con mas de 1000 seguidores, que tengan bio profesional, y que sean de Latinoamerica..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+                        </div>
+                        <div style="margin-bottom:16px">
+                            <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Prompt de DMs</label>
+                            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Instrucciones para generar mensajes directos. Define tono, idioma, largo del mensaje, y que informacion incluir.</div>
+                            <textarea id="globalDMPrompt" rows="4" placeholder="Ej: Escribe en espanol informal, maximo 3 oraciones, menciona algo especifico de su bio, ofrece una llamada gratuita..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+                        </div>
+                        <div style="margin-bottom:16px">
+                            <label style="font-size:13px;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Prompt de Follow-up</label>
+                            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Instrucciones para mensajes de seguimiento cuando un lead no responde al primer DM.</div>
+                            <textarea id="globalFollowupPrompt" rows="3" placeholder="Ej: Se breve, no seas insistente, ofrece valor adicional como un caso de estudio o recurso gratis..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end">
+                            <button class="btn btn-primary btn-sm" onclick="saveGlobalPrompts()">Guardar Prompts</button>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            } catch(e) { console.error('Settings error:', e); }
+        }
+
+        async function saveGlobalPrompts() {
+            showToast('Prompts guardados (funcionalidad pendiente de backend)');
+        }
+
+        // ===== LIVE LOGS =====
+        let logWS = null;
+        let logMinLevel = 'ALL';
+        let logEntries = [];
+
+        function connectLogWS() {
+            if (logWS && logWS.readyState === WebSocket.OPEN) return;
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            logWS = new WebSocket(`${proto}//${location.host}/ws/logs`);
+            logWS.onopen = () => {
+                document.getElementById('logConnectionStatus').textContent = 'Connected';
+                document.getElementById('logConnectionStatus').style.color = 'var(--green)';
+            };
+            logWS.onmessage = (e) => {
+                const entry = JSON.parse(e.data);
+                logEntries.push(entry);
+                if (logEntries.length > 2000) logEntries.shift();
+                appendLogLine(entry);
+            };
+            logWS.onclose = () => {
+                document.getElementById('logConnectionStatus').textContent = 'Disconnected';
+                document.getElementById('logConnectionStatus').style.color = 'var(--red)';
+                setTimeout(() => { if (currentPage === 'logs') connectLogWS(); }, 3000);
+            };
+        }
+
+        function appendLogLine(entry) {
+            if (logMinLevel !== 'ALL') {
+                const levels = ['DEBUG','INFO','WARNING','ERROR','CRITICAL'];
+                if (levels.indexOf(entry.level) < levels.indexOf(logMinLevel)) return;
+            }
+            const search = (document.getElementById('logSearchInput')?.value || '').toLowerCase();
+            if (search && !(entry.message || '').toLowerCase().includes(search) && !(entry.logger || '').toLowerCase().includes(search)) return;
+
+            const body = document.getElementById('logTerminalBody');
+            const div = document.createElement('div');
+            div.className = `log-line ${entry.level}`;
+            div.innerHTML = `<span class="ts">${entry.timestamp || '--:--:--'}</span> <span class="lvl">${(entry.level || 'INFO').padEnd(8)}</span> <span class="logger">${(entry.logger || '').substring(0, 25).padEnd(25)}</span> <span class="msg">${escapeHTML(entry.message || '')}</span>`;
+            body.appendChild(div);
+
+            // Auto-scroll
+            body.scrollTop = body.scrollHeight;
+
+            // Limit DOM entries
+            while (body.children.length > 500) body.removeChild(body.firstChild);
+        }
+
+        function setLogLevel(btn, level) {
+            logMinLevel = level;
+            document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            rerenderLogs();
+        }
+
+        function filterLogs() { rerenderLogs(); }
+
+        function rerenderLogs() {
+            const body = document.getElementById('logTerminalBody');
+            body.innerHTML = '';
+            logEntries.forEach(e => appendLogLine(e));
+        }
+
+        function clearLogs() {
+            logEntries = [];
+            document.getElementById('logTerminalBody').innerHTML = '';
+        }
+
+        // ===== SYSTEM HEALTH =====
+        async function loadSystemHealth() {
+            try {
+                const res = await authFetch(`${API}/system/health`);
+                const h = await res.json();
+
+                const setHealth = (id, statusId, status) => {
+                    const el = document.getElementById(id);
+                    const sEl = document.getElementById(statusId);
+                    const isOk = status.startsWith('connected');
+                    el.className = 'health-indicator ' + (isOk ? 'ok' : 'err');
+                    sEl.textContent = status;
+                    sEl.style.color = isOk ? 'var(--green)' : 'var(--red)';
+                };
+
+                setHealth('healthDB', 'healthDBStatus', h.db);
+                setHealth('healthRedis', 'healthRedisStatus', h.redis);
+                setHealth('healthCelery', 'healthCeleryStatus', h.celery);
+
+                // Also load IG account health
+                await loadSystemAccountHealth();
+            } catch(e) { console.error('Health check error:', e); }
+        }
+
+        async function loadSystemAccountHealth() {
+            try {
+                const res = await authFetch(`${API}/campaigns/ig-accounts/health`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const container = document.getElementById('systemAccountHealth');
+                if (!data.accounts || data.accounts.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text3);font-size:13px">No IG accounts configured.</div>';
+                    return;
+                }
+                container.innerHTML = data.accounts.map(acc => {
+                    const statusColor = acc.is_blocked ? 'var(--red)' : acc.logged_in ? 'var(--green)' : 'var(--yellow)';
+                    const statusText = acc.is_blocked ? 'BLOCKED' : acc.logged_in ? 'ACTIVE' : 'OFFLINE';
+                    return `<div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)">
+                        <span style="font-weight:700;min-width:140px">@${acc.username}</span>
+                        <span style="color:${statusColor};font-weight:600;font-size:12px;min-width:70px">${statusText}</span>
+                        <span style="font-size:12px;color:var(--text2)">Sent: <b style="color:var(--text)">${acc.total_sent}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Failed: <b style="color:var(--text)">${acc.total_failed}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Rate: <b style="color:${acc.success_rate >= 90 ? 'var(--green)' : 'var(--red)'}">${acc.success_rate}%</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Challenges: <b>${acc.challenges}</b></span>
+                        <span style="font-size:12px;color:var(--text2)">Daily: <b style="color:var(--accent)">${acc.warmup_limit}</b></span>
+                    </div>`;
+                }).join('');
+            } catch(e) { /* silent */ }
+        }
+
+        // ===== AUDIT LOG =====
+        async function loadAuditLog() {
+            try {
+                const res = await authFetch(`${API}/system/audit-log?limit=100`);
+                const entries = await res.json();
+                const tbody = document.getElementById('auditLogBody');
+                if (entries.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">No audit log entries yet.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = entries.map(e => `<tr>
+                    <td style="font-size:11px;color:var(--text3);white-space:nowrap">${e.created_at ? new Date(e.created_at).toLocaleString('es-ES') : '-'}</td>
+                    <td style="font-size:12px">${escapeHTML(e.user_email || '-')}</td>
+                    <td><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-glow);color:var(--accent2)">${escapeHTML(e.action)}</span></td>
+                    <td style="font-size:12px;color:var(--text2)">${escapeHTML(e.resource_type || '-')}</td>
+                    <td style="font-size:11px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.details ? JSON.stringify(e.details).substring(0, 60) : '-'}</td>
+                </tr>`).join('');
+            } catch(e) { console.error('Audit log error:', e); }
+        }
+
+        // ===== NOTIFICATIONS =====
+        let notifOpen = false;
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications?limit=20`);
+                const notifs = await res.json();
+                const badge = document.getElementById('notifBadge');
+                const unread = notifs.filter(n => !n.is_read).length;
+                badge.textContent = unread;
+                badge.style.display = unread > 0 ? '' : 'none';
+
+                const dd = document.getElementById('notifDropdown');
+                if (notifs.length === 0) {
+                    dd.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No notifications</div>';
+                } else {
+                    dd.innerHTML = notifs.map(n => `
+                        <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="markNotifRead('${n.id}')">
+                            <div class="notif-title">${escapeHTML(n.title)}</div>
+                            <div class="notif-msg">${escapeHTML(n.message)}</div>
+                            <div class="notif-time">${n.created_at ? new Date(n.created_at).toLocaleString('es-ES') : ''}</div>
+                        </div>
+                    `).join('');
+                }
+            } catch(e) { /* silent */ }
+        }
+
+        function toggleNotifications() {
+            notifOpen = !notifOpen;
+            const dd = document.getElementById('notifDropdown');
+            dd.classList.toggle('show', notifOpen);
+            if (notifOpen) loadNotifications();
+        }
+
+        async function markNotifRead(id) {
+            try { await authFetch(`${API}/notifications/${id}/read`, { method: 'POST' }); loadNotifications(); } catch(e) {}
+        }
+
+        // Load notifications periodically
+        setInterval(loadNotifications, 60000);
+        loadNotifications();
+
+        // Update DM badge in sidebar
+        const _origUpdateStats = updateStats;
+        updateStats = function(leads) {
+            _origUpdateStats(leads);
+            const dmCount = leads.filter(l => l.dm_message).length;
+            const badge = document.getElementById('dmsBadgeSidebar');
+            if (dmCount > 0) { badge.textContent = dmCount; badge.style.display = ''; }
+            else { badge.style.display = 'none'; }
+        };
 
         // Start
         init();

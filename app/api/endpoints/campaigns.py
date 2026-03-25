@@ -62,10 +62,21 @@ async def start_campaign_pipeline(
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     if campaign.status not in ("pending", "ready", "failed", "paused"):
+        # Idempotency: if already running, return existing task_id
+        if campaign.celery_task_id:
+            return {
+                "message": "Pipeline already running",
+                "task_id": campaign.celery_task_id,
+                "campaign_id": str(campaign_id),
+            }
         raise HTTPException(
             status_code=400,
             detail=f"Campaign is currently '{campaign.status}', cannot start. Reset first.",
         )
+
+    # Clear previous task_id before starting new pipeline
+    campaign.celery_task_id = None
+    await db.commit()
 
     task_id = run_campaign_pipeline(str(campaign_id))
     return {"message": "Pipeline started", "task_id": task_id, "campaign_id": str(campaign_id)}

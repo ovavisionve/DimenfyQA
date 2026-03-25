@@ -110,6 +110,21 @@ async def update_progress(campaign_id: str, phase: str, message: str,
     await _update_progress(campaign_id, progress)
 
 
+async def set_campaign_phase(campaign_id: str, phase: str):
+    """Update campaign.last_phase for recovery tracking."""
+    async with create_worker_session()() as db:
+        from sqlalchemy import select
+        from app.models.campaign import Campaign
+
+        result = await db.execute(
+            select(Campaign).where(Campaign.id == campaign_id)
+        )
+        campaign = result.scalar_one_or_none()
+        if campaign:
+            campaign.last_phase = phase
+            await db.commit()
+
+
 def sync_update_progress(campaign_id: str, phase: str, message: str,
                          current: int = 0, total: int = 0, detail: str = ""):
     """Sync version for use in ThreadPoolExecutor callbacks (runs in separate thread)."""

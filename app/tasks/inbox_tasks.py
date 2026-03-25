@@ -7,6 +7,52 @@ from app.database import create_worker_session
 logger = logging.getLogger(__name__)
 
 
+@celery_app.task(bind=True, name="check_all_inboxes")
+def check_all_inboxes_task(self) -> dict:
+    """Celery Beat task: check inbox for ALL campaigns with sent DMs.
+
+    Runs periodically (default every 5 min via INBOX_CHECK_INTERVAL).
+    Finds campaigns that have sent DMs and dispatches individual
+    check_inbox_task for each.
+    """
+    logger.info("Checking all campaigns for inbox replies")
+
+    async def _check():
+        from sqlalchemy import select, distinct, func
+        from app.models.lead import Lead
+        from app.models.campaign import Campaign
+
+        async with create_worker_session()() as db:
+            # Find campaigns that have at least one sent DM and are active
+            result = await db.execute(
+                select(distinct(Lead.campaign_id)).where(
+                    Lead.status == "sent",
+                ).join(
+                    Campaign, Campaign.id == Lead.campaign_id
+                ).where(
+                    Campaign.status.in_(["completed", "sending", "ready", "paused"]),
+                )
+            )
+            campaign_ids = [str(cid) for cid in result.scalars().all()]
+
+        return campaign_ids
+
+    try:
+        campaign_ids = _run_async(_check())
+        dispatched = 0
+
+        for cid in campaign_ids:
+            check_inbox_task.delay(cid)
+            dispatched += 1
+
+        logger.info(f"Dispatched inbox check for {dispatched} campaigns")
+        return {"campaigns_checked": len(campaign_ids), "dispatched": dispatched}
+
+    except Exception as exc:
+        logger.exception(f"Failed to check campaigns for inbox: {exc}")
+        raise
+
+
 @celery_app.task(bind=True, name="check_inbox", **RETRY_KWARGS)
 def check_inbox_task(self, campaign_id: str) -> dict:
     """Check Instagram inbox for replies to sent DMs in a campaign.

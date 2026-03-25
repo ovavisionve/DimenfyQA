@@ -85,6 +85,18 @@ class Settings(BaseSettings):
     FOLLOWUP_CHECK_INTERVAL: int = 3600  # seconds between follow-up checks (default 1 hour)
     MAX_FOLLOW_UP_STEPS: int = 3  # maximum number of follow-up steps per campaign
 
+    # Slack Notifications
+    SLACK_WEBHOOK_URL: str = ""  # Slack Incoming Webhook URL
+    SLACK_CHANNEL: str = ""  # Override channel (optional, e.g. "#ig-alerts")
+
+    # Phase 5 — Post Commenting
+    COMMENT_ENABLED: bool = True
+    COMMENT_SCORE_THRESHOLD: int = 70  # Minimum score to generate comments
+    DAILY_COMMENT_LIMIT: int = 10  # Max comments per day per account
+    HOURLY_COMMENT_LIMIT: int = 3  # Max comments per hour per account
+    COMMENT_DELAY_MIN: int = 60  # Min seconds between comments
+    COMMENT_DELAY_MAX: int = 180  # Max seconds between comments
+
     @field_validator("DEFAULT_SCORE_THRESHOLD", "RESEARCH_SCORE_THRESHOLD", "DM_SCORE_THRESHOLD", mode="before")
     @classmethod
     def clean_int_value(cls, v: object) -> object:

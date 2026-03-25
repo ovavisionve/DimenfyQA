@@ -34,6 +34,7 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                     campaign = campaign_result.scalar_one_or_none()
                     if campaign:
                         campaign.status = "writing_dms"
+                        campaign.last_phase = "write"
                         await db.commit()
 
             cid = str(campaign_id) if campaign_id else None
@@ -63,6 +64,8 @@ def write_dms_task(self, lead_ids: list[str]) -> list[str]:
                 campaign = campaign_result.scalar_one_or_none()
                 if campaign:
                     campaign.status = "ready"
+                    campaign.celery_task_id = None  # Pipeline done, clear for next run
+                    campaign.last_phase = None
 
             await db.commit()
             logger.info(f"Generated DMs for {len(dm_ready_ids)} leads")

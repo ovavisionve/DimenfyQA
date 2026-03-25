@@ -350,6 +350,76 @@ class IGAccount:
                 "is_not_found": is_not_found,
             }
 
+    def send_comment(self, shortcode: str, text: str) -> dict:
+        """Post a comment on an Instagram post by shortcode."""
+        if not self._logged_in:
+            return {"success": False, "error": "Not logged in"}
+
+        # Check hourly comment limit (separate from DM limit)
+        hourly_limit = settings.HOURLY_COMMENT_LIMIT
+        now = time.time()
+        one_hour_ago = now - 3600
+        if not hasattr(self, '_hourly_comments'):
+            self._hourly_comments = []
+        self._hourly_comments = [t for t in self._hourly_comments if t > one_hour_ago]
+        if len(self._hourly_comments) >= hourly_limit:
+            return {"success": False, "error": f"Hourly comment limit reached ({hourly_limit}/hour)", "is_rate_limited": True}
+
+        in_cooldown, reason = self.is_in_cooldown()
+        if in_cooldown:
+            return {"success": False, "error": f"Account in cooldown: {reason}", "is_cooldown": True}
+
+        try:
+            from instagrapi.utils import shortcode_to_media_id
+            media_id = shortcode_to_media_id(shortcode)
+
+            # Anti-detection: pre-comment delay
+            time.sleep(random.uniform(1.5, 4.0))
+
+            self._client.media_comment(media_id, text)
+            self._hourly_comments.append(time.time())
+            self.total_sent += 1
+            self._save_health()
+            logger.info(f"[@{self.username}] Comment posted on post {shortcode}")
+            return {"success": True}
+        except ImportError:
+            # Fallback: try media_pk_from_code
+            try:
+                media_pk = self._client.media_pk_from_code(shortcode)
+                time.sleep(random.uniform(1.5, 4.0))
+                self._client.media_comment(media_pk, text)
+                self._hourly_comments.append(time.time())
+                self.total_sent += 1
+                self._save_health()
+                logger.info(f"[@{self.username}] Comment posted on post {shortcode} (fallback)")
+                return {"success": True}
+            except Exception as e2:
+                error_msg = f"{type(e2).__name__}: {e2}"
+                logger.error(f"[@{self.username}] Comment failed on {shortcode}: {error_msg}")
+                self.total_failed += 1
+                return {"success": False, "error": error_msg[:500]}
+        except Exception as e:
+            error_type = type(e).__name__
+            error_msg = f"{error_type}: {e}"
+            error_lower = str(e).lower()
+            logger.error(f"[@{self.username}] Comment failed on {shortcode}: {error_msg}")
+
+            is_challenge = "challenge" in error_lower or "checkpoint" in error_lower
+            is_block = "block" in error_lower or "feedback_required" in error_lower
+
+            self.total_failed += 1
+            if is_challenge:
+                self._record_challenge()
+            if is_block:
+                self._record_block()
+
+            return {
+                "success": False,
+                "error": error_msg[:500],
+                "is_challenge": is_challenge,
+                "is_block": is_block,
+            }
+
     def save_session(self):
         if self._client and self._logged_in:
             try:
@@ -546,6 +616,146 @@ class DMSenderService:
         if not account:
             return {"success": False, "error": "No available IG accounts (all blocked/cooldown)"}
         return account.send_dm(username, message)
+
+    def send_comment(self, shortcode: str, text: str) -> dict:
+        """Send a comment using the next available account."""
+        account = self._get_next_account()
+        if not account:
+            return {"success": False, "error": "No available IG accounts (all blocked/cooldown)"}
+        return account.send_comment(shortcode, text)
+
+    async def get_daily_comment_count(self, db: AsyncSession) -> int:
+        """Count comments sent today for rate limiting."""
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        result = await db.execute(
+            select(func.count(Lead.id)).where(
+                Lead.comment_status == "sent",
+                Lead.comment_sent_at >= today_start,
+            )
+        )
+        return result.scalar() or 0
+
+    async def send_campaign_comments(
+        self,
+        campaign_id: str,
+        db: AsyncSession,
+        lead_ids: list[str] | None = None,
+        progress_callback=None,
+    ) -> dict:
+        """Send comments for a campaign with rate limiting and delays.
+
+        If lead_ids is provided, only send to those specific leads (single send).
+        Otherwise, send to all pending leads (bulk send).
+        """
+        daily_count = await self.get_daily_comment_count(db)
+        daily_limit = settings.DAILY_COMMENT_LIMIT
+
+        if daily_count >= daily_limit:
+            logger.warning(f"Daily comment limit reached ({daily_count}/{daily_limit})")
+            return {
+                "sent_count": 0, "failed_count": 0, "skipped_count": 0,
+                "paused": True, "reason": f"Limite diario alcanzado ({daily_count}/{daily_limit})",
+            }
+
+        remaining_today = daily_limit - daily_count
+
+        if lead_ids:
+            # Single or specific leads
+            result = await db.execute(
+                select(Lead).where(
+                    Lead.id.in_(lead_ids),
+                    Lead.comment_status == "pending",
+                    Lead.comment_message.isnot(None),
+                    Lead.commented_post_shortcode.isnot(None),
+                )
+            )
+        else:
+            # Bulk: all pending comments for campaign
+            result = await db.execute(
+                select(Lead).where(
+                    Lead.campaign_id == campaign_id,
+                    Lead.comment_status == "pending",
+                    Lead.comment_message.isnot(None),
+                    Lead.commented_post_shortcode.isnot(None),
+                    Lead.comment_attempts < 3,
+                    Lead.ig_is_private.is_not(True),
+                ).order_by(Lead.score.desc()).limit(remaining_today)
+            )
+
+        leads = list(result.scalars().all())
+
+        if not leads:
+            return {"sent_count": 0, "failed_count": 0, "skipped_count": 0, "paused": False, "reason": "No hay comentarios pendientes"}
+
+        logger.info(f"Sending {len(leads)} comments (daily: {daily_count}/{daily_limit})")
+
+        sent_count = 0
+        failed_count = 0
+        skipped_count = 0
+
+        for i, lead in enumerate(leads):
+            # Pre-send public check
+            if settings.PRE_SEND_CHECK_PUBLIC:
+                if not self.pre_send_check(lead.ig_username):
+                    lead.comment_status = "skipped"
+                    lead.ig_is_private = True
+                    skipped_count += 1
+                    await db.commit()
+                    continue
+
+            # Select variant
+            if lead.comment_variant_used:
+                variant = "B" if lead.comment_variant_used == "A" else "A"
+            else:
+                variant = random.choice(["A", "B"]) if lead.comment_variant_b else "A"
+
+            comment_text = lead.comment_message if variant == "A" else (lead.comment_variant_b or lead.comment_message)
+            lead.comment_variant_used = variant
+
+            result = self.send_comment(lead.commented_post_shortcode, comment_text)
+
+            if result["success"]:
+                lead.comment_status = "sent"
+                lead.comment_sent_at = datetime.now(timezone.utc)
+                sent_count += 1
+            elif result.get("is_rate_limited") or result.get("is_cooldown"):
+                # Stop sending, save progress
+                await db.commit()
+                self.save_sessions()
+                return {
+                    "sent_count": sent_count, "failed_count": failed_count, "skipped_count": skipped_count,
+                    "paused": True, "reason": result["error"],
+                }
+            else:
+                lead.comment_attempts += 1
+                lead.comment_error = result.get("error", "Unknown error")
+                if lead.comment_attempts >= 3:
+                    lead.comment_status = "failed"
+                failed_count += 1
+
+            await db.commit()
+
+            if progress_callback:
+                try:
+                    progress_callback(i + 1, len(leads), lead.ig_username, result["success"])
+                except Exception:
+                    pass
+
+            # Human-like delay between comments
+            if i < len(leads) - 1:
+                delay = random.uniform(settings.COMMENT_DELAY_MIN, settings.COMMENT_DELAY_MAX)
+                if not result["success"]:
+                    delay *= 1.5
+                delay += random.uniform(-10, 10)
+                delay = max(30, delay)
+                logger.info(f"Waiting {delay:.0f}s before next comment...")
+                time.sleep(delay)
+
+        self.save_sessions()
+        return {
+            "sent_count": sent_count, "failed_count": failed_count, "skipped_count": skipped_count,
+            "paused": False, "reason": f"Completado: {sent_count} enviados, {failed_count} fallidos, {skipped_count} omitidos",
+        }
 
     def pre_send_check(self, username: str) -> bool:
         """Check if target account is public before sending. Uses first available account."""
