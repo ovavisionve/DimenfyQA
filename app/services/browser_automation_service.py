@@ -35,43 +35,68 @@ MAX_SEND_ATTEMPTS = 3
 _BROWSER_PROFILES = [
     {
         "viewport": {"width": 1366, "height": 768},
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "timezone": "America/New_York",
         "locale": "en-US",
+        "languages": ["en-US", "en"],
         "platform": "Win32",
         "color_depth": 24,
+        "hardware_concurrency": 8,
+        "device_memory": 8,
+        "webgl_vendor": "Google Inc. (NVIDIA)",
+        "webgl_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
     },
     {
         "viewport": {"width": 1920, "height": 1080},
-        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "timezone": "America/Los_Angeles",
         "locale": "en-US",
+        "languages": ["en-US", "en"],
         "platform": "MacIntel",
         "color_depth": 30,
+        "hardware_concurrency": 10,
+        "device_memory": 16,
+        "webgl_vendor": "Google Inc. (Apple)",
+        "webgl_renderer": "ANGLE (Apple, Apple M1 Pro, OpenGL 4.1)",
     },
     {
         "viewport": {"width": 1440, "height": 900},
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
         "timezone": "Europe/London",
         "locale": "en-GB",
+        "languages": ["en-GB", "en"],
         "platform": "Win32",
         "color_depth": 24,
+        "hardware_concurrency": 12,
+        "device_memory": 16,
+        "webgl_vendor": "Google Inc. (Intel)",
+        "webgl_renderer": "ANGLE (Intel, Intel(R) UHD Graphics 770 Direct3D11 vs_5_0 ps_5_0, D3D11)",
     },
     {
         "viewport": {"width": 1536, "height": 864},
-        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "timezone": "Europe/Berlin",
         "locale": "de-DE",
+        "languages": ["de-DE", "de", "en"],
         "platform": "Linux x86_64",
         "color_depth": 24,
+        "hardware_concurrency": 8,
+        "device_memory": 8,
+        "webgl_vendor": "Google Inc. (AMD)",
+        "webgl_renderer": "ANGLE (AMD, AMD Radeon RX 6700 XT, OpenGL 4.6)",
     },
     {
         "viewport": {"width": 1280, "height": 720},
-        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
         "timezone": "America/Chicago",
         "locale": "en-US",
+        "languages": ["en-US", "en"],
         "platform": "MacIntel",
         "color_depth": 30,
+        "hardware_concurrency": 8,
+        "device_memory": 8,
+        "webgl_vendor": "Google Inc. (Apple)",
+        "webgl_renderer": "ANGLE (Apple, Apple M2, OpenGL 4.1)",
     },
 ]
 
@@ -410,15 +435,164 @@ class IGBrowserAccount:
         except ImportError:
             pass
 
-        # Extra anti-detection: override navigator properties
-        await self._page.add_init_script(f"""
-            Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
-            Object.defineProperty(navigator, 'platform', {{ get: () => '{profile["platform"]}' }});
-            Object.defineProperty(screen, 'colorDepth', {{ get: () => {profile["color_depth"]} }});
-            window.chrome = {{ runtime: {{}} }};
-        """)
+        # Comprehensive anti-detection: stealth patches for all fingerprinting vectors
+        await self._page.add_init_script(self._build_stealth_script(profile))
 
         logger.info(f"Browser launched for @{self.username} (headless={settings.PW_HEADLESS})")
+
+    @staticmethod
+    def _build_stealth_script(profile: dict) -> str:
+        """Build comprehensive anti-detection JavaScript patches.
+
+        Covers: navigator properties, WebGL fingerprint spoofing, canvas noise,
+        hardware info, languages, plugins, permissions API, Chrome runtime.
+        """
+        platform = profile["platform"]
+        color_depth = profile["color_depth"]
+        hw_concurrency = profile.get("hardware_concurrency", 8)
+        device_memory = profile.get("device_memory", 8)
+        webgl_vendor = profile.get("webgl_vendor", "Google Inc. (NVIDIA)")
+        webgl_renderer = profile.get("webgl_renderer", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)")
+        languages = profile.get("languages", ["en-US", "en"])
+        languages_js = ", ".join(f'"{lang}"' for lang in languages)
+
+        return f"""
+        // ===== 1. NAVIGATOR PROPERTY OVERRIDES =====
+        Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
+        Object.defineProperty(navigator, 'platform', {{ get: () => '{platform}' }});
+        Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => {hw_concurrency} }});
+        Object.defineProperty(navigator, 'deviceMemory', {{ get: () => {device_memory} }});
+        Object.defineProperty(navigator, 'languages', {{ get: () => Object.freeze([{languages_js}]) }});
+        Object.defineProperty(navigator, 'maxTouchPoints', {{ get: () => 0 }});
+
+        // ===== 2. SCREEN PROPERTIES =====
+        Object.defineProperty(screen, 'colorDepth', {{ get: () => {color_depth} }});
+        Object.defineProperty(screen, 'pixelDepth', {{ get: () => {color_depth} }});
+
+        // ===== 3. CHROME RUNTIME (pass Chrome API presence checks) =====
+        if (!window.chrome) window.chrome = {{}};
+        window.chrome.runtime = {{
+            OnInstalledReason: {{ CHROME_UPDATE: "chrome_update", INSTALL: "install", SHARED_MODULE_UPDATE: "shared_module_update", UPDATE: "update" }},
+            OnRestartRequiredReason: {{ APP_UPDATE: "app_update", OS_UPDATE: "os_update", PERIODIC: "periodic" }},
+            PlatformArch: {{ ARM: "arm", ARM64: "arm64", MIPS: "mips", MIPS64: "mips64", X86_32: "x86-32", X86_64: "x86-64" }},
+            PlatformNaclArch: {{ ARM: "arm", MIPS: "mips", MIPS64: "mips64", X86_32: "x86-32", X86_64: "x86-64" }},
+            PlatformOs: {{ ANDROID: "android", CROS: "cros", LINUX: "linux", MAC: "mac", OPENBSD: "openbsd", WIN: "win" }},
+            RequestUpdateCheckStatus: {{ ALMOST_UP_TO_DATE: "almost_up_to_date", NO_UPDATE: "no_update", THROTTLED: "throttled", UPDATE_AVAILABLE: "update_available" }},
+            connect: function() {{ return {{ onDisconnect: {{ addListener: function() {{}} }}, onMessage: {{ addListener: function() {{}} }}, postMessage: function() {{}} }} }},
+            sendMessage: function() {{}},
+            id: undefined,
+        }};
+
+        // ===== 4. WEBGL FINGERPRINT SPOOFING =====
+        (function() {{
+            const getParameterOrig = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(param) {{
+                // UNMASKED_VENDOR_WEBGL
+                if (param === 0x9245) return '{webgl_vendor}';
+                // UNMASKED_RENDERER_WEBGL
+                if (param === 0x9246) return '{webgl_renderer}';
+                return getParameterOrig.call(this, param);
+            }};
+
+            // Also patch WebGL2
+            if (typeof WebGL2RenderingContext !== 'undefined') {{
+                const getParam2Orig = WebGL2RenderingContext.prototype.getParameter;
+                WebGL2RenderingContext.prototype.getParameter = function(param) {{
+                    if (param === 0x9245) return '{webgl_vendor}';
+                    if (param === 0x9246) return '{webgl_renderer}';
+                    return getParam2Orig.call(this, param);
+                }};
+            }}
+
+            // Patch getExtension to support debug info
+            const getExtOrig = WebGLRenderingContext.prototype.getExtension;
+            WebGLRenderingContext.prototype.getExtension = function(name) {{
+                if (name === 'WEBGL_debug_renderer_info') {{
+                    return {{ UNMASKED_VENDOR_WEBGL: 0x9245, UNMASKED_RENDERER_WEBGL: 0x9246 }};
+                }}
+                return getExtOrig.call(this, name);
+            }};
+        }})();
+
+        // ===== 5. CANVAS FINGERPRINT NOISE =====
+        (function() {{
+            const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(type) {{
+                // Add subtle noise to canvas to defeat fingerprinting
+                const ctx = this.getContext('2d');
+                if (ctx && this.width > 0 && this.height > 0) {{
+                    try {{
+                        const imageData = ctx.getImageData(0, 0, Math.min(this.width, 16), Math.min(this.height, 16));
+                        for (let i = 0; i < imageData.data.length; i += 4) {{
+                            // Add ±1 noise to RGB channels (imperceptible)
+                            imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + (Math.random() > 0.5 ? 1 : -1)));
+                        }}
+                        ctx.putImageData(imageData, 0, 0);
+                    }} catch(e) {{}}
+                }}
+                return origToDataURL.apply(this, arguments);
+            }};
+
+            const origToBlob = HTMLCanvasElement.prototype.toBlob;
+            HTMLCanvasElement.prototype.toBlob = function() {{
+                const ctx = this.getContext('2d');
+                if (ctx && this.width > 0 && this.height > 0) {{
+                    try {{
+                        const imageData = ctx.getImageData(0, 0, Math.min(this.width, 16), Math.min(this.height, 16));
+                        for (let i = 0; i < imageData.data.length; i += 4) {{
+                            imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + (Math.random() > 0.5 ? 1 : -1)));
+                        }}
+                        ctx.putImageData(imageData, 0, 0);
+                    }} catch(e) {{}}
+                }}
+                return origToBlob.apply(this, arguments);
+            }};
+        }})();
+
+        // ===== 6. PLUGINS & MIME TYPES (realistic Chrome set) =====
+        Object.defineProperty(navigator, 'plugins', {{
+            get: () => {{
+                const arr = [
+                    {{ name: 'PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' }},
+                    {{ name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer', description: '' }},
+                    {{ name: 'Chromium PDF Viewer', filename: 'internal-pdf-viewer', description: '' }},
+                    {{ name: 'Microsoft Edge PDF Viewer', filename: 'internal-pdf-viewer', description: '' }},
+                    {{ name: 'WebKit built-in PDF', filename: 'internal-pdf-viewer', description: '' }},
+                ];
+                arr.item = (i) => arr[i];
+                arr.namedItem = (name) => arr.find(p => p.name === name) || null;
+                arr.refresh = () => {{}};
+                return arr;
+            }}
+        }});
+
+        // ===== 7. PERMISSIONS API SPOOFING =====
+        if (navigator.permissions) {{
+            const origQuery = navigator.permissions.query;
+            navigator.permissions.query = function(params) {{
+                if (params.name === 'notifications') {{
+                    return Promise.resolve({{ state: Notification.permission, onchange: null }});
+                }}
+                return origQuery.call(this, params);
+            }};
+        }}
+
+        // ===== 8. REMOVE AUTOMATION INDICATORS =====
+        // Remove Playwright/Puppeteer traces
+        delete window.__playwright;
+        delete window.__pw_manual;
+        delete window.__PW_inspect;
+        delete navigator.__proto__.webdriver;
+
+        // Patch toString to hide overrides
+        const nativeToString = Function.prototype.toString;
+        const customFunctions = new Set();
+        const origToString = Function.prototype.toString;
+        Function.prototype.toString = function() {{
+            if (customFunctions.has(this)) return 'function ' + (this.name || '') + '() {{ [native code] }}';
+            return origToString.call(this);
+        }};
+        """
 
     async def _screenshot(self, name: str):
         """Save a debug screenshot if enabled."""

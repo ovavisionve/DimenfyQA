@@ -388,6 +388,70 @@ async def get_notifications(unread_only: bool = False, limit: int = Query(50, le
         ]
 
 
+@app.get("/api/v1/system/ig-accounts")
+async def get_ig_accounts_status():
+    """Return Instagram account status: proxy, health, cooldowns, warm-up level."""
+    from app.services.dm_sender_service import dm_sender_service, _parse_accounts
+    from app.config import settings
+    from datetime import datetime, timezone
+
+    dm_sender_service._init_accounts()
+
+    accounts = []
+    for acc in dm_sender_service._accounts:
+        in_cooldown, cooldown_reason = acc.is_in_cooldown()
+        hourly_ok = acc._check_hourly_limit()
+
+        # Calculate warm-up progress
+        warmup_pct = 100
+        daily_limit = settings.DAILY_DM_LIMIT
+        if acc.created_at:
+            days_active = (datetime.now(timezone.utc) - acc.created_at).days
+            if days_active < settings.IG_WARMUP_DAYS:
+                warmup_pct = int((days_active / settings.IG_WARMUP_DAYS) * 100)
+                daily_limit = max(
+                    settings.IG_WARMUP_START_LIMIT,
+                    int(settings.DAILY_DM_LIMIT * days_active / settings.IG_WARMUP_DAYS),
+                )
+
+        # Mask proxy password if present
+        proxy_display = ""
+        if acc.proxy:
+            proxy_display = acc.proxy
+            # Mask password in proxy URL (format: proto://user:pass@host:port)
+            if "@" in proxy_display and ":" in proxy_display.split("@")[0]:
+                parts = proxy_display.split("@")
+                auth = parts[0]
+                host = parts[1] if len(parts) > 1 else ""
+                proto_user = auth.rsplit(":", 1)
+                proxy_display = f"{proto_user[0]}:****@{host}"
+
+        accounts.append({
+            "username": acc.username,
+            "proxy": proxy_display,
+            "logged_in": acc._logged_in,
+            "is_blocked": acc.is_blocked,
+            "in_cooldown": in_cooldown,
+            "cooldown_reason": cooldown_reason if in_cooldown else None,
+            "hourly_sends_remaining": settings.HOURLY_DM_LIMIT - len(acc._hourly_sends),
+            "daily_limit": daily_limit,
+            "warmup_percent": warmup_pct,
+            "total_sent": acc.total_sent,
+            "total_failed": acc.total_failed,
+            "challenges": acc.challenges,
+            "challenges_today": acc.challenges_today,
+            "created_at": acc.created_at.isoformat() if acc.created_at else None,
+        })
+
+    return {
+        "account_count": len(accounts),
+        "accounts": accounts,
+        "rotation_index": dm_sender_service._current_account_idx,
+        "global_daily_limit": settings.DAILY_DM_LIMIT,
+        "global_hourly_limit": settings.HOURLY_DM_LIMIT,
+    }
+
+
 @app.post("/api/v1/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str):
     """Mark a notification as read."""
