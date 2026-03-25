@@ -2988,16 +2988,11 @@
         }
 
         // ===== DM GALLERY =====
-        function renderDMGallery() {
-            const gallery = document.getElementById('dmGallery');
-            const dmLeads = getDMFilteredLeads();
-
+        function buildDMCardsHTML(dmLeads) {
             if (dmLeads.length === 0) {
-                gallery.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No DMs generated yet. Run the pipeline first.</div>';
-                return;
+                return '<div class="empty-state"><div class="empty-icon">&#x1F4AC;</div>No hay DMs generados aun. Ejecuta el pipeline primero.</div>';
             }
-
-            gallery.innerHTML = dmLeads.map(lead => {
+            return dmLeads.map(lead => {
                 const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
                 const hasB = !!lead.dm_variant_b;
                 const leadId = lead.id.replace(/-/g, '');
@@ -3026,16 +3021,31 @@
                         <div class="dm-card-meta">
                             <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
                             <span>${lead.lead_category || 'other'}</span>
-                            ${lead.research_summary ? '<span>Has research</span>' : ''}
+                            ${lead.research_summary ? '<span>Investigado</span>' : ''}
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function getDMFilteredLeads() {
-            const search = (document.getElementById('dmSearch').value || '').toLowerCase();
-            const category = document.getElementById('dmCategoryFilter').value;
+        function renderDMGallery() {
+            // Pipeline tab gallery
+            const gallery1 = document.getElementById('dmGallery');
+            if (gallery1) {
+                gallery1.innerHTML = buildDMCardsHTML(getDMFilteredLeads('dmSearch', 'dmCategoryFilter'));
+            }
+            // Standalone DMs page gallery
+            const gallery2 = document.getElementById('dmGallery2');
+            if (gallery2) {
+                gallery2.innerHTML = buildDMCardsHTML(getDMFilteredLeads('dmSearch2', 'dmCategoryFilter2'));
+            }
+        }
+
+        function getDMFilteredLeads(searchId, filterId) {
+            const searchEl = document.getElementById(searchId);
+            const filterEl = document.getElementById(filterId);
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const category = filterEl ? filterEl.value : '';
 
             return currentLeads.filter(l => {
                 if (!l.dm_message) return false;
