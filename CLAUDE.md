@@ -14,6 +14,8 @@ IG DM Engine is a Python-native platform that replaces an n8n + JarveePro workfl
 
 **Phase 5 (complete):** Operational automation. Celery Beat for periodic inbox monitoring (every 5 min) and follow-up processing (every hour). Slack notifications for campaign events, reply alerts, and account health. GitHub Actions CI/CD pipeline for automated testing on push/PR.
 
+**Phase 6 (complete):** Competitive feature parity + AI advantage. Unibox (unified inbox with AI reply suggestions), CRM Kanban (visual pipeline with dynamic scoring), pre-scraping bio keyword filter, campaign sending schedule with timezone. Next.js frontend replacing vanilla JS dashboard.
+
 ### Pipeline (6 phases)
 
 ```
@@ -46,6 +48,10 @@ Only public Instagram accounts are processed — private accounts cannot receive
 | Notifications | Slack Incoming Webhooks | Real-time alerts to Slack |
 | CI/CD | GitHub Actions | Automated tests on push/PR |
 | Containers | Docker + Docker Compose | Dev and deploy |
+| Frontend | Next.js 16 + React 19 + TypeScript | Dashboard SPA (port 3000) |
+| Styling | Tailwind CSS v4 | Dark theme, amber accents |
+| AI Reply Suggestions | Claude API (Anthropic) | 3 suggestions per conversation (close/nurture/qualify) |
+| AI Dynamic Scoring | Claude API (Anthropic) | Score delta -20 to +20 based on reply intent |
 
 ## Repository Structure
 
@@ -65,7 +71,11 @@ ig-dm-engine/
 │   ├── 005_add_follow_up_system.py       # follow_up_rules table, follow_up fields on leads
 │   ├── 006_add_webhooks_table.py         # webhooks table
 │   ├── 007_add_lead_posts_and_analysis.py # ig_posts, ig_post_analysis (JSONB)
-│   └── 008_add_users_audit_notifications.py # users, audit_logs, notifications tables
+│   ├── 008_add_users_audit_notifications.py # users, audit_logs, notifications tables
+│   ├── 009_add_comment_fields.py         # Comment DM fields on leads
+│   ├── 010_add_campaign_task_tracking.py  # celery_task_id, last_phase on campaigns
+│   ├── 011_add_unibox_tables.py          # conversation_messages, reply_suggestions tables
+│   └── 012_add_crm_tables.py             # crm_stage on leads, lead_notes, score_history tables
 ├── app/
 │   ├── main.py                    # FastAPI entry point + inline notification endpoints
 │   ├── config.py                  # Settings (pydantic-settings) — includes Slack config
@@ -75,23 +85,30 @@ ig-dm-engine/
 │   │   ├── base.py                # Base, TimestampMixin, UUIDMixin
 │   │   ├── client.py, campaign.py, lead.py, message.py, scrape_job.py
 │   │   ├── follow_up_rule.py, webhook.py
-│   │   └── user.py                # User, AuditLog, Notification models
+│   │   ├── user.py                # User, AuditLog, Notification models
+│   │   ├── conversation_message.py # Phase 6: Unibox message history
+│   │   ├── reply_suggestion.py    # Phase 6: AI reply suggestions (JSONB)
+│   │   └── crm.py                 # Phase 6: LeadNote, ScoreHistory
 │   ├── schemas/                   # Pydantic request/response schemas
-│   │   ├── enums.py               # CampaignStatus, LeadStatus, SourceType, LeadCategory, ConversationStatus, ReplyClassification
+│   │   ├── enums.py               # CampaignStatus, LeadStatus, SourceType, LeadCategory, ConversationStatus, ReplyClassification, CrmStage
 │   │   ├── client.py, campaign.py, lead.py, message.py
 │   ├── api/endpoints/             # FastAPI route handlers
 │   │   ├── clients.py, campaigns.py, leads.py, messages.py
 │   │   ├── scraping.py, export.py
+│   │   ├── unibox.py              # Phase 6: 8 Unibox endpoints
+│   │   ├── crm.py                 # Phase 6: 6 CRM endpoints
 │   ├── services/                  # Business logic
 │   │   ├── apify_service.py       # Apify multi-actor scraping (~400 lines)
 │   │   ├── scoring_service.py     # Claude batch scoring (~250 lines) — filters private accounts
 │   │   ├── copywriting_service.py # Claude DM batch generation (~410 lines)
 │   │   ├── research_service.py    # Gemini/Perplexity research (~240 lines)
-│   │   ├── dm_sender_service.py   # Instagram DM sending with full security (~530 lines)
+│   │   ├── dm_sender_service.py   # Instagram DM sending with full security (~570 lines) + sending schedule
 │   │   ├── content_analysis_service.py # Multimodal content analysis (~300 lines)
 │   │   ├── notification_service.py # In-app + Slack dual-channel notifications
 │   │   ├── webhook_service.py     # Webhook event triggers
-│   │   └── export_service.py      # CSV/JSON/Excel export (~160 lines)
+│   │   ├── export_service.py      # CSV/JSON/Excel export (~160 lines)
+│   │   ├── unibox_service.py      # Phase 6: Unified inbox + AI reply suggestions (~450 lines)
+│   │   └── crm_service.py         # Phase 6: Kanban pipeline + dynamic scoring (~350 lines)
 │   ├── tasks/                     # Celery tasks + pipeline orchestration
 │   │   ├── celery_app.py          # Celery config + Beat schedule (inbox 5min, follow-ups 1hr)
 │   │   ├── base.py, pipeline.py
@@ -102,8 +119,31 @@ ig-dm-engine/
 │   │   └── followup_tasks.py      # check_all_follow_ups_task (Beat) + process_follow_ups_task
 │   ├── utils/                     # Dedup, text cleanup
 │   └── static/
-│       └── dashboard.html         # Frontend SPA (~2,760 lines, vanilla JS)
-├── tests/                         # 12+ test files
+│       └── dashboard.html         # Legacy SPA (~2,760 lines, vanilla JS) — replaced by Next.js
+├── frontend/                      # Next.js 16 dashboard (port 3000)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout.tsx, page.tsx          # Root layout + redirect
+│   │   │   ├── login/page.tsx                # Login/Register
+│   │   │   └── (dashboard)/                  # Auth-guarded dashboard routes
+│   │   │       ├── layout.tsx                # Sidebar + main layout
+│   │   │       ├── pipeline/page.tsx         # Campaign management (~1,600 lines)
+│   │   │       ├── dms/page.tsx              # Generated DMs display
+│   │   │       ├── comments/page.tsx         # Comment generation
+│   │   │       ├── clients/page.tsx          # Client CRUD
+│   │   │       ├── settings/page.tsx         # System settings
+│   │   │       ├── logs/page.tsx             # Real-time WebSocket logs
+│   │   │       ├── health/page.tsx           # System health + audit logs
+│   │   │       ├── unibox/page.tsx           # Phase 6: Unified inbox
+│   │   │       └── crm/page.tsx              # Phase 6: CRM Kanban
+│   │   ├── components/layout/sidebar.tsx     # Sidebar navigation
+│   │   └── lib/
+│   │       ├── api.ts                        # API helper with JWT auth
+│   │       ├── auth.ts                       # Auth state (localStorage)
+│   │       └── cn.ts                         # Tailwind class merge utility
+│   ├── package.json, tsconfig.json
+│   └── next.config.ts
+├── tests/                         # 16 test files, 200+ tests
 │   ├── conftest.py
 │   ├── test_api.py, test_clients.py, test_enums.py
 │   ├── test_scoring.py            # ✅ 17 tests (batch scoring, auto-score, edge cases)
@@ -111,6 +151,10 @@ ig-dm-engine/
 │   ├── test_dm_sender.py          # ✅ Phase 2 tests (62 passed, 3 skipped)
 │   ├── test_export.py, test_research.py
 │   ├── test_tasks_config.py, test_utils.py
+│   ├── test_unibox.py             # ✅ 19 tests (conversations, threads, AI suggestions, reply)
+│   ├── test_crm.py                # ✅ 32 tests (auto-classify, dynamic scoring, move, notes)
+│   ├── test_bio_keywords.py       # ✅ 10 tests (keyword filtering logic)
+│   ├── test_sending_schedule.py   # ✅ 13 tests (timezone, overnight, boundaries)
 └── scripts/
     ├── seed_db.py                 # Test data (1 client, 1 campaign, 3 leads)
     ├── clean_and_seed.py          # Reset DB + seed
@@ -144,11 +188,17 @@ alembic upgrade head
 # Create a new migration
 alembic revision --autogenerate -m "description"
 
-# Run tests
-pytest
+# Run Next.js frontend (port 3000)
+cd frontend && npm run dev
+
+# Build Next.js frontend
+cd frontend && npx next build
+
+# Run tests (use tests/ dir to avoid scripts/)
+python -m pytest tests/
 
 # Run tests with coverage
-pytest --cov=app
+python -m pytest tests/ --cov=app
 
 # Seed database with test data
 python scripts/seed_db.py
@@ -249,7 +299,7 @@ Runs on every push to `main`/`develop` and on PRs:
 1. Spins up PostgreSQL 16 + Redis 7 as service containers
 2. Installs Python 3.11 + dependencies
 3. Runs Alembic migrations
-4. Runs pytest (84+ tests)
+4. Runs pytest (200+ tests)
 
 ## Key Conventions
 
@@ -270,13 +320,15 @@ Runs on every push to `main`/`develop` and on PRs:
 - Deduplication via UNIQUE constraint on `(client_id, ig_username)`
 - Alembic for all schema changes — never modify DB directly
 - Lead model has 6+ indexes: campaign, client, status, score, username, delivery_status, send_attempts, conversation_status, next_follow_up_at + unique constraint
-- 8 migrations total (001-008)
+- 12 migrations total (001-012)
 
 ### AI Services
 - **Scoring**: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — batch mode, 20 leads per API call, returns JSON array with score 0-100, reason, category, bio_clean. Private accounts are auto-scored 0 without API call. Leads with no data (no bio, no followers, no name) are also auto-scored 0.
 - **Copywriting**: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — batch mode (5 leads/call) with individual fallback if batch fails. Generates variant A + B in one call.
 - **Research**: Google Gemini (`gemini-2.0-flash`) preferred, Perplexity sonar fallback — only for leads with score >= 60. If no API key configured, research is skipped and leads marked as researched.
 - DMs only generated for leads with score >= 70
+- **Reply Suggestions**: Claude Sonnet 4.6 — generates 3 reply suggestions per conversation (close/nurture/qualify) with full context (conversation, lead info, campaign, client prompts)
+- **Dynamic Scoring**: Claude Sonnet 4.6 — evaluates purchase intent from replies, returns score delta -20 to +20 with reason. Stored in `score_history` table.
 
 ### Task Pipeline
 - Celery chains: scrape → score → research → write DMs → send DMs
@@ -328,8 +380,9 @@ Runs on every push to `main`/`develop` and on PRs:
 
 #### Sending Pipeline Flow
 ```
-1. Check daily limit not exceeded
-2. Query leads: status in (dm_ready, retry), send_attempts < 3, ig_is_private != True, ordered by score DESC
+1. Check sending schedule (if configured) — pause if outside hours for campaign timezone
+2. Check daily limit not exceeded
+3. Query leads: status in (dm_ready, retry), send_attempts < 3, ig_is_private != True, ordered by score DESC
 3. For each lead:
    a. Pre-send check: verify target is public (real-time instagrapi check)
    b. Select DM variant: A/B test random assignment, or switch variant on retry
@@ -364,7 +417,7 @@ Runs on every push to `main`/`develop` and on PRs:
 - MUST `commit()` (not `flush()`) before calling `update_progress()` to avoid deadlocks (row lock held by session 1, update_progress opens session 2 on same row)
 - `sync_update_progress()` exists for ThreadPoolExecutor callbacks (creates its own event loop per thread)
 - Model names must be exact — wrong model name causes silent failures (errors caught by safe wrappers)
-- **Tests fixed**: `test_scoring.py` and `test_copywriting.py` have been updated to match batch API methods. All 103 tests pass (3 skipped for encryption in non-Docker env).
+- **Tests fixed**: `test_scoring.py` and `test_copywriting.py` have been updated to match batch API methods. 192+ tests pass (3 skipped for encryption in non-Docker env).
 - **Pre-existing test failures**: `test_dm_sender.py::test_ig_username_default_empty` fails when `.env` has `IG_USERNAME` set; `test_research.py::test_research_lead_returns_text` has a KeyError. Both are environment-dependent, not code bugs.
 - **"followers" Apify actor**: Currently maps to profile scraper (free-tier fallback), not actual followers list
 - **Research API key check**: Uses `len(key.strip()) >= 20` validation (previously used brittle `"XXXXX" not in` check)
@@ -380,10 +433,16 @@ Runs on every push to `main`/`develop` and on PRs:
 - pytest + pytest-asyncio for async tests
 - Mock external APIs (Anthropic, Gemini, Perplexity, Apify, instagrapi) in tests
 - Test files mirror source structure: `tests/test_scoring.py`, etc.
+- **Run with `python -m pytest tests/`** (not bare `pytest` — avoids picking up `scripts/test_ig_login.py`)
 - `test_dm_sender.py` — 62 passed, 3 skipped (encryption tests require working `cryptography` package)
 - `test_scoring.py` — 17 tests covering batch scoring, auto-score for empty/private profiles, progress callbacks, API failure handling
 - `test_copywriting.py` — 21 tests covering single DM generation, batch DMs, write_dms_batch with campaign/client mocks, progress callbacks
+- `test_unibox.py` — 19 tests covering conversations, threads, AI suggestions, reply sending, suggestion marking
+- `test_crm.py` — 32 tests covering auto-classify stages, dynamic scoring, move lead, notes, board stats, score history
+- `test_bio_keywords.py` — 10 tests covering keyword filtering (single/multiple, case-insensitive, empty bios, partial match)
+- `test_sending_schedule.py` — 13 tests covering timezone checks, overnight schedules, boundary conditions
 - GitHub Actions CI runs on push to main/develop and on PRs
+- **Total: 200+ tests** (192 passed, 8 pre-existing env-dependent failures, 3 skipped)
 
 ## API Keys & Secrets
 - **NEVER** commit API keys or secrets to the repository
@@ -396,17 +455,18 @@ Runs on every push to `main`/`develop` and on PRs:
 - Apify rate limits must be respected per client plan
 - Profile scraping uses synchronous Apify endpoint (`run-sync-get-dataset-items`)
 - The n8n workflow reference is in `Instagram_DM_Engine_-_Step_1.json`
-- Frontend dashboard is in `static/` directory, served by FastAPI as static files
+- **Primary frontend** is Next.js at `frontend/` (port 3000). Legacy vanilla JS SPA at `app/static/dashboard.html` still exists but is no longer the primary UI.
+- Backend API runs on port 1000. Frontend `NEXT_PUBLIC_API_URL` defaults to `http://localhost:1000`.
 - Campaign progress is polled by frontend via `/api/v1/campaigns/{id}` endpoint
 - Scripts: `scripts/seed_db.py` (test data), `scripts/clean_and_seed.py` (reset DB), `scripts/create_100_campaign.py` (100-lead test campaign)
 - `instagrapi` simulates the Instagram mobile app — not officially supported by Meta. Use at your own risk.
 - Always use residential proxies for Instagram accounts to avoid detection
 
-## Phase 6 (in progress): Competitive Feature Parity + AI Advantage
+## Phase 6 (complete): Competitive Feature Parity + AI Advantage
 
-**Goal:** Match and surpass ColdDMs ($99/mo competitor) with 4 new features, each leveraging AI to go beyond basic functionality. ColdDMs uses a Chrome extension (requires PC on); we run on Docker 24/7. ColdDMs has basic inbox and CRM; ours will have AI-assisted replies and dynamic scoring.
+**Goal:** Match and surpass ColdDMs ($99/mo competitor) with 4 new features, each leveraging AI to go beyond basic functionality. ColdDMs uses a Chrome extension (requires PC on); we run on Docker 24/7. ColdDMs has basic inbox and CRM; ours has AI-assisted replies and dynamic scoring.
 
-**Order of implementation:** Feature 1 → 2 → 3 → 4 (Unibox closes sales, CRM shows value, Keywords/Schedules optimize).
+**All 4 features implemented with 74 new tests.** Next.js frontend pages created for all features.
 
 ### Feature 1: UNIBOX — Unified Inbox with AI-Assisted Replies
 
@@ -434,20 +494,17 @@ Unified view of ALL conversations across ALL Instagram accounts. Users read full
   - New table `reply_suggestions` (id, lead_id, suggestions JSONB, generated_at, was_used boolean)
   - `crm_stage` field on lead model (shared with Feature 2)
 - **Integration:** inbox_tasks.py → on new reply → call `auto_suggest_on_new_reply()` to pre-generate suggestions
-- **Migration:** Alembic 009
+- **Migration:** Alembic 011 (conversation_messages + reply_suggestions tables)
 
-**Frontend — "Unibox" tab in dashboard:**
-- 2-panel layout: conversation list (left) + thread (right)
-- Conversation list: avatar/initials, username, last message preview, unread badge, timestamp, score badge (color-coded), crm_stage badge
-- Filter bar: campaign, account, status, classification, text search
-- Sort: most recent, unread first, highest score
-- Thread: WhatsApp-style chat bubbles (sent = amber right, received = dark gray left)
-- Thread header: username, score, crm_stage, view full profile button
-- Reply input at bottom with send button
-- **AI Suggestions section** above input: 3 clickable cards (Close/Nurture/Qualify) with message preview. Click → loads into input for edit/send. "Regenerate" button if none fit
-- Unread counter badge in sidebar (poll every 30s)
-- IG account indicator showing which account will send the reply
-- Dark theme, amber accents, Space Grotesk font
+**Frontend — Next.js `/unibox` page (`frontend/src/app/(dashboard)/unibox/page.tsx`):**
+- 2-panel layout: conversation list (left, 384px) + thread (right)
+- Conversation list: avatar/initials, username, last message preview, timestamp, score badge (color-coded), classification badge, crm_stage badge
+- Filter bar: search, classification dropdown, status dropdown, sort (recent/score/unread)
+- Thread: WhatsApp-style chat bubbles (sent = amber right, received = white left)
+- Thread header: username, score, crm_stage, bio
+- Reply input at bottom with Enter-to-send
+- **AI Suggestions section** above input: 3 clickable cards (Close/Nurture/Qualify) with message preview. Click loads into input for edit/send. "Regenerate" button
+- **Tests:** 19 tests in `tests/test_unibox.py`
 
 ### Feature 2: CRM KANBAN — Visual Pipeline with Dynamic Scoring
 
@@ -485,63 +542,53 @@ Kanban board where users drag leads between funnel stages. Lead scores update au
   - `crm_stage` enum on lead: `new`, `contacted`, `replied`, `interested`, `call_scheduled`, `closed_won`, `closed_lost`
   - New table `lead_notes` (id, lead_id, user_id, content, created_at)
   - New table `score_history` (id, lead_id, old_score, new_score, delta, reason, created_at)
-  - Migration: Alembic 010
+  - Migration: Alembic 012 (crm_stage on leads, lead_notes, score_history tables)
 - **Integration:**
   - dm_sender_service → on DM sent → `auto_classify_stage` → `contacted`
-  - inbox_service → on reply → `auto_classify_stage` + `update_conversation_score`
-  - inbox_service → positive classification → `interested`
+  - inbox_tasks.py → on reply → `auto_classify_stage` + `update_conversation_score`
+  - inbox_tasks.py → positive classification → `interested`
 
-**Frontend — "CRM" tab in dashboard:**
+**Frontend — Next.js `/crm` page (`frontend/src/app/(dashboard)/crm/page.tsx`):**
 - Kanban columns: Nuevo → Contactado → Respondió → Interesado → Llamada Agendada → Cerrado (Ganado) → Cerrado (Perdido)
-- Lead cards: avatar/initials, username, score badge (green >70, amber 40-70, red <40), score trend (↑↓=), last message preview, timestamp
-- HTML5 Drag & Drop (no external libraries)
-- Click card → side panel with full detail: score evolution mini-chart, bio, research, conversation history, score history timeline, team notes, "Open in Unibox" button
+- Lead cards: username, score badge (green >70, amber 40-70, red <40), last message preview, category
+- HTML5 Drag & Drop (no external libraries) — drag card between columns
+- Click card → side panel overlay with full detail: score + trend, bio, research, conversation history, score history timeline, team notes with add form, "Open in Unibox" link
 - Column counters + avg score per column
-- Campaign filter
+- Campaign filter dropdown
 - Top bar metrics: total leads, response rate, interest rate, closed count
-- Dark theme, amber accents
+- **Tests:** 32 tests in `tests/test_crm.py`
 
 ### Feature 3: Pre-Scraping Bio Keyword Filter
 
 Filter leads BEFORE AI scoring to save API costs. User defines keywords that MUST appear in lead's bio.
 
 **Backend:**
-- Modify `app/services/apify_service.py`:
-  - Add `bio_keywords` parameter to scraping function
-  - After Apify results, before scoring: if keywords defined, keep only leads with at least one keyword in bio (case-insensitive)
-  - Log how many leads were filtered out
-- Add `bio_keywords` field (JSON array) to campaign model
-- Pass keywords through pipeline to scraping phase
-- Migration: part of 009 or 010
+- Bio keyword filter in `app/tasks/scraping_tasks.py` — after Apify results, before `save_leads()`: if `campaign.settings.bio_keywords` defined, keep only profiles with at least one keyword in bio (case-insensitive substring match). Logs filtered count.
+- No migration needed — uses existing `campaign.settings` JSONB field
 
-**Frontend:**
-- In campaign creation/edit: "Bio Keyword Filter" section
-- Tag input: type keyword → Enter → chip/badge appears
+**Frontend — campaign creation modal in Pipeline page:**
+- Tag input: type keyword → Enter or comma → amber chip/badge appears
 - X button on each chip to remove
-- Help text: "Only leads with at least one of these words in their Instagram bio will be processed. Leave empty to process all."
-- Position between scraping config and execute button
+- "+" button to add
+- Help text: "Solo se procesarán leads que tengan al menos una de estas palabras en su bio. Dejar vacío para procesar todos."
+- Stored in `settings.bio_keywords` array
+- **Tests:** 10 tests in `tests/test_bio_keywords.py`
 
 ### Feature 4: Campaign Sending Schedule with Timezone
 
 Per-campaign sending hours with timezone support. DMs only sent during configured hours.
 
 **Backend:**
-- Add to campaign model:
-  - `sending_hours_start` (time, default 09:00)
-  - `sending_hours_end` (time, default 21:00)
-  - `sending_timezone` (string, default "America/Caracas")
-- Modify `app/services/dm_sender_service.py`:
-  - Before each DM: check if current time (in campaign timezone) is within allowed range
-  - If outside hours → don't send, re-enqueue for next available slot
-  - Log when sends are postponed
-- Migration: part of 009 or 010
+- Sending schedule check in `app/services/dm_sender_service.py` `send_campaign_dms()` — before daily limit check, reads `sending_hours_start`, `sending_hours_end`, `sending_timezone` from `campaign.settings`. Uses `zoneinfo.ZoneInfo` for timezone conversion. Returns paused with reason if outside hours. Supports overnight schedules (e.g., 22:00-06:00).
+- No migration needed — uses existing `campaign.settings` JSONB field
 
-**Frontend:**
-- In campaign creation/edit: "Sending Schedule" section
-- Two time selectors: "From" and "To" (dropdowns, 30-min intervals)
-- Timezone dropdown (common LATAM, US, Europe zones)
-- Preview: "DMs will be sent between 9:00 AM and 9:00 PM (Caracas time)"
-- Position after campaign name/description
+**Frontend — campaign creation modal in Pipeline page:**
+- Checkbox toggle "Horario de envío" to enable/disable
+- Two time selectors: "Desde" and "Hasta" (dropdowns, 30-min intervals, 00:00-23:30)
+- Timezone dropdown: Caracas, Bogotá, Lima, CDMX, Buenos Aires, Santiago, São Paulo, New York, Los Angeles, Madrid, London
+- Preview text: "Los DMs se enviarán entre {start} y {end} (hora {timezone})"
+- Stored in `settings.sending_hours_start`, `settings.sending_hours_end`, `settings.sending_timezone`
+- **Tests:** 13 tests in `tests/test_sending_schedule.py`
 
 ### Competitive Advantages to Leverage
 
@@ -561,16 +608,18 @@ Per-campaign sending hours with timezone support. DMs only sent during configure
 - [x] Slack notifications (campaign completed/paused, reply received, account blocked)
 - [x] GitHub Actions CI/CD pipeline
 - [x] In-app notification center with dashboard dropdown
-
-### In Progress (Phase 6)
-- [ ] Unibox — Unified inbox with AI-assisted replies
-- [ ] CRM Kanban — Visual pipeline with dynamic scoring
-- [ ] Pre-scraping bio keyword filter
-- [ ] Campaign sending schedule with timezone
+- [x] Unibox — Unified inbox with AI-assisted replies (Phase 6)
+- [x] CRM Kanban — Visual pipeline with dynamic scoring (Phase 6)
+- [x] Pre-scraping bio keyword filter (Phase 6)
+- [x] Campaign sending schedule with timezone (Phase 6)
+- [x] Next.js frontend — 9 pages replacing vanilla JS SPA (Phase 6)
 
 ### TODO (Future)
-- [ ] Next.js dashboard (currently vanilla JS SPA — functional but not production-grade for SaaS)
 - [ ] User onboarding flow (guided setup wizard for new clients)
 - [ ] API documentation (auto-generated Swagger is available at /docs, but needs customer-facing docs)
 - [ ] WhatsApp notifications (complement Slack for mobile-first clients)
 - [ ] Stripe billing integration (usage-based pricing per client)
+- [ ] Email notifications (complement Slack + in-app)
+- [ ] Campaign templates (pre-built configs for common use cases)
+- [ ] Lead import/export (CSV upload to add leads manually)
+- [ ] Multi-language support (currently Spanish-first UI)
