@@ -16,6 +16,7 @@ import {
   Sparkles,
   Loader2,
   Clock,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -45,9 +46,18 @@ interface Lead {
   dm_variant_b: string | null;
   delivery_status: string | null;
   dm_variant_used: string | null;
+  replied_at: string | null;
+  reply_text: string | null;
+  reply_classification: string | null;
 }
 
-type TabKey = "stats" | "leads" | "dms" | "analytics" | "ab_testing" | "content" | "export";
+type TabKey = "stats" | "leads" | "dms" | "inbox" | "analytics" | "ab_testing" | "content" | "export";
+
+interface RepliesResponse {
+  campaign_id: string;
+  total_replies: number;
+  leads: Lead[];
+}
 
 interface FunnelStep {
   name: string;
@@ -153,6 +163,8 @@ export default function PipelinePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
+  const [replies, setReplies] = useState<Lead[]>([]);
+  const [replyFilter, setReplyFilter] = useState("");
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -256,12 +268,20 @@ export default function PipelinePage() {
         .then(setAbResults)
         .catch(() => {});
     }
+    if (tab === "inbox") {
+      const url = replyFilter
+        ? `/api/v1/campaigns/${selected.id}/replies?classification=${replyFilter}`
+        : `/api/v1/campaigns/${selected.id}/replies`;
+      api<RepliesResponse>(url)
+        .then((r) => setReplies(r.leads || []))
+        .catch(() => setReplies([]));
+    }
     if (tab === "content" && !contentAnalysis) {
       api<{ analysis: ContentAnalysis | null }>(`/api/v1/content/campaign/${selected.id}`)
         .then((r) => { if (r.analysis) setContentAnalysis(r.analysis); })
         .catch(() => {});
     }
-  }, [tab, selected, analytics, abResults, contentAnalysis]);
+  }, [tab, selected, analytics, abResults, contentAnalysis, replyFilter]);
 
   // Reset tab data when campaign changes
   useEffect(() => {
@@ -566,6 +586,7 @@ export default function PipelinePage() {
             { key: "stats" as TabKey, label: "Resumen" },
             { key: "leads" as TabKey, label: "Leads" },
             { key: "dms" as TabKey, label: "DMs" },
+            { key: "inbox" as TabKey, label: "Inbox" },
             { key: "analytics" as TabKey, label: "Analytics" },
             { key: "ab_testing" as TabKey, label: "A/B Testing" },
             { key: "content" as TabKey, label: "Content Analysis" },
@@ -802,6 +823,130 @@ export default function PipelinePage() {
                 )}
               </div>
             ))}
+        </div>
+      )}
+
+      {/* ═══ Inbox Tab ═══ */}
+      {selected && tab === "inbox" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <Inbox size={16} className="text-amber-600" />
+              Respuestas Recibidas ({replies.length})
+            </h3>
+            <select
+              value={replyFilter}
+              onChange={(e) => setReplyFilter(e.target.value)}
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+            >
+              <option value="">Todas</option>
+              <option value="positive">Positivas</option>
+              <option value="negative">Negativas</option>
+              <option value="question">Preguntas</option>
+              <option value="spam">Spam</option>
+            </select>
+          </div>
+
+          {/* Classification summary */}
+          {replies.length > 0 && (
+            <div className="grid grid-cols-4 gap-3">
+              {(["positive", "negative", "question", "spam"] as const).map((cls) => {
+                const count = replies.filter((r) => r.reply_classification === cls).length;
+                const colors: Record<string, string> = {
+                  positive: "text-emerald-600 bg-emerald-50 border-emerald-200",
+                  negative: "text-red-600 bg-red-50 border-red-200",
+                  question: "text-blue-600 bg-blue-50 border-blue-200",
+                  spam: "text-zinc-500 bg-zinc-50 border-zinc-200",
+                };
+                return (
+                  <button
+                    key={cls}
+                    onClick={() => setReplyFilter(replyFilter === cls ? "" : cls)}
+                    className={cn(
+                      "rounded-lg border p-3 text-center transition-colors",
+                      replyFilter === cls ? colors[cls] : "border-zinc-200 bg-white hover:bg-zinc-50"
+                    )}
+                  >
+                    <p className={cn("text-2xl font-bold", replyFilter === cls ? "" : "text-zinc-900")}>{count}</p>
+                    <p className="text-xs capitalize">{cls === "question" ? "Preguntas" : cls === "positive" ? "Positivas" : cls === "negative" ? "Negativas" : "Spam"}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Reply cards */}
+          {replies.length === 0 ? (
+            <div className="text-center py-16 text-zinc-400">
+              <Inbox size={40} className="mx-auto mb-3 opacity-40" />
+              <p>No hay respuestas {replyFilter ? `clasificadas como "${replyFilter}"` : "todavía"}.</p>
+              <p className="text-sm mt-1">Las respuestas aparecen cuando el inbox monitor detecta replies.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {replies.map((lead) => {
+                const clsColors: Record<string, string> = {
+                  positive: "border-l-emerald-500",
+                  negative: "border-l-red-500",
+                  question: "border-l-blue-500",
+                  spam: "border-l-zinc-400",
+                };
+                return (
+                  <div
+                    key={lead.id}
+                    className={cn(
+                      "rounded-lg border border-zinc-200 bg-white p-4 border-l-4",
+                      clsColors[lead.reply_classification || ""] || "border-l-zinc-300"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-900">@{lead.ig_username}</span>
+                        {lead.score !== null && (
+                          <span className={cn(
+                            "rounded-full h-6 w-6 flex items-center justify-center text-[10px] font-bold",
+                            (lead.score || 0) >= 70 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          )}>
+                            {lead.score}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {lead.reply_classification && (
+                          <span className={cn(
+                            "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                            lead.reply_classification === "positive" ? "bg-emerald-100 text-emerald-700" :
+                            lead.reply_classification === "negative" ? "bg-red-100 text-red-700" :
+                            lead.reply_classification === "question" ? "bg-blue-100 text-blue-700" :
+                            "bg-zinc-100 text-zinc-600"
+                          )}>
+                            {lead.reply_classification}
+                          </span>
+                        )}
+                        {lead.replied_at && (
+                          <span className="text-[11px] text-zinc-400">
+                            {new Date(lead.replied_at).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Original DM sent */}
+                    {lead.dm_message && (
+                      <div className="rounded-md bg-zinc-50 p-2.5 text-xs text-zinc-500 mb-2">
+                        <span className="font-medium text-zinc-400">Tu DM:</span> {lead.dm_message}
+                      </div>
+                    )}
+                    {/* Reply */}
+                    {lead.reply_text && (
+                      <div className="rounded-md bg-amber-50 border border-amber-100 p-2.5 text-sm text-zinc-800">
+                        <span className="font-medium text-amber-600">Respuesta:</span> {lead.reply_text}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
