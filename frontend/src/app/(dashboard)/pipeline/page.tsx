@@ -194,6 +194,12 @@ export default function PipelinePage() {
     source_value: "",
     max_leads: 50,
   });
+  const [bioKeywords, setBioKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [sendingStart, setSendingStart] = useState("09:00");
+  const [sendingEnd, setSendingEnd] = useState("21:00");
+  const [sendingTimezone, setSendingTimezone] = useState("America/Caracas");
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -363,14 +369,31 @@ export default function PipelinePage() {
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    const campaignSettings: Record<string, unknown> = {};
+    if (bioKeywords.length > 0) campaignSettings.bio_keywords = bioKeywords;
+    if (scheduleEnabled) {
+      campaignSettings.sending_hours_start = sendingStart;
+      campaignSettings.sending_hours_end = sendingEnd;
+      campaignSettings.sending_timezone = sendingTimezone;
+    }
+    const payload = {
+      ...newCampaign,
+      settings: campaignSettings,
+    };
     const data = await api<Campaign>("/api/v1/campaigns/", {
       method: "POST",
-      body: JSON.stringify(newCampaign),
+      body: JSON.stringify(payload),
     });
     setCampaigns((prev) => [data, ...prev]);
     setSelected(data);
     setShowNew(false);
     setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
+    setBioKeywords([]);
+    setKeywordInput("");
+    setScheduleEnabled(false);
+    setSendingStart("09:00");
+    setSendingEnd("21:00");
+    setSendingTimezone("America/Caracas");
   };
 
   // Stats
@@ -432,6 +455,53 @@ export default function PipelinePage() {
             className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4"
           >
             <h2 className="text-lg font-semibold">Nueva Campaña</h2>
+
+            {/* Template Selector */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">
+                Plantilla (opcional)
+              </label>
+              <select
+                onChange={async (e) => {
+                  const tid = e.target.value;
+                  if (!tid) return;
+                  try {
+                    const tpl = await api<{
+                      id: string;
+                      name: string;
+                      source_type: string;
+                      suggested_source_value: string;
+                      settings: Record<string, unknown>;
+                    }>(`/api/v1/templates/${tid}`);
+                    setNewCampaign((prev) => ({
+                      ...prev,
+                      name: prev.name || tpl.name,
+                      source_type: tpl.source_type || prev.source_type,
+                      source_value: tpl.suggested_source_value || prev.source_value,
+                      max_leads: (tpl.settings.max_leads as number) || prev.max_leads,
+                    }));
+                    if (tpl.settings.bio_keywords) setBioKeywords(tpl.settings.bio_keywords as string[]);
+                    if (tpl.settings.sending_hours_start) {
+                      setScheduleEnabled(true);
+                      setSendingStart(tpl.settings.sending_hours_start as string);
+                      setSendingEnd(tpl.settings.sending_hours_end as string);
+                      setSendingTimezone(tpl.settings.sending_timezone as string);
+                    }
+                  } catch { /* ignore */ }
+                  e.target.value = "";
+                }}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+              >
+                <option value="">Seleccionar plantilla...</option>
+                <option value="agency_outreach">Agencias de Marketing</option>
+                <option value="coach_outreach">Coaches y Consultores</option>
+                <option value="ecommerce_outreach">E-Commerce / Tiendas Online</option>
+                <option value="saas_outreach">SaaS / Software</option>
+                <option value="restaurant_outreach">Restaurantes y Comida</option>
+                <option value="fitness_outreach">Fitness y Bienestar</option>
+              </select>
+            </div>
+
             <input
               placeholder="Nombre de la campaña"
               value={newCampaign.name}
@@ -473,6 +543,133 @@ export default function PipelinePage() {
               onChange={(e) => setNewCampaign({ ...newCampaign, max_leads: parseInt(e.target.value) || 50 })}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             />
+
+            {/* Bio Keyword Filter */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">
+                Filtro por palabras clave en bio
+              </label>
+              <div className="flex gap-2">
+                <input
+                  placeholder="Ej: coach, marketing, agency..."
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const kw = keywordInput.trim().replace(/,/g, "");
+                      if (kw && !bioKeywords.includes(kw)) {
+                        setBioKeywords([...bioKeywords, kw]);
+                      }
+                      setKeywordInput("");
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const kw = keywordInput.trim().replace(/,/g, "");
+                    if (kw && !bioKeywords.includes(kw)) {
+                      setBioKeywords([...bioKeywords, kw]);
+                    }
+                    setKeywordInput("");
+                  }}
+                  className="rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
+                >
+                  +
+                </button>
+              </div>
+              {bioKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {bioKeywords.map((kw) => (
+                    <span
+                      key={kw}
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-medium"
+                    >
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setBioKeywords(bioKeywords.filter((k) => k !== kw))}
+                        className="hover:text-red-600 text-amber-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Solo se procesarán leads que tengan al menos una de estas palabras en su bio. Dejar vacío para procesar todos.
+              </p>
+            </div>
+
+            {/* Sending Schedule */}
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 mb-2">
+                <input
+                  type="checkbox"
+                  checked={scheduleEnabled}
+                  onChange={(e) => setScheduleEnabled(e.target.checked)}
+                  className="rounded border-zinc-300 accent-amber-500"
+                />
+                Horario de envío
+              </label>
+              {scheduleEnabled && (
+                <div className="space-y-2 pl-5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500 w-10">Desde</span>
+                    <select
+                      value={sendingStart}
+                      onChange={(e) => setSendingStart(e.target.value)}
+                      className="flex-1 rounded-md border border-zinc-200 px-2 py-1.5 text-sm"
+                    >
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const h = String(Math.floor(i / 2)).padStart(2, "0");
+                        const m = i % 2 === 0 ? "00" : "30";
+                        return <option key={`s${i}`} value={`${h}:${m}`}>{`${h}:${m}`}</option>;
+                      })}
+                    </select>
+                    <span className="text-xs text-zinc-500 w-10">Hasta</span>
+                    <select
+                      value={sendingEnd}
+                      onChange={(e) => setSendingEnd(e.target.value)}
+                      className="flex-1 rounded-md border border-zinc-200 px-2 py-1.5 text-sm"
+                    >
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const h = String(Math.floor(i / 2)).padStart(2, "0");
+                        const m = i % 2 === 0 ? "00" : "30";
+                        return <option key={`e${i}`} value={`${h}:${m}`}>{`${h}:${m}`}</option>;
+                      })}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500 w-10">Zona</span>
+                    <select
+                      value={sendingTimezone}
+                      onChange={(e) => setSendingTimezone(e.target.value)}
+                      className="flex-1 rounded-md border border-zinc-200 px-2 py-1.5 text-sm"
+                    >
+                      <option value="America/Caracas">Caracas (VET -04:00)</option>
+                      <option value="America/Bogota">Bogotá (COT -05:00)</option>
+                      <option value="America/Lima">Lima (PET -05:00)</option>
+                      <option value="America/Mexico_City">Ciudad de México (CST -06:00)</option>
+                      <option value="America/Argentina/Buenos_Aires">Buenos Aires (ART -03:00)</option>
+                      <option value="America/Santiago">Santiago (CLT -04:00)</option>
+                      <option value="America/Sao_Paulo">São Paulo (BRT -03:00)</option>
+                      <option value="America/New_York">New York (EST -05:00)</option>
+                      <option value="America/Los_Angeles">Los Angeles (PST -08:00)</option>
+                      <option value="Europe/Madrid">Madrid (CET +01:00)</option>
+                      <option value="Europe/London">London (GMT +00:00)</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-zinc-400">
+                    Los DMs se enviarán entre {sendingStart} y {sendingEnd} (hora {sendingTimezone.split("/").pop()?.replace("_", " ")}).
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2 justify-end">
               <button
                 type="button"

@@ -79,6 +79,11 @@ class Lead(Base, UUIDMixin, TimestampMixin):
     last_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     next_follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # Phase 6 — CRM Stage
+    crm_stage: Mapped[str] = mapped_column(
+        String(50), default="new", server_default="new"
+    )
+
     # Phase 5 — Post Commenting
     comment_message: Mapped[Optional[str]] = mapped_column(Text)  # Comment variant A
     comment_variant_b: Mapped[Optional[str]] = mapped_column(Text)  # Comment variant B

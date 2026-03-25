@@ -67,6 +67,8 @@ def check_inbox_task(self, campaign_id: str) -> dict:
     async def _check():
         async with create_worker_session()() as db:
             from app.services.inbox_service import inbox_service
+            from app.services.unibox_service import unibox_service
+            from app.services.crm_service import crm_service
 
             await update_progress(
                 campaign_id, "inbox_check",
@@ -76,6 +78,30 @@ def check_inbox_task(self, campaign_id: str) -> dict:
             )
 
             result = await inbox_service.process_campaign_inbox(campaign_id, db)
+
+            # Auto-process new replies: CRM stage + dynamic scoring + AI suggestions
+            if result.get("new_replies", 0) > 0 and result.get("replied_lead_ids"):
+                classifications = result.get("classifications", {})
+                for lead_id in result["replied_lead_ids"]:
+                    try:
+                        # CRM: auto-classify stage based on reply
+                        event = "reply_positive" if classifications.get("positive") else "reply_received"
+                        await crm_service.auto_classify_stage(lead_id, db, event=event)
+                    except Exception as e:
+                        logger.warning(f"CRM auto-classify failed for lead {lead_id}: {e}")
+
+                    try:
+                        # CRM: dynamic scoring based on reply content
+                        await crm_service.update_conversation_score(lead_id, db)
+                    except Exception as e:
+                        logger.warning(f"CRM dynamic scoring failed for lead {lead_id}: {e}")
+
+                    try:
+                        # Unibox: pre-generate AI reply suggestions
+                        await unibox_service.auto_suggest_on_new_reply(lead_id, db)
+                        logger.info(f"Auto-processed reply for lead {lead_id}")
+                    except Exception as e:
+                        logger.warning(f"Auto-suggest failed for lead {lead_id}: {e}")
 
             if result["errors"]:
                 detail = "; ".join(result["errors"][:3])

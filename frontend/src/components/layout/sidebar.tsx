@@ -6,32 +6,54 @@ import {
   Workflow,
   Send,
   MessageSquare,
+  Inbox,
+  Kanban,
   Users,
   SlidersHorizontal,
   Terminal,
   HeartPulse,
   Bell,
   LogOut,
+  Book,
+  CreditCard,
+  Rocket,
+  Globe,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getUser, clearAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { getLocale, setLocale, type Locale } from "@/lib/i18n";
 
 const NAV_ITEMS = [
   { label: "Pipeline", href: "/pipeline", icon: Workflow, group: "Pipeline" },
   { label: "DMs", href: "/dms", icon: Send, group: "Pipeline" },
   { label: "Comentarios", href: "/comments", icon: MessageSquare, group: "Pipeline" },
+  { label: "Importar CSV", href: "/import", icon: Upload, group: "Pipeline" },
+  { label: "Unibox", href: "/unibox", icon: Inbox, group: "Comunicación" },
+  { label: "CRM", href: "/crm", icon: Kanban, group: "Comunicación" },
   { label: "Clientes", href: "/clients", icon: Users, group: "Gestión" },
   { label: "Configuración", href: "/settings", icon: SlidersHorizontal, group: "Gestión" },
+  { label: "Facturación", href: "/billing", icon: CreditCard, group: "Gestión" },
   { label: "Live Logs", href: "/logs", icon: Terminal, group: "Monitoreo" },
   { label: "System Health", href: "/health", icon: HeartPulse, group: "Monitoreo" },
+  { label: "API Docs", href: "/docs", icon: Book, group: "Monitoreo" },
+  { label: "Onboarding", href: "/onboarding", icon: Rocket, group: "Monitoreo" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const user = getUser();
   const [unread, setUnread] = useState(0);
+  const [locale, setLocaleState] = useState<Locale>("es");
+
+  useEffect(() => {
+    setLocaleState(getLocale());
+    const handler = () => setLocaleState(getLocale());
+    window.addEventListener("locale-change", handler);
+    return () => window.removeEventListener("locale-change", handler);
+  }, []);
 
   useEffect(() => {
     const load = () =>
@@ -96,6 +118,19 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-zinc-800 p-3 space-y-2">
+        {/* Language Toggle */}
+        <button
+          onClick={() => {
+            const next = locale === "es" ? "en" : "es";
+            setLocale(next);
+            setLocaleState(next);
+          }}
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 w-full"
+        >
+          <Globe size={16} strokeWidth={1.8} />
+          {locale === "es" ? "English" : "Español"}
+        </button>
+
         {/* Notifications */}
         <Link
           href="#"

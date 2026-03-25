@@ -211,6 +211,27 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                     db=db,
                 )
 
+            # Bio keyword filter — only keep profiles whose bio contains at least one keyword
+            bio_keywords = (campaign.settings or {}).get("bio_keywords", [])
+            if bio_keywords:
+                before_count = len(quality_profiles)
+                kw_lower = [kw.lower().strip() for kw in bio_keywords if kw.strip()]
+                quality_profiles = [
+                    p for p in quality_profiles
+                    if any(
+                        kw in (p.get("biography") or "").lower()
+                        for kw in kw_lower
+                    )
+                ]
+                filtered_out = before_count - len(quality_profiles)
+                logger.info(
+                    f"Bio keyword filter: {len(quality_profiles)} kept, {filtered_out} removed "
+                    f"(keywords: {kw_lower})"
+                )
+                await update_progress(campaign_id, "scraping",
+                                f"Bio filter: {len(quality_profiles)} of {before_count} profiles matched keywords.",
+                                detail=f"Keywords: {', '.join(bio_keywords)}")
+
             # Save leads with dedup
             await update_progress(campaign_id, "scraping",
                             f"Saving {len(quality_profiles)} quality profiles to database...",

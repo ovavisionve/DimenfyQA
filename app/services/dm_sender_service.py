@@ -826,6 +826,50 @@ class DMSenderService:
 
         Returns dict with sent_count, failed_count, skipped_count, paused (bool), reason.
         """
+        # Sending schedule check — only send during configured hours
+        from app.models.campaign import Campaign
+        campaign_result = await db.execute(
+            select(Campaign).where(Campaign.id == campaign_id)
+        )
+        campaign_obj = campaign_result.scalar_one_or_none()
+        campaign_settings = (campaign_obj.settings or {}) if campaign_obj else {}
+
+        sending_start = campaign_settings.get("sending_hours_start", "")
+        sending_end = campaign_settings.get("sending_hours_end", "")
+        sending_tz = campaign_settings.get("sending_timezone", "")
+
+        if sending_start and sending_end and sending_tz:
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(sending_tz)
+                now_local = datetime.now(tz)
+                start_h, start_m = map(int, sending_start.split(":"))
+                end_h, end_m = map(int, sending_end.split(":"))
+                current_minutes = now_local.hour * 60 + now_local.minute
+                start_minutes = start_h * 60 + start_m
+                end_minutes = end_h * 60 + end_m
+
+                if start_minutes <= end_minutes:
+                    outside_hours = current_minutes < start_minutes or current_minutes >= end_minutes
+                else:
+                    # Overnight schedule (e.g., 22:00 - 06:00)
+                    outside_hours = current_minutes < start_minutes and current_minutes >= end_minutes
+
+                if outside_hours:
+                    logger.info(
+                        f"Outside sending hours for campaign {campaign_id}: "
+                        f"{now_local.strftime('%H:%M')} not in {sending_start}-{sending_end} ({sending_tz})"
+                    )
+                    return {
+                        "sent_count": 0,
+                        "failed_count": 0,
+                        "skipped_count": 0,
+                        "paused": True,
+                        "reason": f"Outside sending hours ({sending_start}-{sending_end} {sending_tz})",
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to check sending schedule: {e}")
+
         daily_count = await self.get_daily_send_count(db)
         daily_limit = self._get_effective_daily_limit()
 
@@ -911,6 +955,13 @@ class DMSenderService:
                 lead.send_error = None
                 sent_count += 1
                 logger.info(f"Sent DM ({variant}) to @{lead.ig_username} [{sent_count}/{len(leads)}]")
+
+                # CRM: auto-classify stage to "contacted"
+                try:
+                    from app.services.crm_service import crm_service
+                    await crm_service.auto_classify_stage(str(lead.id), db, event="dm_sent")
+                except Exception:
+                    pass
 
                 # Trigger webhook for successful DM send
                 try:

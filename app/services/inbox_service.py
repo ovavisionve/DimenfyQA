@@ -197,6 +197,7 @@ class InboxService:
             "new_replies": 0,
             "classifications": {},
             "errors": [],
+            "replied_lead_ids": [],
         }
 
         # Login to Instagram
@@ -244,6 +245,7 @@ class InboxService:
                     result["classifications"].get(classification, 0) + 1
                 )
                 result["new_replies"] += 1
+                result["replied_lead_ids"].append(str(lead.id))
 
                 logger.info(
                     f"Reply from @{lead.ig_username}: "
