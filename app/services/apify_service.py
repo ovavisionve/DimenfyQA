@@ -266,6 +266,73 @@ class ApifyService:
             response.raise_for_status()
             return response.json()
 
+    async def fetch_posts_for_leads(
+        self, lead_ids: list[str], db: AsyncSession,
+        progress_callback=None,
+    ) -> int:
+        """Fetch posts from Apify for existing leads that have no ig_posts data."""
+        result = await db.execute(
+            select(Lead).where(
+                Lead.id.in_(lead_ids),
+                Lead.ig_posts.is_(None),
+            )
+        )
+        leads = list(result.scalars().all())
+        if not leads:
+            return 0
+
+        usernames = [l.ig_username for l in leads if l.ig_username]
+        if not usernames:
+            return 0
+
+        # Map username → lead for quick lookup
+        lead_map = {l.ig_username.lower(): l for l in leads if l.ig_username}
+
+        updated = 0
+        # Scrape in chunks of 50
+        for i in range(0, len(usernames), 50):
+            chunk = usernames[i:i + 50]
+            try:
+                profiles = await self.scrape_profiles_sync(chunk)
+            except Exception as e:
+                logger.error(f"Failed to fetch profiles chunk {i}: {e}")
+                continue
+
+            for profile in profiles:
+                username = (profile.get("username") or "").lower()
+                lead = lead_map.get(username)
+                if not lead:
+                    continue
+
+                latest_posts = profile.get("latestPosts") or []
+                if not latest_posts:
+                    continue
+
+                posts_data = []
+                for post in latest_posts[:12]:
+                    posts_data.append({
+                        "shortCode": post.get("shortCode", ""),
+                        "caption": (post.get("caption") or "")[:500],
+                        "likesCount": post.get("likesCount", 0),
+                        "commentsCount": post.get("commentsCount", 0),
+                        "timestamp": post.get("timestamp", ""),
+                        "type": post.get("type", post.get("__typename", "post")),
+                        "url": post.get("url", ""),
+                        "displayUrl": post.get("displayUrl", ""),
+                        "videoViewCount": post.get("videoViewCount"),
+                        "isVideo": post.get("isVideo", False),
+                    })
+
+                lead.ig_posts = posts_data
+                updated += 1
+
+                if progress_callback:
+                    progress_callback(updated, len(leads), username)
+
+        await db.flush()
+        logger.info(f"Fetched posts for {updated}/{len(leads)} leads")
+        return updated
+
     async def save_leads(
         self,
         profiles: list[dict],

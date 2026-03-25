@@ -189,56 +189,63 @@ async def get_system_settings():
 # ---------------------------------------------------------------------------
 @app.post("/api/v1/campaigns/{campaign_id}/generate-comments")
 async def generate_comments(campaign_id: str):
-    """Generate A/B comments for leads in a campaign."""
+    """Generate A/B comments for leads in a campaign.
+
+    Auto-fetches posts from Apify if leads don't have them yet.
+    """
     from app.database import async_session
     from sqlalchemy import select, func
     from app.models.lead import Lead
-    from app.tasks.comment_tasks import generate_comments_task
 
     try:
         async with async_session() as db:
-            # Check how many leads have score >= threshold
-            scored_count = (await db.execute(
-                select(func.count()).select_from(Lead).where(
+            # All leads with high score and no comment yet
+            scored_result = await db.execute(
+                select(Lead.id, Lead.ig_posts).where(
                     Lead.campaign_id == campaign_id,
                     Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
-                )
-            )).scalar() or 0
-
-            # Check how many of those have posts data
-            with_posts_count = (await db.execute(
-                select(func.count()).select_from(Lead).where(
-                    Lead.campaign_id == campaign_id,
-                    Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
-                    Lead.ig_posts.isnot(None),
-                )
-            )).scalar() or 0
-
-            # Get eligible leads (have posts + no comment yet)
-            result = await db.execute(
-                select(Lead.id).where(
-                    Lead.campaign_id == campaign_id,
-                    Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
-                    Lead.ig_posts.isnot(None),
                     Lead.comment_message.is_(None),
                 )
             )
-            lead_ids = [str(r) for r in result.scalars().all()]
+            scored_leads = scored_result.all()
 
-        if not lead_ids:
-            # Provide a detailed reason
-            if scored_count == 0:
+        if not scored_leads:
+            # Check if all already have comments
+            async with async_session() as db:
+                total = (await db.execute(
+                    select(func.count()).select_from(Lead).where(
+                        Lead.campaign_id == campaign_id,
+                        Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
+                    )
+                )).scalar() or 0
+            if total == 0:
                 msg = "No hay leads con score >= {} en esta campaña. Ejecuta el pipeline primero.".format(
                     settings.COMMENT_SCORE_THRESHOLD)
-            elif with_posts_count == 0:
-                msg = ("Hay {} leads con score alto, pero ninguno tiene datos de posts. "
-                       "Activa el análisis de contenido en el pipeline para obtener los posts de cada lead.").format(scored_count)
             else:
                 msg = "Todos los leads elegibles ya tienen comentarios generados."
             return {"status": "no_leads", "message": msg}
 
-        task = generate_comments_task.delay(lead_ids)
-        return {"status": "started", "task_id": task.id, "lead_count": len(lead_ids)}
+        all_ids = [str(row[0]) for row in scored_leads]
+        missing_posts = [row[1] is None for row in scored_leads]
+        needs_fetch = any(missing_posts)
+        missing_count = sum(missing_posts)
+
+        if needs_fetch:
+            # Auto-fetch posts first, then generate comments
+            from app.tasks.comment_tasks import fetch_posts_and_generate_comments_task
+            task = fetch_posts_and_generate_comments_task.delay(all_ids, campaign_id)
+            return {
+                "status": "started",
+                "task_id": task.id,
+                "lead_count": len(all_ids),
+                "message": f"Obteniendo posts de {missing_count} leads y luego generando comentarios...",
+            }
+        else:
+            # All leads already have posts — generate comments directly
+            from app.tasks.comment_tasks import generate_comments_task
+            task = generate_comments_task.delay(all_ids)
+            return {"status": "started", "task_id": task.id, "lead_count": len(all_ids)}
+
     except Exception as e:
         import logging
         logging.getLogger(__name__).exception(f"Error generating comments: {e}")

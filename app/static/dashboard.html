@@ -3458,7 +3458,8 @@
                 }
                 const data = await res.json();
                 if (data.status === 'started') {
-                    showToast(`Generando comentarios para ${data.lead_count} leads...`, 'success');
+                    const msg = data.message || `Generando comentarios para ${data.lead_count} leads...`;
+                    showToast(msg, 'success');
                 } else {
                     showToast(data.message || 'No hay leads elegibles', 'warning');
                 }
