@@ -3450,14 +3450,20 @@
             btn.textContent = 'Generando...';
             try {
                 const res = await authFetch(`${API}/campaigns/${activeCampaignId}/generate-comments`, { method: 'POST' });
+                if (!res.ok) {
+                    let msg = `Error del servidor (${res.status})`;
+                    try { const err = await res.json(); msg = err.message || msg; } catch(_) {}
+                    showToast(msg, 'error');
+                    return;
+                }
                 const data = await res.json();
                 if (data.status === 'started') {
-                    showToast(`Generando comentarios para ${data.lead_count} leads...`);
+                    showToast(`Generando comentarios para ${data.lead_count} leads...`, 'success');
                 } else {
-                    showToast(data.message || 'No hay leads elegibles');
+                    showToast(data.message || 'No hay leads elegibles', 'warning');
                 }
             } catch(e) {
-                showToast('Error: ' + e.message);
+                showToast('Error: ' + e.message, 'error');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Generar Comentarios';

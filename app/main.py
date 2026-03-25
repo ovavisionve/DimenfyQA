@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.router import api_router, auth_router
@@ -191,26 +191,61 @@ async def get_system_settings():
 async def generate_comments(campaign_id: str):
     """Generate A/B comments for leads in a campaign."""
     from app.database import async_session
-    from sqlalchemy import select
+    from sqlalchemy import select, func
     from app.models.lead import Lead
     from app.tasks.comment_tasks import generate_comments_task
 
-    async with async_session() as db:
-        result = await db.execute(
-            select(Lead.id).where(
-                Lead.campaign_id == campaign_id,
-                Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
-                Lead.ig_posts.isnot(None),
-                Lead.comment_message.is_(None),
+    try:
+        async with async_session() as db:
+            # Check how many leads have score >= threshold
+            scored_count = (await db.execute(
+                select(func.count()).select_from(Lead).where(
+                    Lead.campaign_id == campaign_id,
+                    Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
+                )
+            )).scalar() or 0
+
+            # Check how many of those have posts data
+            with_posts_count = (await db.execute(
+                select(func.count()).select_from(Lead).where(
+                    Lead.campaign_id == campaign_id,
+                    Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
+                    Lead.ig_posts.isnot(None),
+                )
+            )).scalar() or 0
+
+            # Get eligible leads (have posts + no comment yet)
+            result = await db.execute(
+                select(Lead.id).where(
+                    Lead.campaign_id == campaign_id,
+                    Lead.score >= settings.COMMENT_SCORE_THRESHOLD,
+                    Lead.ig_posts.isnot(None),
+                    Lead.comment_message.is_(None),
+                )
             )
+            lead_ids = [str(r) for r in result.scalars().all()]
+
+        if not lead_ids:
+            # Provide a detailed reason
+            if scored_count == 0:
+                msg = "No hay leads con score >= {} en esta campaña. Ejecuta el pipeline primero.".format(
+                    settings.COMMENT_SCORE_THRESHOLD)
+            elif with_posts_count == 0:
+                msg = ("Hay {} leads con score alto, pero ninguno tiene datos de posts. "
+                       "Activa el análisis de contenido en el pipeline para obtener los posts de cada lead.").format(scored_count)
+            else:
+                msg = "Todos los leads elegibles ya tienen comentarios generados."
+            return {"status": "no_leads", "message": msg}
+
+        task = generate_comments_task.delay(lead_ids)
+        return {"status": "started", "task_id": task.id, "lead_count": len(lead_ids)}
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception(f"Error generating comments: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Error interno: {str(e)}"}
         )
-        lead_ids = [str(r) for r in result.scalars().all()]
-
-    if not lead_ids:
-        return {"status": "no_leads", "message": "No hay leads elegibles para generar comentarios"}
-
-    task = generate_comments_task.delay(lead_ids)
-    return {"status": "started", "task_id": task.id, "lead_count": len(lead_ids)}
 
 
 @app.post("/api/v1/campaigns/{campaign_id}/send-comments")
