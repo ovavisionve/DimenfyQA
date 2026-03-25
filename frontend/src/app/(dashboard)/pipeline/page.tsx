@@ -17,6 +17,8 @@ import {
   Loader2,
   Clock,
   Inbox,
+  ListOrdered,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -51,7 +53,20 @@ interface Lead {
   reply_classification: string | null;
 }
 
-type TabKey = "stats" | "leads" | "dms" | "inbox" | "analytics" | "ab_testing" | "content" | "export";
+type TabKey = "stats" | "leads" | "dms" | "inbox" | "followups" | "analytics" | "ab_testing" | "content" | "export";
+
+interface FollowUpRule {
+  id: string;
+  campaign_id: string;
+  client_id: string;
+  step_number: number;
+  delay_days: number;
+  template_prompt: string | null;
+  max_attempts: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 interface RepliesResponse {
   campaign_id: string;
@@ -165,6 +180,9 @@ export default function PipelinePage() {
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
   const [replies, setReplies] = useState<Lead[]>([]);
   const [replyFilter, setReplyFilter] = useState("");
+  const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>([]);
+  const [showNewRule, setShowNewRule] = useState(false);
+  const [newRule, setNewRule] = useState({ step_number: 1, delay_days: 3, template_prompt: "", max_attempts: 3 });
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -267,6 +285,11 @@ export default function PipelinePage() {
       api<ABTestResults>(`/api/v1/campaigns/${selected.id}/ab-results`)
         .then(setAbResults)
         .catch(() => {});
+    }
+    if (tab === "followups") {
+      api<FollowUpRule[]>(`/api/v1/follow-ups/?campaign_id=${selected.id}`)
+        .then(setFollowUpRules)
+        .catch(() => setFollowUpRules([]));
     }
     if (tab === "inbox") {
       const url = replyFilter
@@ -587,6 +610,7 @@ export default function PipelinePage() {
             { key: "leads" as TabKey, label: "Leads" },
             { key: "dms" as TabKey, label: "DMs" },
             { key: "inbox" as TabKey, label: "Inbox" },
+            { key: "followups" as TabKey, label: "Follow-ups" },
             { key: "analytics" as TabKey, label: "Analytics" },
             { key: "ab_testing" as TabKey, label: "A/B Testing" },
             { key: "content" as TabKey, label: "Content Analysis" },
@@ -823,6 +847,178 @@ export default function PipelinePage() {
                 )}
               </div>
             ))}
+        </div>
+      )}
+
+      {/* ═══ Follow-ups Tab ═══ */}
+      {selected && tab === "followups" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <ListOrdered size={16} className="text-amber-600" />
+              Reglas de Follow-up ({followUpRules.length})
+            </h3>
+            <button
+              onClick={() => {
+                setNewRule({
+                  step_number: followUpRules.length + 1,
+                  delay_days: 3,
+                  template_prompt: "",
+                  max_attempts: 3,
+                });
+                setShowNewRule(true);
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              <Plus size={14} /> Nueva Regla
+            </button>
+          </div>
+
+          <p className="text-xs text-zinc-500">
+            Define pasos de seguimiento automático. Si un lead no responde después de X días, se envía un follow-up generado por IA.
+          </p>
+
+          {/* New rule form */}
+          {showNewRule && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-zinc-900">Crear Regla</h4>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-zinc-600 mb-1 block">Paso #</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newRule.step_number}
+                    onChange={(e) => setNewRule({ ...newRule, step_number: parseInt(e.target.value) || 1 })}
+                    className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-zinc-600 mb-1 block">Esperar (días)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newRule.delay_days}
+                    onChange={(e) => setNewRule({ ...newRule, delay_days: parseInt(e.target.value) || 1 })}
+                    className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-zinc-600 mb-1 block">Max intentos</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={newRule.max_attempts}
+                    onChange={(e) => setNewRule({ ...newRule, max_attempts: parseInt(e.target.value) || 3 })}
+                    className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-600 mb-1 block">Prompt para Claude (opcional)</label>
+                <textarea
+                  rows={2}
+                  value={newRule.template_prompt}
+                  onChange={(e) => setNewRule({ ...newRule, template_prompt: e.target.value })}
+                  placeholder="Ej: Sé breve, ofrece un caso de estudio como valor adicional..."
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm resize-none"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowNewRule(false)}
+                  className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm hover:bg-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await api("/api/v1/follow-ups/", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          campaign_id: selected.id,
+                          ...newRule,
+                          template_prompt: newRule.template_prompt || null,
+                        }),
+                      });
+                      const rules = await api<FollowUpRule[]>(`/api/v1/follow-ups/?campaign_id=${selected.id}`);
+                      setFollowUpRules(rules);
+                      setShowNewRule(false);
+                    } catch { /* ignore */ }
+                  }}
+                  className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-black hover:bg-amber-400"
+                >
+                  Crear
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Rules list */}
+          {followUpRules.length === 0 && !showNewRule ? (
+            <div className="text-center py-16 text-zinc-400">
+              <ListOrdered size={40} className="mx-auto mb-3 opacity-40" />
+              <p>No hay reglas de follow-up para esta campaña.</p>
+              <p className="text-sm mt-1">Crea una regla para que el bot haga seguimiento automático a leads que no responden.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {followUpRules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className={cn(
+                    "rounded-lg border bg-white p-4 flex items-center justify-between",
+                    rule.is_active ? "border-zinc-200" : "border-zinc-100 opacity-60"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700">
+                      {rule.step_number}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">
+                        Paso {rule.step_number}: Esperar {rule.delay_days} día{rule.delay_days !== 1 ? "s" : ""} sin respuesta
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        Max {rule.max_attempts} intentos
+                        {rule.template_prompt && ` — Prompt: "${rule.template_prompt.slice(0, 60)}${rule.template_prompt.length > 60 ? "..." : ""}"`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        await api(`/api/v1/follow-ups/${rule.id}`, {
+                          method: "PUT",
+                          body: JSON.stringify({ is_active: !rule.is_active }),
+                        });
+                        const rules = await api<FollowUpRule[]>(`/api/v1/follow-ups/?campaign_id=${selected.id}`);
+                        setFollowUpRules(rules);
+                      }}
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                        rule.is_active ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-500"
+                      )}
+                    >
+                      {rule.is_active ? "Activo" : "Inactivo"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm("¿Eliminar esta regla?")) return;
+                        await api(`/api/v1/follow-ups/${rule.id}`, { method: "DELETE" });
+                        setFollowUpRules((prev) => prev.filter((r) => r.id !== rule.id));
+                      }}
+                      className="p-1.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
