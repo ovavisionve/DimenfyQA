@@ -28,6 +28,20 @@ services:
     volumes:
       - .:/app
 
+  beat:
+    build: .
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/ig_dm_engine
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - worker
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+
   db:
     image: postgres:16-alpine
     environment:

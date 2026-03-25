@@ -14,6 +14,17 @@ celery_app.config_from_object({
     "task_track_started": True,
     "task_acks_late": True,
     "worker_prefetch_multiplier": 1,
+    # Celery Beat — periodic task schedule
+    "beat_schedule": {
+        "check-all-inboxes": {
+            "task": "check_all_inboxes",
+            "schedule": settings.INBOX_CHECK_INTERVAL,  # default 300s (5 min)
+        },
+        "check-all-follow-ups": {
+            "task": "check_all_follow_ups",
+            "schedule": settings.FOLLOWUP_CHECK_INTERVAL,  # default 3600s (1 hour)
+        },
+    },
 })
 
 # Auto-discover tasks in the tasks package
