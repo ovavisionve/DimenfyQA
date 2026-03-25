@@ -11,6 +11,8 @@ import {
   MessageSquare,
   Brain,
   RefreshCw,
+  Bell,
+  Save,
 } from "lucide-react";
 
 /* ───────────────────── Types ───────────────────── */
@@ -53,6 +55,10 @@ interface SystemSettings {
     hourly_comment_limit: number;
     comment_delay_min: number;
     comment_delay_max: number;
+  };
+  slack: {
+    slack_webhook_url: string;
+    slack_channel: string;
   };
 }
 
@@ -282,19 +288,23 @@ export default function SettingsPage() {
     });
   };
 
-  /* ── Save settings (placeholder — backend may not have PUT endpoint yet) ── */
+  /* ── Save settings ── */
+
+  const [saving, setSaving] = useState(false);
 
   const saveSettings = async () => {
     if (!settings) return;
+    setSaving(true);
     try {
-      await api("/api/v1/system/settings", {
+      const result = await api<{ updated: string[]; message: string }>("/api/v1/system/settings", {
         method: "PUT",
         body: JSON.stringify(settings),
       });
-      showToast("Configuracion guardada");
+      showToast(`${result.updated.length} ajustes guardados`);
     } catch {
-      showToast("Error: el endpoint PUT /system/settings aun no existe en el backend", "error");
+      showToast("Error guardando configuracion", "error");
     }
+    setSaving(false);
   };
 
   const savePrompts = () => {
@@ -332,9 +342,11 @@ export default function SettingsPage() {
           </button>
           <button
             onClick={saveSettings}
-            className="px-4 py-1.5 text-sm bg-amber-500 text-white rounded-md hover:bg-amber-600 font-medium transition-colors"
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-amber-500 text-white rounded-md hover:bg-amber-600 font-medium transition-colors disabled:opacity-50"
           >
-            Guardar Cambios
+            <Save size={14} />
+            {saving ? "Guardando..." : "Guardar Cambios"}
           </button>
         </div>
       </div>
@@ -604,7 +616,43 @@ export default function SettingsPage() {
           />
         </Card>
 
-        {/* ─── 7. AI Prompts (Global) ─── */}
+        {/* ─── 7. Slack Notifications ─── */}
+        <Card icon={Bell} title="Notificaciones Slack">
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-zinc-600 mb-1 block">
+                Webhook URL
+              </label>
+              <input
+                type="text"
+                value={s.slack.slack_webhook_url}
+                onChange={(e) => upd("slack", "slack_webhook_url", e.target.value)}
+                placeholder="https://hooks.slack.com/services/T.../B.../..."
+                className="w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+              <p className="text-[11px] text-zinc-400 mt-1">
+                Crea un webhook en api.slack.com/apps. Si esta vacio, solo se crean notificaciones in-app.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-600 mb-1 block">
+                Canal (opcional)
+              </label>
+              <input
+                type="text"
+                value={s.slack.slack_channel}
+                onChange={(e) => upd("slack", "slack_channel", e.target.value)}
+                placeholder="#ig-alerts"
+                className="w-full rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+              <p className="text-[11px] text-zinc-400 mt-1">
+                Override del canal por defecto del webhook. Dejalo vacio para usar el canal configurado en Slack.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* ─── 8. AI Prompts (Global) ─── */}
         <Card icon={Brain} title="Prompts de IA (Globales)" fullWidth>
           <p className="text-xs text-zinc-400 mb-4">
             Estos prompts se aplican a TODAS las campanas. Para personalizar por

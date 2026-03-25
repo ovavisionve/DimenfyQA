@@ -201,6 +201,121 @@ async def get_system_settings():
             "comment_delay_min": settings.COMMENT_DELAY_MIN,
             "comment_delay_max": settings.COMMENT_DELAY_MAX,
         },
+        "slack": {
+            "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
+            "slack_channel": settings.SLACK_CHANNEL,
+        },
+    }
+
+
+# Allowed keys for PUT /system/settings — only non-sensitive settings
+_ALLOWED_SETTINGS_KEYS: dict[str, type] = {
+    # Scoring
+    "DEFAULT_SCORE_THRESHOLD": int,
+    "RESEARCH_SCORE_THRESHOLD": int,
+    "DM_SCORE_THRESHOLD": int,
+    # Sending
+    "DAILY_DM_LIMIT": int,
+    "HOURLY_DM_LIMIT": int,
+    "DM_DELAY_MIN": int,
+    "DM_DELAY_MAX": int,
+    "USE_PLAYWRIGHT": bool,
+    # Warm-up
+    "IG_WARMUP_DAYS": int,
+    "IG_WARMUP_START_LIMIT": int,
+    # Safety
+    "PRE_SEND_CHECK_PUBLIC": bool,
+    "SKIP_PRIVATE_ACCOUNTS": bool,
+    "CHALLENGE_COOLDOWN_MINUTES": int,
+    "BLOCK_COOLDOWN_HOURS": int,
+    "MAX_CHALLENGES_BEFORE_PAUSE": int,
+    # Inbox
+    "INBOX_CHECK_INTERVAL": int,
+    "AB_TEST_ENABLED": bool,
+    "AB_TEST_SPLIT": float,
+    "FOLLOWUP_CHECK_INTERVAL": int,
+    "MAX_FOLLOW_UP_STEPS": int,
+    # Comments
+    "COMMENT_ENABLED": bool,
+    "COMMENT_SCORE_THRESHOLD": int,
+    "DAILY_COMMENT_LIMIT": int,
+    "HOURLY_COMMENT_LIMIT": int,
+    "COMMENT_DELAY_MIN": int,
+    "COMMENT_DELAY_MAX": int,
+    # Slack
+    "SLACK_WEBHOOK_URL": str,
+    "SLACK_CHANNEL": str,
+}
+
+
+@app.put("/api/v1/system/settings")
+async def update_system_settings(body: dict):
+    """Update bot settings — writes to .env and reloads in-memory config."""
+    import app.config as config_module
+    from pathlib import Path
+
+    env_path = Path(".env")
+
+    # Read existing .env lines
+    existing_lines: list[str] = []
+    if env_path.exists():
+        existing_lines = env_path.read_text().splitlines()
+
+    updated_keys: list[str] = []
+    rejected_keys: list[str] = []
+
+    # Flatten nested structure from frontend: {scoring: {dm_score_threshold: 70}} → {DM_SCORE_THRESHOLD: 70}
+    flat: dict[str, object] = {}
+    for key, value in body.items():
+        if isinstance(value, dict):
+            for sub_key, sub_val in value.items():
+                flat[sub_key.upper()] = sub_val
+        else:
+            flat[key.upper()] = value
+
+    for key, value in flat.items():
+        if key not in _ALLOWED_SETTINGS_KEYS:
+            rejected_keys.append(key)
+            continue
+
+        expected_type = _ALLOWED_SETTINGS_KEYS[key]
+        # Convert value to proper type for .env
+        if expected_type == bool:
+            env_value = "true" if value else "false"
+        else:
+            env_value = str(value)
+
+        # Update or add in .env lines
+        found = False
+        for i, line in enumerate(existing_lines):
+            stripped = line.strip()
+            if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} ="):
+                existing_lines[i] = f"{key}={env_value}"
+                found = True
+                break
+        if not found:
+            existing_lines.append(f"{key}={env_value}")
+
+        # Update in-memory settings object
+        if expected_type == bool:
+            setattr(config_module.settings, key, bool(value))
+        elif expected_type == float:
+            setattr(config_module.settings, key, float(value))
+        elif expected_type == int:
+            setattr(config_module.settings, key, int(value))
+        else:
+            setattr(config_module.settings, key, str(value))
+
+        updated_keys.append(key)
+
+    # Write .env
+    env_path.write_text("\n".join(existing_lines) + "\n")
+
+    return {
+        "status": "ok",
+        "updated": updated_keys,
+        "rejected": rejected_keys,
+        "message": f"{len(updated_keys)} settings updated. Workers may need restart for some changes to take effect.",
     }
 
 
