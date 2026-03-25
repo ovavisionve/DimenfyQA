@@ -194,6 +194,8 @@ export default function PipelinePage() {
     source_value: "",
     max_leads: 50,
   });
+  const [bioKeywords, setBioKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -363,14 +365,20 @@ export default function PipelinePage() {
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...newCampaign,
+      settings: bioKeywords.length > 0 ? { bio_keywords: bioKeywords } : {},
+    };
     const data = await api<Campaign>("/api/v1/campaigns/", {
       method: "POST",
-      body: JSON.stringify(newCampaign),
+      body: JSON.stringify(payload),
     });
     setCampaigns((prev) => [data, ...prev]);
     setSelected(data);
     setShowNew(false);
     setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
+    setBioKeywords([]);
+    setKeywordInput("");
   };
 
   // Stats
@@ -473,6 +481,67 @@ export default function PipelinePage() {
               onChange={(e) => setNewCampaign({ ...newCampaign, max_leads: parseInt(e.target.value) || 50 })}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             />
+
+            {/* Bio Keyword Filter */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">
+                Filtro por palabras clave en bio
+              </label>
+              <div className="flex gap-2">
+                <input
+                  placeholder="Ej: coach, marketing, agency..."
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const kw = keywordInput.trim().replace(/,/g, "");
+                      if (kw && !bioKeywords.includes(kw)) {
+                        setBioKeywords([...bioKeywords, kw]);
+                      }
+                      setKeywordInput("");
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const kw = keywordInput.trim().replace(/,/g, "");
+                    if (kw && !bioKeywords.includes(kw)) {
+                      setBioKeywords([...bioKeywords, kw]);
+                    }
+                    setKeywordInput("");
+                  }}
+                  className="rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
+                >
+                  +
+                </button>
+              </div>
+              {bioKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {bioKeywords.map((kw) => (
+                    <span
+                      key={kw}
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-medium"
+                    >
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setBioKeywords(bioKeywords.filter((k) => k !== kw))}
+                        className="hover:text-red-600 text-amber-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Solo se procesarán leads que tengan al menos una de estas palabras en su bio. Dejar vacío para procesar todos.
+              </p>
+            </div>
+
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
