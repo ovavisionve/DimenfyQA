@@ -5,12 +5,17 @@ import { api } from "@/lib/api";
 import {
   Play,
   Send,
-  Pause,
   RefreshCw,
   Plus,
   Search,
   ChevronDown,
   X,
+  Download,
+  BarChart3,
+  FlaskConical,
+  Sparkles,
+  Loader2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -42,6 +47,80 @@ interface Lead {
   dm_variant_used: string | null;
 }
 
+type TabKey = "stats" | "leads" | "dms" | "analytics" | "ab_testing" | "content" | "export";
+
+interface FunnelStep {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+interface ScoreBucket {
+  range_label: string;
+  count: number;
+}
+
+interface CategoryItem {
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+interface CampaignAnalytics {
+  funnel: FunnelStep[];
+  score_distribution: ScoreBucket[];
+  category_breakdown: CategoryItem[];
+  response_rate: number;
+  avg_score: number;
+  total_leads: number;
+  total_sent: number;
+  total_replied: number;
+}
+
+interface VariantStats {
+  sent: number;
+  replied: number;
+  reply_rate: number;
+  positive_replies: number;
+  conversion_rate: number;
+}
+
+interface ABTestResults {
+  campaign_id: string;
+  variant_a: VariantStats;
+  variant_b: VariantStats;
+  winner: string | null;
+  confidence: string;
+  total_sent: number;
+  recommendation: string;
+}
+
+interface ContentAnalysis {
+  business_summary: string;
+  value_propositions: string[];
+  target_audience: string;
+  tone_style: string;
+  key_differentiators: string[];
+  pain_points_addressed: string[];
+  content_type_detected: string;
+}
+
+interface ActivityEvent {
+  id: string;
+  event_type: string;
+  message: string;
+  level: string;
+  created_at: string;
+  details?: Record<string, unknown>;
+}
+
+const LEVEL_COLORS: Record<string, string> = {
+  success: "text-emerald-600",
+  info: "text-blue-600",
+  warning: "text-amber-600",
+  error: "text-red-600",
+};
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-200 text-zinc-700",
   scraping: "bg-blue-100 text-blue-700",
@@ -59,10 +138,20 @@ export default function PipelinePage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selected, setSelected] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [tab, setTab] = useState<"stats" | "leads" | "dms">("stats");
+  const [tab, setTab] = useState<TabKey>("stats");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [dmPreview, setDmPreview] = useState<Lead | null>(null);
+
+  // Analytics, A/B, Content Analysis state
+  const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
+  const [abResults, setAbResults] = useState<ABTestResults | null>(null);
+  const [contentAnalysis, setContentAnalysis] = useState<ContentAnalysis | null>(null);
+  const [contentUrls, setContentUrls] = useState("");
+  const [contentText, setContentText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -138,6 +227,81 @@ export default function PipelinePage() {
     await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
     const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
     setSelected(c);
+  };
+
+  // Load analytics when tab switches
+  useEffect(() => {
+    if (!selected) return;
+    if (tab === "analytics" && !analytics) {
+      api<CampaignAnalytics>(`/api/v1/campaigns/${selected.id}/analytics`)
+        .then(setAnalytics)
+        .catch(() => {});
+    }
+    if (tab === "ab_testing" && !abResults) {
+      api<ABTestResults>(`/api/v1/campaigns/${selected.id}/ab-results`)
+        .then(setAbResults)
+        .catch(() => {});
+    }
+    if (tab === "content" && !contentAnalysis) {
+      api<{ analysis: ContentAnalysis | null }>(`/api/v1/content/campaign/${selected.id}`)
+        .then((r) => { if (r.analysis) setContentAnalysis(r.analysis); })
+        .catch(() => {});
+    }
+  }, [tab, selected, analytics, abResults, contentAnalysis]);
+
+  // Reset tab data when campaign changes
+  useEffect(() => {
+    setAnalytics(null);
+    setAbResults(null);
+    setContentAnalysis(null);
+    if (selected?.id) {
+      api<ActivityEvent[]>(`/api/v1/campaigns/${selected.id}/activity?limit=20`)
+        .then(setActivityLog)
+        .catch(() => setActivityLog([]));
+    }
+  }, [selected?.id]);
+
+  const runContentAnalysis = async () => {
+    if (!selected) return;
+    setAnalyzing(true);
+    try {
+      const urls = contentUrls.split("\n").map((u) => u.trim()).filter(Boolean);
+      const result = await api<{ analysis: ContentAnalysis }>("/api/v1/content/analyze-for-campaign", {
+        method: "POST",
+        body: JSON.stringify({
+          campaign_id: selected.id,
+          content_urls: urls.length ? urls : undefined,
+          content_text: contentText || undefined,
+        }),
+      });
+      setContentAnalysis(result.analysis);
+    } catch {
+      /* ignore */
+    }
+    setAnalyzing(false);
+  };
+
+  const downloadExport = async (format: "csv" | "json" | "excel") => {
+    if (!selected) return;
+    setExporting(format);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000"}/api/v1/export/${selected.id}/${format}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${selected.name}_leads.${format === "excel" ? "xlsx" : format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+    setExporting(null);
   };
 
   const createCampaign = async (e: React.FormEvent) => {
@@ -367,19 +531,27 @@ export default function PipelinePage() {
 
       {/* Tabs */}
       {selected && (
-        <div className="flex border-b border-zinc-200">
-          {(["stats", "leads", "dms"] as const).map((t) => (
+        <div className="flex border-b border-zinc-200 overflow-x-auto">
+          {([
+            { key: "stats" as TabKey, label: "Resumen" },
+            { key: "leads" as TabKey, label: "Leads" },
+            { key: "dms" as TabKey, label: "DMs" },
+            { key: "analytics" as TabKey, label: "Analytics" },
+            { key: "ab_testing" as TabKey, label: "A/B Testing" },
+            { key: "content" as TabKey, label: "Content Analysis" },
+            { key: "export" as TabKey, label: "Export" },
+          ]).map((t) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={t.key}
+              onClick={() => setTab(t.key)}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                tab === t
+                "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+                tab === t.key
                   ? "border-amber-500 text-zinc-900"
                   : "border-transparent text-zinc-500 hover:text-zinc-700"
               )}
             >
-              {t === "stats" ? "Resumen" : t === "leads" ? "Leads" : "DMs"}
+              {t.label}
             </button>
           ))}
         </div>
@@ -630,6 +802,383 @@ export default function PipelinePage() {
                 {new Date(selected.created_at).toLocaleDateString()}
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Analytics Tab ═══ */}
+      {selected && tab === "analytics" && (
+        <div className="space-y-4">
+          {!analytics ? (
+            <div className="flex items-center justify-center h-40">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-amber-500" />
+            </div>
+          ) : (
+            <>
+              {/* Key Metrics */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-lg border border-zinc-200 bg-white p-5 text-center">
+                  <p className="text-3xl font-bold text-zinc-900">{analytics.total_leads}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Total Leads</p>
+                </div>
+                <div className="rounded-lg border border-zinc-200 bg-white p-5 text-center">
+                  <p className="text-3xl font-bold text-amber-600">{analytics.response_rate.toFixed(1)}%</p>
+                  <p className="text-xs text-zinc-500 mt-1">Tasa de Respuesta</p>
+                </div>
+                <div className="rounded-lg border border-zinc-200 bg-white p-5 text-center">
+                  <p className="text-3xl font-bold text-zinc-900">{analytics.avg_score.toFixed(0)}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Score Promedio</p>
+                </div>
+              </div>
+
+              {/* Funnel */}
+              <div className="rounded-lg border border-zinc-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                  <BarChart3 size={16} className="text-amber-600" />
+                  Funnel de Conversión
+                </h3>
+                <div className="space-y-3">
+                  {analytics.funnel.map((step, i) => {
+                    const maxCount = analytics.funnel[0]?.count || 1;
+                    const widthPct = Math.max((step.count / maxCount) * 100, 4);
+                    return (
+                      <div key={step.name} className="flex items-center gap-3">
+                        <span className="text-xs text-zinc-500 w-24 text-right capitalize">{step.name}</span>
+                        <div className="flex-1 h-7 bg-zinc-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full flex items-center justify-end pr-2 transition-all"
+                            style={{ width: `${widthPct}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white">{step.count}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-zinc-400 w-12">{step.percentage.toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Score Distribution */}
+                <div className="rounded-lg border border-zinc-200 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-4">Distribución de Scores</h3>
+                  <div className="space-y-2">
+                    {analytics.score_distribution.map((bucket) => {
+                      const maxBucket = Math.max(...analytics.score_distribution.map((b) => b.count), 1);
+                      return (
+                        <div key={bucket.range_label} className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-500 w-12">{bucket.range_label}</span>
+                          <div className="flex-1 h-5 bg-zinc-100 rounded overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded transition-all"
+                              style={{ width: `${(bucket.count / maxBucket) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-zinc-700 w-8 text-right">{bucket.count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Category Breakdown */}
+                <div className="rounded-lg border border-zinc-200 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-zinc-900 mb-4">Categorías</h3>
+                  {analytics.category_breakdown.length === 0 ? (
+                    <p className="text-sm text-zinc-400">Sin datos de categorías</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {analytics.category_breakdown.map((cat) => (
+                        <div key={cat.category} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0">
+                          <span className="text-sm text-zinc-700 capitalize">{cat.category || "Sin categoría"}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-400">{cat.percentage.toFixed(0)}%</span>
+                            <span className="text-sm font-semibold text-zinc-900">{cat.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ A/B Testing Tab ═══ */}
+      {selected && tab === "ab_testing" && (
+        <div className="space-y-4">
+          {!abResults ? (
+            <div className="flex items-center justify-center h-40">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-amber-500" />
+            </div>
+          ) : abResults.total_sent === 0 ? (
+            <div className="text-center py-16 text-zinc-400">
+              <FlaskConical size={40} className="mx-auto mb-3 opacity-40" />
+              <p>No hay datos de A/B testing todavía.</p>
+              <p className="text-sm">Los resultados aparecerán cuando se envíen DMs.</p>
+            </div>
+          ) : (
+            <>
+              {/* Winner Banner */}
+              {abResults.winner && (
+                <div className={cn(
+                  "rounded-lg border p-4 flex items-center gap-3",
+                  abResults.confidence === "high"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-amber-200 bg-amber-50"
+                )}>
+                  <FlaskConical size={20} className={abResults.confidence === "high" ? "text-emerald-600" : "text-amber-600"} />
+                  <div>
+                    <p className={cn("text-sm font-bold", abResults.confidence === "high" ? "text-emerald-800" : "text-amber-800")}>
+                      Ganador: Variante {abResults.winner}
+                    </p>
+                    <p className={cn("text-xs", abResults.confidence === "high" ? "text-emerald-600" : "text-amber-600")}>
+                      Confianza: {abResults.confidence} — {abResults.recommendation}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Side by side comparison */}
+              <div className="grid grid-cols-2 gap-4">
+                {(["variant_a", "variant_b"] as const).map((variant) => {
+                  const data = abResults[variant];
+                  const isWinner = abResults.winner === (variant === "variant_a" ? "A" : "B");
+                  return (
+                    <div
+                      key={variant}
+                      className={cn(
+                        "rounded-lg border bg-white p-5",
+                        isWinner ? "border-emerald-300 ring-2 ring-emerald-100" : "border-zinc-200"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-zinc-900">
+                          Variante {variant === "variant_a" ? "A" : "B"}
+                        </h3>
+                        {isWinner && (
+                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                            GANADOR
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between border-b border-zinc-50 pb-2">
+                          <span className="text-xs text-zinc-500">Enviados</span>
+                          <span className="text-sm font-semibold">{data.sent}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-50 pb-2">
+                          <span className="text-xs text-zinc-500">Respondidos</span>
+                          <span className="text-sm font-semibold">{data.replied}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-50 pb-2">
+                          <span className="text-xs text-zinc-500">Tasa de respuesta</span>
+                          <span className="text-sm font-bold text-amber-600">{data.reply_rate.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-50 pb-2">
+                          <span className="text-xs text-zinc-500">Respuestas positivas</span>
+                          <span className="text-sm font-semibold text-emerald-600">{data.positive_replies}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-xs text-zinc-500">Tasa de conversión</span>
+                          <span className="text-sm font-bold text-emerald-600">{data.conversion_rate.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="text-center text-xs text-zinc-400">
+                Total enviados: {abResults.total_sent} — Confianza: {abResults.confidence}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ Content Analysis Tab ═══ */}
+      {selected && tab === "content" && (
+        <div className="space-y-4">
+          {/* Input Panel */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <Sparkles size={16} className="text-amber-600" />
+              Análisis de Contenido con Gemini
+            </h3>
+            <p className="text-xs text-zinc-500">
+              Analiza el contenido de tu negocio (videos, imágenes, páginas web) para que la IA genere mejores DMs personalizados.
+            </p>
+            <div>
+              <label className="text-xs font-medium text-zinc-600 mb-1 block">
+                URLs de contenido (una por línea)
+              </label>
+              <textarea
+                rows={3}
+                value={contentUrls}
+                onChange={(e) => setContentUrls(e.target.value)}
+                placeholder={"https://youtube.com/watch?v=...\nhttps://instagram.com/reel/...\nhttps://tu-sitio-web.com"}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none resize-y"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-600 mb-1 block">
+                Texto adicional (descripción de tu negocio, propuesta de valor, etc.)
+              </label>
+              <textarea
+                rows={3}
+                value={contentText}
+                onChange={(e) => setContentText(e.target.value)}
+                placeholder="Describe tu negocio, servicios, público objetivo..."
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none resize-y"
+              />
+            </div>
+            <button
+              onClick={runContentAnalysis}
+              disabled={analyzing || (!contentUrls.trim() && !contentText.trim())}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400 disabled:opacity-50"
+            >
+              {analyzing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              {analyzing ? "Analizando..." : "Analizar con Gemini"}
+            </button>
+          </div>
+
+          {/* Results */}
+          {contentAnalysis && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Resultados del Análisis</h3>
+
+              <div>
+                <p className="text-xs font-medium text-zinc-500 mb-1">Resumen del Negocio</p>
+                <p className="text-sm text-zinc-700 leading-relaxed">{contentAnalysis.business_summary}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-zinc-500 mb-1">Público Objetivo</p>
+                <p className="text-sm text-zinc-700">{contentAnalysis.target_audience}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-zinc-500 mb-1">Tono y Estilo</p>
+                <p className="text-sm text-zinc-700">{contentAnalysis.tone_style}</p>
+              </div>
+
+              {contentAnalysis.value_propositions?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-zinc-500 mb-1">Propuestas de Valor</p>
+                  <ul className="space-y-1">
+                    {contentAnalysis.value_propositions.map((vp, i) => (
+                      <li key={i} className="text-sm text-zinc-700 flex items-start gap-2">
+                        <span className="text-amber-500 mt-0.5">•</span> {vp}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {contentAnalysis.key_differentiators?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-zinc-500 mb-1">Diferenciadores Clave</p>
+                  <div className="flex flex-wrap gap-2">
+                    {contentAnalysis.key_differentiators.map((d, i) => (
+                      <span key={i} className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs text-amber-700">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {contentAnalysis.pain_points_addressed?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-zinc-500 mb-1">Pain Points que Resuelve</p>
+                  <ul className="space-y-1">
+                    {contentAnalysis.pain_points_addressed.map((pp, i) => (
+                      <li key={i} className="text-sm text-zinc-700 flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5">•</span> {pp}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-zinc-100 text-xs text-zinc-400">
+                Tipo de contenido detectado: {contentAnalysis.content_type_detected}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ Export Tab ═══ */}
+      {selected && tab === "export" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-2 flex items-center gap-2">
+              <Download size={16} className="text-amber-600" />
+              Exportar Leads con DMs
+            </h3>
+            <p className="text-xs text-zinc-500 mb-6">
+              Descarga los leads con DMs generados (status: dm_ready) en el formato que prefieras.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(["csv", "json", "excel"] as const).map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => downloadExport(fmt)}
+                  disabled={exporting !== null}
+                  className="rounded-lg border-2 border-dashed border-zinc-300 p-6 text-center hover:border-amber-400 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                >
+                  {exporting === fmt ? (
+                    <Loader2 size={24} className="mx-auto mb-2 text-amber-500 animate-spin" />
+                  ) : (
+                    <Download size={24} className="mx-auto mb-2 text-zinc-400" />
+                  )}
+                  <p className="text-sm font-semibold text-zinc-900">{fmt.toUpperCase()}</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {fmt === "csv" ? "Ideal para hojas de cálculo" : fmt === "json" ? "Para integración con APIs" : "Con formato y colores"}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Activity Log ═══ */}
+      {selected && activityLog.length > 0 && (
+        <div className="rounded-lg border border-zinc-200 bg-white">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-100">
+            <Clock size={14} className="text-zinc-400" />
+            <h3 className="text-sm font-semibold text-zinc-900">Actividad Reciente</h3>
+          </div>
+          <div className="divide-y divide-zinc-50">
+            {activityLog.map((event) => (
+              <div key={event.id} className="flex items-start gap-3 px-5 py-3">
+                <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${
+                  event.level === "success" ? "bg-emerald-500" :
+                  event.level === "warning" ? "bg-amber-500" :
+                  event.level === "error" ? "bg-red-500" :
+                  "bg-blue-500"
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm ${LEVEL_COLORS[event.level] || "text-zinc-700"}`}>
+                    {event.message}
+                  </p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    {new Date(event.created_at).toLocaleString()} — {event.event_type}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
