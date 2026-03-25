@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     FOLLOWUP_CHECK_INTERVAL: int = 3600  # seconds between follow-up checks (default 1 hour)
     MAX_FOLLOW_UP_STEPS: int = 3  # maximum number of follow-up steps per campaign
 
+    # Slack Notifications
+    SLACK_WEBHOOK_URL: str = ""  # Slack Incoming Webhook URL
+    SLACK_CHANNEL: str = ""  # Override channel (optional, e.g. "#ig-alerts")
+
     # Phase 5 — Post Commenting
     COMMENT_ENABLED: bool = True
     COMMENT_SCORE_THRESHOLD: int = 70  # Minimum score to generate comments

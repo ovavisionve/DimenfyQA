@@ -12,6 +12,8 @@ IG DM Engine is a Python-native platform that replaces an n8n + JarveePro workfl
 
 **Phase 4 (complete):** Full SaaS platform. User auth (register/login/JWT), role-based access (admin/manager/viewer), sidebar navigation, client management with custom prompts, bot permission levels panel, real-time WebSocket log viewer, system health dashboard, notification center, audit log.
 
+**Phase 5 (complete):** Operational automation. Celery Beat for periodic inbox monitoring (every 5 min) and follow-up processing (every hour). Slack notifications for campaign events, reply alerts, and account health. GitHub Actions CI/CD pipeline for automated testing on push/PR.
+
 ### Pipeline (6 phases)
 
 ```
@@ -33,6 +35,7 @@ Only public Instagram accounts are processed — private accounts cannot receive
 |-----------|-----------|---------|
 | API | FastAPI | REST endpoints, orchestration |
 | Task Queue | Celery + Redis | Async tasks (scraping, scoring, etc.) |
+| Task Scheduler | Celery Beat | Periodic inbox checks + follow-ups |
 | Database | PostgreSQL (async) | Leads, campaigns, DMs, metrics |
 | Cache/Broker | Redis | Celery broker + cache |
 | AI Scoring/Copy | Claude API (Anthropic) | Scoring 0-100 + DM generation |
@@ -40,17 +43,20 @@ Only public Instagram accounts are processed — private accounts cannot receive
 | Scraping | Apify API | Followers, comments, IG profiles |
 | DM Sending | instagrapi | Direct Instagram DM delivery |
 | Session Security | cryptography (Fernet) | Encrypt IG sessions at rest |
+| Notifications | Slack Incoming Webhooks | Real-time alerts to Slack |
+| CI/CD | GitHub Actions | Automated tests on push/PR |
 | Containers | Docker + Docker Compose | Dev and deploy |
 
 ## Repository Structure
 
 ```
 ig-dm-engine/
-├── docker-compose.yml
+├── docker-compose.yml              # 5 services: api, worker, beat, db, redis
 ├── Dockerfile
 ├── .env.example
 ├── requirements.txt
 ├── alembic.ini
+├── .github/workflows/ci.yml        # GitHub Actions CI pipeline
 ├── alembic/versions/
 │   ├── 001_create_all_tables.py          # All 5 tables
 │   ├── 002_source_value_to_text.py       # VARCHAR→TEXT migration
@@ -58,16 +64,18 @@ ig-dm-engine/
 │   ├── 004_add_inbox_tracking_fields.py  # replied_at, reply_text, reply_classification, conversation_status
 │   ├── 005_add_follow_up_system.py       # follow_up_rules table, follow_up fields on leads
 │   ├── 006_add_webhooks_table.py         # webhooks table
-│   └── 007_add_lead_posts_and_analysis.py # ig_posts, ig_post_analysis (JSONB)
+│   ├── 007_add_lead_posts_and_analysis.py # ig_posts, ig_post_analysis (JSONB)
+│   └── 008_add_users_audit_notifications.py # users, audit_logs, notifications tables
 ├── app/
-│   ├── main.py                    # FastAPI entry point
-│   ├── config.py                  # Settings (pydantic-settings) — includes security config
+│   ├── main.py                    # FastAPI entry point + inline notification endpoints
+│   ├── config.py                  # Settings (pydantic-settings) — includes Slack config
 │   ├── database.py                # SQLAlchemy async engine + session
 │   ├── logging_config.py          # JSON/Dev logging with request tracing
 │   ├── models/                    # SQLAlchemy models
 │   │   ├── base.py                # Base, TimestampMixin, UUIDMixin
 │   │   ├── client.py, campaign.py, lead.py, message.py, scrape_job.py
 │   │   ├── follow_up_rule.py, webhook.py
+│   │   └── user.py                # User, AuditLog, Notification models
 │   ├── schemas/                   # Pydantic request/response schemas
 │   │   ├── enums.py               # CampaignStatus, LeadStatus, SourceType, LeadCategory, ConversationStatus, ReplyClassification
 │   │   ├── client.py, campaign.py, lead.py, message.py
@@ -81,17 +89,21 @@ ig-dm-engine/
 │   │   ├── research_service.py    # Gemini/Perplexity research (~240 lines)
 │   │   ├── dm_sender_service.py   # Instagram DM sending with full security (~530 lines)
 │   │   ├── content_analysis_service.py # Multimodal content analysis (~300 lines)
+│   │   ├── notification_service.py # In-app + Slack dual-channel notifications
 │   │   ├── webhook_service.py     # Webhook event triggers
 │   │   └── export_service.py      # CSV/JSON/Excel export (~160 lines)
 │   ├── tasks/                     # Celery tasks + pipeline orchestration
-│   │   ├── celery_app.py, base.py, pipeline.py
+│   │   ├── celery_app.py          # Celery config + Beat schedule (inbox 5min, follow-ups 1hr)
+│   │   ├── base.py, pipeline.py
 │   │   ├── scraping_tasks.py, scoring_tasks.py
 │   │   ├── research_tasks.py, copywriting_tasks.py
-│   │   └── sending_tasks.py       # DM sending Celery task
+│   │   ├── sending_tasks.py       # DM sending Celery task + completion notifications
+│   │   ├── inbox_tasks.py         # check_all_inboxes_task (Beat) + check_inbox_task
+│   │   └── followup_tasks.py      # check_all_follow_ups_task (Beat) + process_follow_ups_task
 │   ├── utils/                     # Dedup, text cleanup
 │   └── static/
 │       └── dashboard.html         # Frontend SPA (~2,760 lines, vanilla JS)
-├── tests/                         # 12 test files
+├── tests/                         # 12+ test files
 │   ├── conftest.py
 │   ├── test_api.py, test_clients.py, test_enums.py
 │   ├── test_scoring.py            # ✅ 17 tests (batch scoring, auto-score, edge cases)
@@ -108,17 +120,23 @@ ig-dm-engine/
 ## Build & Run Commands
 
 ```bash
-# Start all services (API + DB + Redis + Worker)
+# Start all services (API + DB + Redis + Worker + Beat)
 docker compose up --build
 
 # Start only infrastructure (DB + Redis)
 docker compose up db redis
+
+# Start specific services (e.g., test Beat scheduler)
+docker compose up --build beat worker db redis
 
 # Run API locally (without Docker)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run Celery worker locally
 celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+
+# Run Celery Beat locally (periodic tasks)
+celery -A app.tasks.celery_app beat --loglevel=info
 
 # Run database migrations
 alembic upgrade head
@@ -137,6 +155,10 @@ python scripts/seed_db.py
 
 # Generate Fernet encryption key for session security
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Manually trigger periodic tasks (from inside worker container)
+docker compose exec worker python -c "from app.tasks.inbox_tasks import check_all_inboxes_task; print(check_all_inboxes_task.delay())"
+docker compose exec worker python -c "from app.tasks.followup_tasks import check_all_follow_ups_task; print(check_all_follow_ups_task.delay())"
 ```
 
 ## Environment Variables
@@ -151,6 +173,11 @@ Optional (research phase):
 - `GOOGLE_API_KEY` — Google Gemini API key (preferred for research)
 - `PERPLEXITY_API_KEY` — Perplexity API key (fallback if no Google key)
 - If neither is set, research phase is skipped automatically
+
+Slack Notifications (optional):
+- `SLACK_WEBHOOK_URL` — Slack Incoming Webhook URL (create at https://api.slack.com/apps → Incoming Webhooks)
+- `SLACK_CHANNEL` — Override channel (e.g. `#ig-alerts`). Optional — defaults to webhook's configured channel.
+- If `SLACK_WEBHOOK_URL` is empty, only in-app notifications are created (no Slack).
 
 Phase 2 — DM sending:
 - `IG_USERNAME` / `IG_PASSWORD` — Instagram account credentials (single account mode)
@@ -172,11 +199,57 @@ Phase 2 — Security:
 - `SKIP_PRIVATE_ACCOUNTS` — Filter out private accounts during scraping (default: true)
 
 Phase 3 — Inbox & Follow-up:
-- `INBOX_CHECK_INTERVAL` — Seconds between inbox checks (default: 300)
+- `INBOX_CHECK_INTERVAL` — Seconds between inbox checks (default: 300, used by Celery Beat)
 - `AB_TEST_ENABLED` — Enable A/B testing for DM variants (default: true)
 - `AB_TEST_SPLIT` — Ratio of leads getting variant A (default: 0.5)
-- `FOLLOWUP_CHECK_INTERVAL` — Seconds between follow-up checks (default: 3600)
+- `FOLLOWUP_CHECK_INTERVAL` — Seconds between follow-up checks (default: 3600, used by Celery Beat)
 - `MAX_FOLLOW_UP_STEPS` — Maximum follow-up steps per campaign (default: 3)
+
+## Docker Compose Services
+
+| Service | Command | Purpose |
+|---------|---------|---------|
+| `api` | `uvicorn app.main:app` | FastAPI server (port 1000) |
+| `worker` | `celery worker` | Executes async tasks (scraping, scoring, sending, etc.) |
+| `beat` | `celery beat` | Schedules periodic tasks (inbox checks, follow-ups) |
+| `db` | PostgreSQL 16 | Primary database |
+| `redis` | Redis 7 | Celery broker + cache |
+
+### Celery Beat Schedule
+
+| Task | Interval | What it does |
+|------|----------|-------------|
+| `check_all_inboxes` | Every 5 min (`INBOX_CHECK_INTERVAL`) | Finds campaigns with sent DMs, dispatches `check_inbox_task` per campaign |
+| `check_all_follow_ups` | Every 1 hour (`FOLLOWUP_CHECK_INTERVAL`) | Finds campaigns with active follow-up rules, dispatches `process_follow_ups_task` per campaign |
+
+## Notification System
+
+Dual-channel: **in-app** (stored in DB, shown in dashboard dropdown) + **Slack** (via Incoming Webhook).
+
+### Events that trigger notifications
+
+| Event | Level | Slack | When |
+|-------|-------|-------|------|
+| Campaign completed | success | Yes | All DMs sent successfully |
+| Campaign paused | warning | Yes | Rate limit, block, or all accounts in cooldown |
+| Reply received | success/info | Yes | Lead responds to DM (positive = success, others = info) |
+| Account blocked | error | Yes | Instagram blocks an account |
+
+### How it works
+- `notification_service.py` creates a `Notification` DB record + sends Slack POST
+- Dashboard polls `GET /api/v1/notifications` every 60 seconds
+- Slack messages include emoji by level and link to dashboard
+- If `SLACK_WEBHOOK_URL` is empty, only in-app notifications are created
+
+## CI/CD — GitHub Actions
+
+**File:** `.github/workflows/ci.yml`
+
+Runs on every push to `main`/`develop` and on PRs:
+1. Spins up PostgreSQL 16 + Redis 7 as service containers
+2. Installs Python 3.11 + dependencies
+3. Runs Alembic migrations
+4. Runs pytest (84+ tests)
 
 ## Key Conventions
 
@@ -197,7 +270,7 @@ Phase 3 — Inbox & Follow-up:
 - Deduplication via UNIQUE constraint on `(client_id, ig_username)`
 - Alembic for all schema changes — never modify DB directly
 - Lead model has 6+ indexes: campaign, client, status, score, username, delivery_status, send_attempts, conversation_status, next_follow_up_at + unique constraint
-- 7 migrations total (001-007)
+- 8 migrations total (001-008)
 
 ### AI Services
 - **Scoring**: Claude Sonnet 4.6 (`claude-sonnet-4-6`) — batch mode, 20 leads per API call, returns JSON array with score 0-100, reason, category, bio_clean. Private accounts are auto-scored 0 without API call. Leads with no data (no bio, no followers, no name) are also auto-scored 0.
@@ -207,6 +280,7 @@ Phase 3 — Inbox & Follow-up:
 
 ### Task Pipeline
 - Celery chains: scrape → score → research → write DMs → send DMs
+- Celery Beat: inbox monitoring (5 min) + follow-up processing (1 hour)
 - Scoring uses batch API calls (20 leads/call, 3 parallel batches) — NOT individual calls
 - DM generation uses batch API calls (5 leads/call, 3 parallel batches) — NOT individual calls
 - Research uses asyncio.Semaphore(8) for parallel async requests
@@ -260,13 +334,14 @@ Phase 3 — Inbox & Follow-up:
    a. Pre-send check: verify target is public (real-time instagrapi check)
    b. Select DM variant: A/B test random assignment, or switch variant on retry
    c. Send DM via round-robin account rotation
-   d. On success: status=sent, trigger webhook
+   d. On success: status=sent, trigger webhook + notification
    e. On rate limit: pause campaign, return
    f. On challenge/block: record cooldown, rotate to next account or pause if none available
    g. On user_not_found: status=failed immediately
    h. On other failure: increment send_attempts, retry up to 3 times
    i. Human-like delay before next send (longer after failures)
 4. Save all account sessions (encrypted) after batch
+5. Send completion notification (in-app + Slack)
 ```
 
 #### A/B Testing
@@ -290,9 +365,11 @@ Phase 3 — Inbox & Follow-up:
 - `sync_update_progress()` exists for ThreadPoolExecutor callbacks (creates its own event loop per thread)
 - Model names must be exact — wrong model name causes silent failures (errors caught by safe wrappers)
 - **Tests fixed**: `test_scoring.py` and `test_copywriting.py` have been updated to match batch API methods. All 103 tests pass (3 skipped for encryption in non-Docker env).
+- **Pre-existing test failures**: `test_dm_sender.py::test_ig_username_default_empty` fails when `.env` has `IG_USERNAME` set; `test_research.py::test_research_lead_returns_text` has a KeyError. Both are environment-dependent, not code bugs.
 - **"followers" Apify actor**: Currently maps to profile scraper (free-tier fallback), not actual followers list
 - **Research API key check**: Uses `len(key.strip()) >= 20` validation (previously used brittle `"XXXXX" not in` check)
 - **Free-tier comment limits**: Each Apify actor returns ~15 comments on free tier. Multi-actor strategy yields ~45 max. For more, scrape comments from multiple posts or upgrade Apify plan.
+- **Docker Compose version warning**: `version: "3.9"` is obsolete but harmless. Can be removed.
 
 ### Thresholds (configurable via env)
 - `DEFAULT_SCORE_THRESHOLD=60` — minimum score to keep a lead
@@ -306,6 +383,7 @@ Phase 3 — Inbox & Follow-up:
 - `test_dm_sender.py` — 62 passed, 3 skipped (encryption tests require working `cryptography` package)
 - `test_scoring.py` — 17 tests covering batch scoring, auto-score for empty/private profiles, progress callbacks, API failure handling
 - `test_copywriting.py` — 21 tests covering single DM generation, batch DMs, write_dms_batch with campaign/client mocks, progress callbacks
+- GitHub Actions CI runs on push to main/develop and on PRs
 
 ## API Keys & Secrets
 - **NEVER** commit API keys or secrets to the repository
@@ -323,3 +401,19 @@ Phase 3 — Inbox & Follow-up:
 - Scripts: `scripts/seed_db.py` (test data), `scripts/clean_and_seed.py` (reset DB), `scripts/create_100_campaign.py` (100-lead test campaign)
 - `instagrapi` simulates the Instagram mobile app — not officially supported by Meta. Use at your own risk.
 - Always use residential proxies for Instagram accounts to avoid detection
+
+## SaaS Roadmap — Remaining Items
+
+### Done
+- [x] Celery Beat for automated inbox monitoring + follow-ups
+- [x] Slack notifications (campaign completed/paused, reply received, account blocked)
+- [x] GitHub Actions CI/CD pipeline
+- [x] In-app notification center with dashboard dropdown
+
+### TODO
+- [ ] Next.js dashboard (currently vanilla JS SPA — functional but not production-grade for SaaS)
+- [ ] CRM pipeline visual (kanban: scraped → qualified → DM sent → replied → closed)
+- [ ] User onboarding flow (guided setup wizard for new clients)
+- [ ] API documentation (auto-generated Swagger is available at /docs, but needs customer-facing docs)
+- [ ] WhatsApp notifications (complement Slack for mobile-first clients)
+- [ ] Stripe billing integration (usage-based pricing per client)
