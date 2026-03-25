@@ -3443,6 +3443,9 @@
             showToast(`Comentario variante ${variant} copiado`);
         }
 
+        let commentPollInterval = null;
+        let commentPollExpectedCount = 0;
+
         async function generateComments() {
             if (!activeCampaignId) { showToast('Selecciona una campana primero'); return; }
             const btn = document.getElementById('genCommentsBtn');
@@ -3454,21 +3457,66 @@
                     let msg = `Error del servidor (${res.status})`;
                     try { const err = await res.json(); msg = err.message || msg; } catch(_) {}
                     showToast(msg, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Generar Comentarios';
                     return;
                 }
                 const data = await res.json();
                 if (data.status === 'started') {
                     const msg = data.message || `Generando comentarios para ${data.lead_count} leads...`;
                     showToast(msg, 'success');
+                    commentPollExpectedCount = data.lead_count || 0;
+                    startCommentPolling();
                 } else {
                     showToast(data.message || 'No hay leads elegibles', 'warning');
+                    btn.disabled = false;
+                    btn.textContent = 'Generar Comentarios';
                 }
             } catch(e) {
                 showToast('Error: ' + e.message, 'error');
-            } finally {
                 btn.disabled = false;
                 btn.textContent = 'Generar Comentarios';
             }
+        }
+
+        function startCommentPolling() {
+            if (commentPollInterval) clearInterval(commentPollInterval);
+            const btn = document.getElementById('genCommentsBtn');
+            let dots = 0;
+            commentPollInterval = setInterval(async () => {
+                dots = (dots + 1) % 4;
+                btn.textContent = 'Generando' + '.'.repeat(dots);
+                try {
+                    const res = await authFetch(`${API}/leads/?campaign_id=${activeCampaignId}&limit=500`);
+                    const leads = await res.json();
+                    currentLeads = leads;
+                    const commentCount = leads.filter(l => l.comment_message).length;
+                    const badgeEl = document.getElementById('commentsBadge');
+                    if (badgeEl) badgeEl.textContent = commentCount;
+                    renderCommentGallery();
+
+                    if (commentCount >= commentPollExpectedCount && commentPollExpectedCount > 0) {
+                        stopCommentPolling();
+                        showToast(`${commentCount} comentarios generados`, 'success');
+                    }
+                } catch(_) {}
+            }, 3000);
+
+            // Safety: stop after 5 minutes
+            setTimeout(() => { if (commentPollInterval) stopCommentPolling(); }, 300000);
+        }
+
+        function stopCommentPolling() {
+            if (commentPollInterval) {
+                clearInterval(commentPollInterval);
+                commentPollInterval = null;
+            }
+            const btn = document.getElementById('genCommentsBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Generar Comentarios';
+            }
+            renderCommentGallery();
         }
 
         async function sendSingleComment(leadId) {

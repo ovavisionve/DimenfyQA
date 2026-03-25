@@ -23,4 +23,5 @@ celery_app.autodiscover_tasks([
     "app.tasks.research_tasks",
     "app.tasks.copywriting_tasks",
     "app.tasks.sending_tasks",
+    "app.tasks.comment_tasks",
 ])
