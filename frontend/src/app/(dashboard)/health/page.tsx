@@ -209,6 +209,9 @@ export default function HealthPage() {
                 <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
                   Recurso
                 </th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
+                  Detalles
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -225,6 +228,15 @@ export default function HealthPage() {
                   </td>
                   <td className="px-5 py-2.5 text-xs text-zinc-500">
                     {entry.resource_type || "—"}
+                  </td>
+                  <td className="px-5 py-2.5 text-xs text-zinc-500 max-w-[300px]">
+                    {entry.details && Object.keys(entry.details).length > 0 ? (
+                      <pre className="whitespace-pre-wrap break-all text-[11px] text-zinc-400 font-mono">
+                        {JSON.stringify(entry.details, null, 1)}
+                      </pre>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}
