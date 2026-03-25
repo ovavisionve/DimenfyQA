@@ -9,30 +9,36 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --bg: #0f1117;
-            --surface: #161821;
-            --surface2: #1d1f2b;
-            --surface3: #252736;
-            --border: #2a2c3e;
-            --border2: #363850;
-            --text: #e4e4e7;
-            --text2: #8b8da0;
-            --text3: #5c5e72;
-            --accent: #e2a84b;
-            --accent2: #f0c274;
-            --accent-glow: rgba(226, 168, 75, 0.12);
-            --green: #4ade80;
-            --green-dim: rgba(74, 222, 128, 0.10);
-            --yellow: #f59e0b;
-            --yellow-dim: rgba(245, 158, 11, 0.10);
-            --red: #ef4444;
-            --red-dim: rgba(239, 68, 68, 0.10);
-            --blue: #38bdf8;
-            --blue-dim: rgba(56, 189, 248, 0.10);
-            --cyan: #2dd4bf;
-            --cyan-dim: rgba(45, 212, 191, 0.10);
-            --orange: #fb923c;
-            --orange-dim: rgba(251, 146, 60, 0.10);
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --surface2: #f0f0f2;
+            --surface3: #e8e8ec;
+            --border: #e0e0e6;
+            --border2: #d0d0d8;
+            --text: #111111;
+            --text2: #6b6b76;
+            --text3: #9b9ba8;
+            --accent: #111111;
+            --accent2: #333333;
+            --accent-glow: rgba(0, 0, 0, 0.06);
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.08);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.08);
+            --red: #dc2626;
+            --red-dim: rgba(220, 38, 38, 0.06);
+            --blue: #2563eb;
+            --blue-dim: rgba(37, 99, 235, 0.06);
+            --cyan: #0891b2;
+            --cyan-dim: rgba(8, 145, 178, 0.06);
+            --orange: #ea580c;
+            --orange-dim: rgba(234, 88, 12, 0.06);
+            --sidebar-bg: #111111;
+            --sidebar-text: #a0a0a0;
+            --sidebar-text2: #666666;
+            --sidebar-border: #222222;
+            --sidebar-hover: #1a1a1a;
+            --sidebar-active: rgba(255,255,255,0.08);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -85,8 +91,8 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
-            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
         }
 
         .container {
@@ -131,7 +137,7 @@
 
         .btn-primary {
             background: var(--accent);
-            color: #0f1117;
+            color: #ffffff;
         }
 
         .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.1); }
@@ -140,7 +146,7 @@
         .btn-danger {
             background: var(--red-dim);
             color: var(--red);
-            border: 1px solid rgba(248,113,113,0.2);
+            border: 1px solid rgba(220,38,38,0.15);
         }
 
         .btn-secondary {
@@ -508,7 +514,7 @@
 
         .score-high { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
         .score-mid { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
-        .score-low { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+        .score-low { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,0.15); }
         .score-pending { background: var(--surface3); color: var(--text3); border: 1px solid var(--border); }
         .score-badge.pop { animation: scorePopIn 0.4s ease-out; }
 
@@ -1041,8 +1047,8 @@
 
         .sidebar {
             width: 240px;
-            background: var(--surface);
-            border-right: 1px solid var(--border);
+            background: var(--sidebar-bg);
+            border-right: none;
             position: fixed;
             top: 0;
             left: 0;
@@ -1054,14 +1060,14 @@
         }
 
         .sidebar-logo {
-            padding: 20px 20px 16px;
-            border-bottom: 1px solid var(--border);
+            padding: 24px 20px 20px;
+            border-bottom: 1px solid var(--sidebar-border);
         }
 
         .sidebar-logo h1 {
             font-size: 18px;
             font-weight: 700;
-            color: var(--accent);
+            color: #ffffff;
             letter-spacing: -0.5px;
         }
 
@@ -1074,7 +1080,7 @@
         .sidebar-section {
             font-size: 10px;
             font-weight: 700;
-            color: var(--text3);
+            color: var(--sidebar-text2);
             text-transform: uppercase;
             letter-spacing: 1px;
             padding: 16px 12px 6px;
@@ -1087,7 +1093,7 @@
             padding: 10px 12px;
             border-radius: 8px;
             cursor: pointer;
-            color: var(--text2);
+            color: var(--sidebar-text);
             font-size: 13px;
             font-weight: 500;
             transition: all 0.15s;
@@ -1098,8 +1104,8 @@
             font-family: inherit;
         }
 
-        .nav-item:hover { background: var(--surface2); color: var(--text); }
-        .nav-item.active { background: var(--accent-glow); color: var(--accent2); font-weight: 600; }
+        .nav-item:hover { background: var(--sidebar-hover); color: #ffffff; }
+        .nav-item.active { background: var(--sidebar-active); color: #ffffff; font-weight: 600; }
         .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
         .nav-item .nav-badge {
             margin-left: auto;
@@ -1115,7 +1121,7 @@
 
         .sidebar-footer {
             padding: 12px 16px;
-            border-top: 1px solid var(--border);
+            border-top: 1px solid var(--sidebar-border);
         }
 
         .sidebar-user {
@@ -1129,8 +1135,8 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: var(--accent-glow);
-            color: var(--accent2);
+            background: rgba(255,255,255,0.1);
+            color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1139,33 +1145,29 @@
         }
 
         .sidebar-user-info { flex: 1; min-width: 0; }
-        .sidebar-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sidebar-user-role { font-size: 11px; color: var(--text3); text-transform: capitalize; }
+        .sidebar-user-name { font-size: 13px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-user-role { font-size: 11px; color: var(--sidebar-text2); text-transform: capitalize; }
 
         .sidebar-logout {
             margin-top: 8px;
             width: 100%;
             padding: 8px;
-            background: var(--surface2);
-            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--sidebar-border);
             border-radius: 6px;
-            color: var(--text2);
+            color: var(--sidebar-text);
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             font-family: inherit;
             transition: all 0.15s;
         }
-        .sidebar-logout:hover { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.2); }
+        .sidebar-logout:hover { background: rgba(220,38,38,0.15); color: #ef4444; border-color: rgba(220,38,38,0.3); }
 
         .main-content {
             margin-left: 240px;
             flex: 1;
             min-height: 100vh;
-            width: calc(100% - 240px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
         }
 
         .mobile-toggle {
@@ -1190,7 +1192,7 @@
         .has-sidebar .header { display: none; }
 
         /* ===== NEW PAGE SECTIONS ===== */
-        .page-section { display: none; padding: 32px 40px; width: 100%; max-width: 1100px; }
+        .page-section { display: none; padding: 32px 40px; }
         .page-section.active { display: block; }
 
         .page-header {
@@ -1256,19 +1258,19 @@
 
         /* Terminal log viewer */
         .log-terminal {
-            background: #000;
+            background: #0a0a0a;
             border-radius: 12px;
-            border: 1px solid var(--border);
+            border: 1px solid #222;
             overflow: hidden;
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
         }
         .log-terminal-header {
-            background: var(--surface2);
+            background: #111;
             padding: 10px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid #222;
         }
         .log-terminal-dots { display: flex; gap: 6px; }
         .log-terminal-dots span { width: 10px; height: 10px; border-radius: 50%; }
