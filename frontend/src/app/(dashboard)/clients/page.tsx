@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Users, Plus, X } from "lucide-react";
+import { Users, Plus, X, BarChart3 } from "lucide-react";
 
 interface Client {
   id: string;
@@ -14,8 +14,15 @@ interface Client {
   created_at: string;
 }
 
+interface ClientStats {
+  campaign_count: number;
+  lead_count: number;
+  last_activity: string | null;
+}
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientStats, setClientStats] = useState<Record<string, ClientStats>>({});
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState({
@@ -23,15 +30,24 @@ export default function ClientsPage() {
     business_type: "agency",
     dm_prompt: "",
     scoring_prompt: "",
+    max_daily_dms: 30,
   });
 
   useEffect(() => {
-    api<Client[]>("/api/v1/clients/").then(setClients).catch(() => {});
+    api<Client[]>("/api/v1/clients/").then((data) => {
+      setClients(data);
+      // Load stats for each client
+      data.forEach((c) => {
+        api<ClientStats>(`/api/v1/clients/${c.id}/analytics`)
+          .then((stats) => setClientStats((prev) => ({ ...prev, [c.id]: stats })))
+          .catch(() => {});
+      });
+    }).catch(() => {});
   }, []);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: "", business_type: "agency", dm_prompt: "", scoring_prompt: "" });
+    setForm({ name: "", business_type: "agency", dm_prompt: "", scoring_prompt: "", max_daily_dms: 30 });
     setShowModal(true);
   };
 
@@ -42,6 +58,7 @@ export default function ClientsPage() {
       business_type: c.business_type || "agency",
       dm_prompt: c.dm_prompt || "",
       scoring_prompt: c.scoring_prompt || "",
+      max_daily_dms: c.max_daily_dms ?? 30,
     });
     setShowModal(true);
   };
@@ -81,33 +98,58 @@ export default function ClientsPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {clients.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => openEdit(c)}
-            className="rounded-lg border border-zinc-200 bg-white p-5 text-left hover:border-amber-300 transition-colors"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <Users size={18} className="text-amber-700" />
+        {clients.map((c) => {
+          const stats = clientStats[c.id];
+          return (
+            <button
+              key={c.id}
+              onClick={() => openEdit(c)}
+              className="rounded-lg border border-zinc-200 bg-white p-5 text-left hover:border-amber-300 transition-colors"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Users size={18} className="text-amber-700" />
+                </div>
+                <div>
+                  <p className="font-medium text-zinc-900">{c.name}</p>
+                  <p className="text-xs text-zinc-500 capitalize">
+                    {c.business_type}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-zinc-900">{c.name}</p>
-                <p className="text-xs text-zinc-500 capitalize">
-                  {c.business_type}
+
+              {/* Client stats */}
+              {stats && (
+                <div className="flex gap-4 mb-2 text-xs">
+                  <div className="flex items-center gap-1 text-zinc-500">
+                    <BarChart3 size={12} />
+                    <span>{stats.campaign_count} campañas</span>
+                  </div>
+                  <div className="text-zinc-500">
+                    {stats.lead_count} leads
+                  </div>
+                </div>
+              )}
+
+              {c.dm_prompt && (
+                <p className="text-xs text-zinc-500 line-clamp-2">
+                  {c.dm_prompt}
                 </p>
+              )}
+
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-zinc-400">
+                  Creado: {new Date(c.created_at).toLocaleDateString()}
+                </p>
+                {stats?.last_activity && (
+                  <p className="text-xs text-zinc-400">
+                    Actividad: {new Date(stats.last_activity).toLocaleDateString()}
+                  </p>
+                )}
               </div>
-            </div>
-            {c.dm_prompt && (
-              <p className="text-xs text-zinc-500 line-clamp-2">
-                {c.dm_prompt}
-              </p>
-            )}
-            <p className="text-xs text-zinc-400 mt-2">
-              Creado: {new Date(c.created_at).toLocaleDateString()}
-            </p>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       {clients.length === 0 && (
@@ -152,6 +194,21 @@ export default function ClientsPage() {
               <option value="restaurant">Restaurante</option>
               <option value="other">Otro</option>
             </select>
+
+            <div>
+              <label className="text-xs font-medium text-zinc-600 mb-1 block">
+                Max DMs por día
+              </label>
+              <input
+                type="number"
+                value={form.max_daily_dms}
+                onChange={(e) => setForm({ ...form, max_daily_dms: parseInt(e.target.value) || 30 })}
+                min={1}
+                max={200}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-zinc-400 mt-1">Límite diario de DMs para este cliente (default: 30)</p>
+            </div>
 
             <div>
               <label className="text-xs font-medium text-zinc-600 mb-1 block">
