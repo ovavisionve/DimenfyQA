@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   ChevronDown,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -29,11 +30,16 @@ interface Lead {
   id: string;
   ig_username: string;
   ig_full_name: string;
+  ig_bio_clean: string | null;
+  ig_follower_count: number | null;
   status: string;
   score: number | null;
   category: string | null;
+  lead_category: string | null;
   dm_message: string | null;
   dm_variant_b: string | null;
+  delivery_status: string | null;
+  dm_variant_used: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -56,6 +62,7 @@ export default function PipelinePage() {
   const [tab, setTab] = useState<"stats" | "leads" | "dms">("stats");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [dmPreview, setDmPreview] = useState<Lead | null>(null);
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -148,14 +155,20 @@ export default function PipelinePage() {
   // Stats
   const stats = selected?.stats || {};
   const progress = (stats as Record<string, Record<string, unknown>>).progress || {};
+  const scoredLeads = leads.filter((l) => l.score !== null);
+  const avgScore = scoredLeads.length
+    ? Math.round(scoredLeads.reduce((sum, l) => sum + (l.score || 0), 0) / scoredLeads.length)
+    : 0;
   const statItems = [
-    { label: "Scraped", value: leads.filter((l) => l.status !== "new").length },
-    { label: "Scored", value: leads.filter((l) => l.score !== null).length },
-    { label: "DM Ready", value: leads.filter((l) => l.status === "dm_ready").length },
-    { label: "Sent", value: leads.filter((l) => l.status === "sent").length },
-    { label: "Replied", value: leads.filter((l) => l.status === "replied").length },
-    { label: "Failed", value: leads.filter((l) => l.status === "failed").length },
-  ];
+    { label: "Total Leads", value: leads.length },
+    { label: "Avg Score", value: avgScore },
+    { label: "Qualified 70+", value: leads.filter((l) => (l.score || 0) >= 70).length },
+    { label: "DMs Generados", value: leads.filter((l) => l.dm_message).length },
+    { label: "DMs Enviados", value: leads.filter((l) => l.status === "sent").length },
+    { label: "Respondidos", value: leads.filter((l) => l.status === "replied").length },
+    { label: "Fallidos", value: leads.filter((l) => l.status === "failed").length },
+    { label: "Status", value: selected?.status || "—", isText: true },
+  ] as Array<{ label: string; value: number | string; isText?: boolean }>;
 
   const filteredLeads = leads.filter(
     (l) =>
@@ -336,13 +349,16 @@ export default function PipelinePage() {
 
       {/* Stats Row */}
       {selected && (
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
           {statItems.map((s) => (
             <div
               key={s.label}
               className="rounded-lg border border-zinc-200 bg-white p-3 text-center"
             >
-              <p className="text-2xl font-semibold text-zinc-900">{s.value}</p>
+              <p className={cn(
+                "font-semibold text-zinc-900",
+                s.isText ? "text-sm capitalize" : "text-2xl"
+              )}>{s.value}</p>
               <p className="text-xs text-zinc-500 mt-0.5">{s.label}</p>
             </div>
           ))}
@@ -385,7 +401,7 @@ export default function PipelinePage() {
             />
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+          <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50">
@@ -393,7 +409,10 @@ export default function PipelinePage() {
                     Username
                   </th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
-                    Nombre
+                    Bio
+                  </th>
+                  <th className="px-4 py-2.5 text-right font-medium text-zinc-600">
+                    Followers
                   </th>
                   <th className="px-4 py-2.5 text-center font-medium text-zinc-600">
                     Score
@@ -404,6 +423,9 @@ export default function PipelinePage() {
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
                     Status
                   </th>
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
+                    DM Preview
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -412,11 +434,25 @@ export default function PipelinePage() {
                     key={lead.id}
                     className="border-b border-zinc-50 hover:bg-zinc-50"
                   >
-                    <td className="px-4 py-2.5 font-mono text-xs">
-                      @{lead.ig_username}
+                    <td className="px-4 py-2.5">
+                      <div className="font-mono text-xs">@{lead.ig_username}</div>
+                      {lead.ig_full_name && (
+                        <div className="text-xs text-zinc-400">{lead.ig_full_name}</div>
+                      )}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-700">
-                      {lead.ig_full_name || "—"}
+                    <td className="px-4 py-2.5 max-w-[200px]">
+                      {lead.ig_bio_clean ? (
+                        <p className="text-xs text-zinc-500 line-clamp-2" title={lead.ig_bio_clean}>
+                          {lead.ig_bio_clean}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-zinc-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs tabular-nums text-zinc-600">
+                      {lead.ig_follower_count != null
+                        ? lead.ig_follower_count.toLocaleString()
+                        : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {lead.score !== null ? (
@@ -433,11 +469,17 @@ export default function PipelinePage() {
                           {lead.score}
                         </span>
                       ) : (
-                        "—"
+                        <span className="text-xs text-zinc-300">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-500">
-                      {lead.category || "—"}
+                    <td className="px-4 py-2.5">
+                      {(lead.category || lead.lead_category) ? (
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
+                          {lead.category || lead.lead_category}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-300">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       <span
@@ -449,6 +491,19 @@ export default function PipelinePage() {
                         {lead.status}
                       </span>
                     </td>
+                    <td className="px-4 py-2.5 max-w-[250px]">
+                      {lead.dm_message ? (
+                        <button
+                          onClick={() => setDmPreview(lead)}
+                          className="text-xs text-amber-600 hover:text-amber-800 text-left line-clamp-2 cursor-pointer"
+                          title="Click para ver DM completo"
+                        >
+                          {lead.dm_message}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-zinc-300">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -459,6 +514,46 @@ export default function PipelinePage() {
               </p>
             )}
           </div>
+
+          {/* DM Preview Modal */}
+          {dmPreview && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDmPreview(null)}>
+              <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-900">
+                    DM para @{dmPreview.ig_username}
+                  </h3>
+                  <button onClick={() => setDmPreview(null)} className="text-zinc-400 hover:text-zinc-600">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-zinc-500 mb-1">Variante A</p>
+                  <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 leading-relaxed">
+                    {dmPreview.dm_message}
+                  </div>
+                </div>
+                {dmPreview.dm_variant_b && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-1">Variante B</p>
+                    <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-600 leading-relaxed">
+                      {dmPreview.dm_variant_b}
+                    </div>
+                  </div>
+                )}
+                {dmPreview.score !== null && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <span>Score: <strong>{dmPreview.score}</strong></span>
+                    {(dmPreview.category || dmPreview.lead_category) && (
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5">
+                        {dmPreview.category || dmPreview.lead_category}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
