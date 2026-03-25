@@ -1609,6 +1609,9 @@
             <button class="tab" onclick="switchTab('dms')" id="tab-dms">
                 DMs <span class="tab-badge" id="dmsBadge">0</span>
             </button>
+            <button class="tab" onclick="switchTab('comentarios')" id="tab-comentarios">
+                Comentarios <span class="tab-badge" id="commentsBadge">0</span>
+            </button>
             <button class="tab" onclick="switchTab('ab')" id="tab-ab">
                 A/B Testing
             </button>
@@ -1669,7 +1672,7 @@
                 <div class="progress-counter" id="progressCounter"></div>
             </div>
 
-            <div class="stats-row" style="grid-template-columns: repeat(6, 1fr)">
+            <div class="stats-row" style="grid-template-columns: repeat(8, 1fr)">
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--blue)" id="totalLeads">0</div>
                     <div class="stat-label">Total Leads</div>
@@ -1689,6 +1692,14 @@
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--green)" id="dmsSent">0</div>
                     <div class="stat-label">DMs Sent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--purple, #a855f7)" id="commentsGenerated">0</div>
+                    <div class="stat-label">Comments Gen</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: var(--purple, #a855f7)" id="commentsSent">0</div>
+                    <div class="stat-label">Comments Sent</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="color: var(--yellow)" id="campaignStatus">-</div>
@@ -1760,6 +1771,32 @@
                 <div class="empty-state">
                     <div class="empty-icon">&#x1F4AC;</div>
                     No DMs generated yet. Run the pipeline first.
+                </div>
+            </div>
+        </div>
+
+        <!-- =============== COMENTARIOS TAB =============== -->
+        <div class="tab-content" id="content-comentarios">
+            <div class="dm-search-bar">
+                <input type="text" id="commentSearch" placeholder="Search by username, name, or comment content..." oninput="filterComments()">
+                <select id="commentCategoryFilter" onchange="filterComments()">
+                    <option value="">All Categories</option>
+                    <option value="coach">Coach</option>
+                    <option value="ecommerce">E-commerce</option>
+                    <option value="saas">SaaS</option>
+                    <option value="agency">Agency</option>
+                    <option value="creator">Creator</option>
+                    <option value="local_business">Local Business</option>
+                    <option value="other">Other</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="generateComments()">Generate Comments</button>
+                <button class="btn btn-success btn-sm" onclick="sendMasivoComments()">Enviar Masivo</button>
+            </div>
+
+            <div class="dm-gallery" id="commentGallery">
+                <div class="empty-state">
+                    <div class="empty-icon">💬</div>
+                    No comments generated yet. Run the pipeline first, then generate comments.
                 </div>
             </div>
         </div>
@@ -2542,6 +2579,7 @@
             document.getElementById(`content-${tab}`).classList.add('active');
 
             if (tab === 'dms') renderDMGallery();
+            if (tab === 'comentarios') renderCommentGallery();
             if (tab === 'ab') loadABResults();
             if (tab === 'analytics') loadAnalytics();
             if (tab === 'export') updateExportStats();
@@ -2802,12 +2840,16 @@
                 const dmCount = leads.filter(l => l.dm_message).length;
                 document.getElementById('dmsBadge').textContent = dmCount;
 
-                // Update Comments badge
+                // Update Comments badges (tab + sidebar)
                 const commentCount = leads.filter(l => l.comment_message).length;
                 const commentBadge = document.getElementById('commentsBadgeSidebar');
                 if (commentBadge) {
                     commentBadge.textContent = commentCount;
                     commentBadge.style.display = commentCount > 0 ? 'inline-flex' : 'none';
+                }
+                const commentTabBadge = document.getElementById('commentsBadge');
+                if (commentTabBadge) {
+                    commentTabBadge.textContent = commentCount;
                 }
 
                 // Refresh account health during sending phases
@@ -2951,6 +2993,13 @@
 
             const sent = leads.filter(l => ['sent','delivered'].includes(l.status)).length;
             document.getElementById('dmsSent').textContent = sent;
+
+            // Comment stats
+            const commentsGen = leads.filter(l => l.comment_message).length;
+            document.getElementById('commentsGenerated').textContent = commentsGen;
+
+            const commentsSent = leads.filter(l => l.comment_status === 'comment_sent').length;
+            document.getElementById('commentsSent').textContent = commentsSent;
 
             document.getElementById('leadsCount').textContent = `${leads.length} leads`;
         }
@@ -3105,6 +3154,141 @@
 
         function filterDMs() {
             renderDMGallery();
+        }
+
+        // ===== COMMENT GALLERY =====
+        function buildCommentCardsHTML(leads) {
+            if (leads.length === 0) {
+                return '<div class="empty-state"><div class="empty-icon">💬</div>No comments generated yet. Generate comments first.</div>';
+            }
+            return leads.map(lead => {
+                const scoreClass = lead.score >= 70 ? 'score-high' : lead.score >= 40 ? 'score-mid' : 'score-low';
+                const hasB = !!lead.comment_variant_b;
+                const leadId = lead.id.replace(/-/g, '');
+                const postLink = lead.comment_target_post ? `https://www.instagram.com/p/${lead.comment_target_post}/` : '#';
+                const statusBadge = lead.comment_status ? `<span class="category-tag" style="margin-left:8px;font-size:10px">${lead.comment_status}</span>` : '';
+
+                return `<div class="dm-card" data-username="${(lead.ig_username||'').toLowerCase()}" data-category="${lead.lead_category||''}" data-name="${(lead.ig_full_name||'').toLowerCase()}" data-dm="${(lead.comment_message||'').toLowerCase()}">
+                    <div class="dm-card-header">
+                        <div class="dm-card-user">
+                            <div>
+                                <div class="username">@${lead.ig_username || '—'}</div>
+                                <div class="fullname">${lead.ig_full_name || ''}</div>
+                            </div>
+                            <span class="score-badge ${scoreClass}" style="margin-left:12px">${lead.score}</span>
+                            <span class="category-tag" style="margin-left:8px">${lead.lead_category || 'other'}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="dm-card-actions">
+                            ${lead.comment_status !== 'comment_sent' ? `<button class="btn btn-success btn-sm" onclick="sendSingleComment('${lead.id}')">Send</button>` : ''}
+                            <button class="btn btn-secondary btn-sm" onclick="copyComment('${escapeHTML(lead.ig_username)}', 'A')">Copy A</button>
+                            ${hasB ? `<button class="btn btn-secondary btn-sm" onclick="copyComment('${escapeHTML(lead.ig_username)}', 'B')">Copy B</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="dm-card-body">
+                        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">
+                            Post: <a href="${postLink}" target="_blank" style="color:var(--accent)">${lead.comment_target_post || '—'}</a>
+                        </div>
+                        <div class="dm-variant-toggle">
+                            <button class="dm-variant-btn active" onclick="toggleCommentVariant(this, '${leadId}', 'A')">Variant A</button>
+                            ${hasB ? `<button class="dm-variant-btn" onclick="toggleCommentVariant(this, '${leadId}', 'B')">Variant B</button>` : ''}
+                        </div>
+                        <div class="dm-card-text" id="comment-text-${leadId}">${escapeHTML(lead.comment_message || '')}</div>
+                        <div class="dm-card-meta">
+                            <span>${formatNum(lead.ig_follower_count || 0)} followers</span>
+                            <span>${lead.lead_category || 'other'}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function getCommentFilteredLeads() {
+            const searchEl = document.getElementById('commentSearch');
+            const filterEl = document.getElementById('commentCategoryFilter');
+            const search = (searchEl ? searchEl.value : '').toLowerCase();
+            const category = filterEl ? filterEl.value : '';
+
+            return currentLeads.filter(l => {
+                if (!l.comment_message) return false;
+                if (category && l.lead_category !== category) return false;
+                if (search) {
+                    const hay = `${l.ig_username||''} ${l.ig_full_name||''} ${l.comment_message||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            }).sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        function renderCommentGallery() {
+            const gallery = document.getElementById('commentGallery');
+            if (gallery) {
+                gallery.innerHTML = buildCommentCardsHTML(getCommentFilteredLeads());
+            }
+        }
+
+        function filterComments() {
+            renderCommentGallery();
+        }
+
+        function toggleCommentVariant(btn, leadId, variant) {
+            const card = btn.closest('.dm-card-body');
+            card.querySelectorAll('.dm-variant-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const lead = currentLeads.find(l => l.id.replace(/-/g, '') === leadId);
+            if (!lead) return;
+            const textEl = document.getElementById(`comment-text-${leadId}`);
+            textEl.textContent = variant === 'A' ? (lead.comment_message || '') : (lead.comment_variant_b || '');
+        }
+
+        function copyComment(username, variant) {
+            const lead = currentLeads.find(l => l.ig_username === username);
+            if (!lead) return;
+            const text = variant === 'A' ? lead.comment_message : lead.comment_variant_b;
+            if (text) {
+                navigator.clipboard.writeText(text);
+                showToast(`Copied comment ${variant} for @${username}`);
+            }
+        }
+
+        async function generateComments() {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/generate`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`Generating comments... Task: ${data.task_id || 'started'}`);
+                } else {
+                    showToast('Failed to generate comments', 'error');
+                }
+            } catch(e) { showToast('Error generating comments', 'error'); }
+        }
+
+        async function sendSingleComment(leadId) {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/send-single/${leadId}`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(data.success ? 'Comment sent!' : `Failed: ${data.error || 'unknown'}`);
+                    renderCommentGallery();
+                } else {
+                    showToast('Failed to send comment', 'error');
+                }
+            } catch(e) { showToast('Error sending comment', 'error'); }
+        }
+
+        async function sendMasivoComments() {
+            if (!activeCampaignId) { showToast('Select a campaign first', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/comments/${activeCampaignId}/send-masivo`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`Sending ${data.count || 0} comments... Task: ${data.task_id || 'started'}`);
+                } else {
+                    showToast('Failed to send comments', 'error');
+                }
+            } catch(e) { showToast('Error sending comments', 'error'); }
         }
 
         function toggleVariant(btn, leadId, variant) {
