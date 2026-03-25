@@ -122,6 +122,7 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-zinc-200 text-zinc-700",
   draft: "bg-zinc-200 text-zinc-700",
   scraping: "bg-blue-100 text-blue-700",
   scoring: "bg-violet-100 text-violet-700",
@@ -168,24 +169,31 @@ export default function PipelinePage() {
     try {
       const data = await api<Campaign[]>("/api/v1/campaigns/");
       setCampaigns(data);
-      if (data.length && !selected) setSelected(data[0]);
+      setSelected((prev) => {
+        if (prev) {
+          // Update selected campaign data if it's still in the list
+          const updated = data.find((c) => c.id === prev.id);
+          return updated || prev;
+        }
+        return data.length ? data[0] : null;
+      });
     } catch {
       /* ignore */
     }
-  }, [selected]);
+  }, []);
 
-  const loadLeads = useCallback(async () => {
-    if (!selected) return;
+  const loadLeads = useCallback(async (campaignId: string) => {
     try {
       const data = await api<Lead[]>(
-        `/api/v1/campaigns/${selected.id}/leads?limit=500`
+        `/api/v1/campaigns/${campaignId}/leads?limit=500`
       );
       setLeads(data);
     } catch {
       /* ignore */
     }
-  }, [selected]);
+  }, []);
 
+  // Initial load
   useEffect(() => {
     setLoading(true);
     loadCampaigns().finally(() => setLoading(false));
@@ -194,26 +202,32 @@ export default function PipelinePage() {
       .catch(() => {});
   }, [loadCampaigns]);
 
+  // Load leads when selected campaign changes
   useEffect(() => {
-    loadLeads();
-  }, [loadLeads]);
+    if (selected) loadLeads(selected.id);
+    else setLeads([]);
+  }, [selected?.id, loadLeads]);
 
-  // Poll campaign status when active
+  // Poll campaign status when actively processing
   useEffect(() => {
     if (
       !selected ||
-      ["draft", "ready", "completed", "failed"].includes(selected.status)
+      ["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status)
     )
       return;
     const id = setInterval(async () => {
-      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
-      setSelected(c);
-      if (["ready", "completed", "failed", "paused"].includes(c.status)) {
-        loadLeads();
+      try {
+        const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+        setSelected(c);
+        if (["ready", "completed", "failed", "paused"].includes(c.status)) {
+          loadLeads(c.id);
+        }
+      } catch {
+        /* ignore */
       }
     }, 3000);
     return () => clearInterval(id);
-  }, [selected, loadLeads]);
+  }, [selected?.id, selected?.status, loadLeads]);
 
   const startPipeline = async () => {
     if (!selected) return;
@@ -489,7 +503,7 @@ export default function PipelinePage() {
           <button
             onClick={() => {
               loadCampaigns();
-              loadLeads();
+              if (selected) loadLeads(selected.id);
             }}
             className="rounded-lg border border-zinc-200 p-2 text-zinc-500 hover:bg-zinc-50"
           >
@@ -499,7 +513,7 @@ export default function PipelinePage() {
       </div>
 
       {/* Progress indicator */}
-      {selected && !["draft", "ready", "completed", "failed"].includes(selected.status) && (
+      {selected && !["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="flex items-center gap-2 text-sm text-amber-800">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-300 border-t-amber-600" />
@@ -508,6 +522,22 @@ export default function PipelinePage() {
               {(progress as Record<string, unknown>).message as string || "Procesando"}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Pending/Paused banner */}
+      {selected?.status === "pending" && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <p className="text-sm text-zinc-600">
+            Campaña en cola — esperando un worker disponible. Puedes seleccionar otra campaña mientras tanto.
+          </p>
+        </div>
+      )}
+      {selected?.status === "paused" && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+          <p className="text-sm text-yellow-800">
+            Campaña pausada — puede ser por rate limit, bloqueo de cuenta o cooldown activo.
+          </p>
         </div>
       )}
 
