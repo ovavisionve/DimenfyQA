@@ -67,6 +67,7 @@ def check_inbox_task(self, campaign_id: str) -> dict:
     async def _check():
         async with create_worker_session()() as db:
             from app.services.inbox_service import inbox_service
+            from app.services.unibox_service import unibox_service
 
             await update_progress(
                 campaign_id, "inbox_check",
@@ -76,6 +77,15 @@ def check_inbox_task(self, campaign_id: str) -> dict:
             )
 
             result = await inbox_service.process_campaign_inbox(campaign_id, db)
+
+            # Auto-generate reply suggestions for new replies
+            if result.get("new_replies", 0) > 0 and result.get("replied_lead_ids"):
+                for lead_id in result["replied_lead_ids"]:
+                    try:
+                        await unibox_service.auto_suggest_on_new_reply(lead_id, db)
+                        logger.info(f"Auto-generated reply suggestions for lead {lead_id}")
+                    except Exception as e:
+                        logger.warning(f"Auto-suggest failed for lead {lead_id}: {e}")
 
             if result["errors"]:
                 detail = "; ".join(result["errors"][:3])

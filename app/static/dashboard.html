@@ -1518,6 +1518,10 @@
                 <i data-lucide="message-square" class="nav-lucide"></i> Comentarios
                 <span class="nav-badge" id="commentsBadgeSidebar" style="display:none">0</span>
             </button>
+            <button class="nav-item" onclick="navigateTo('unibox')" data-page="unibox">
+                <i data-lucide="inbox" class="nav-lucide"></i> Unibox
+                <span class="nav-badge" id="uniboxBadge" style="display:none">0</span>
+            </button>
 
             <div class="sidebar-section">Management</div>
             <button class="nav-item" onclick="navigateTo('clients')" data-page="clients">
@@ -2286,6 +2290,59 @@
     </div>
 
 
+    <!-- =============== PAGE: UNIBOX =============== -->
+    <div class="page-section" id="page-unibox">
+        <div class="container">
+            <div class="page-header">
+                <h2>Unibox — Unified Inbox</h2>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="uniboxStatsBar" style="font-size:13px;color:var(--text2)"></span>
+                    <button class="btn btn-secondary btn-sm" onclick="loadUnibox()">Refresh</button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+                <input type="text" id="uniboxSearch" placeholder="Search by username or message..." oninput="filterUniboxConversations()" style="flex:1;min-width:200px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
+                <select id="uniboxClassFilter" onchange="filterUniboxConversations()" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
+                    <option value="">All Classifications</option>
+                    <option value="positive">Positive</option>
+                    <option value="negative">Negative</option>
+                    <option value="question">Question</option>
+                    <option value="not_interested">Not Interested</option>
+                    <option value="out_of_office">Out of Office</option>
+                    <option value="spam">Spam</option>
+                </select>
+                <select id="uniboxStatusFilter" onchange="filterUniboxConversations()" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
+                    <option value="">All Status</option>
+                    <option value="replied">Replied</option>
+                    <option value="engaged">Engaged</option>
+                    <option value="awaiting_reply">Awaiting Reply</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <select id="uniboxSortBy" onchange="loadUnibox()" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
+                    <option value="recent">Most Recent</option>
+                    <option value="score">Highest Score</option>
+                </select>
+            </div>
+
+            <!-- 2-panel layout -->
+            <div style="display:flex;gap:16px;min-height:600px">
+                <!-- Left: conversation list -->
+                <div id="uniboxList" style="width:380px;min-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-y:auto;max-height:700px">
+                    <div style="text-align:center;padding:40px;color:var(--text3)">Loading conversations...</div>
+                </div>
+
+                <!-- Right: thread + reply -->
+                <div id="uniboxThread" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:700px">
+                    <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px">
+                        Select a conversation to view the thread
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- DM Modal -->
     <!-- New Campaign Modal -->
     <div class="modal-overlay" id="newCampaignModal" onclick="if(event.target===this)closeNewCampaignModal()">
@@ -2398,6 +2455,7 @@
             if (page === 'settings') { loadSettings(); }
             if (page === 'logs') { connectLogWS(); }
             if (page === 'system') { loadSystemHealth(); loadAuditLog(); }
+            if (page === 'unibox') { loadUnibox(); }
 
             // Close mobile sidebar
             document.querySelector('.sidebar').classList.remove('open');
@@ -4380,6 +4438,275 @@
         // Load notifications periodically
         setInterval(loadNotifications, 60000);
         loadNotifications();
+
+        // ===== UNIBOX =====
+        let uniboxConversations = [];
+        let uniboxActiveLeadId = null;
+
+        async function loadUnibox() {
+            try {
+                const sortBy = document.getElementById('uniboxSortBy')?.value || 'recent';
+                const [convRes, statsRes] = await Promise.all([
+                    authFetch(`${API}/unibox/conversations?sort_by=${sortBy}&limit=100`),
+                    authFetch(`${API}/unibox/stats`),
+                ]);
+                const convData = await convRes.json();
+                const statsData = await statsRes.json();
+
+                uniboxConversations = convData.conversations || [];
+
+                // Update stats bar
+                const bar = document.getElementById('uniboxStatsBar');
+                if (bar) {
+                    bar.textContent = `${statsData.total_conversations || 0} conversations | ${statsData.total_replied || 0} replied | ${statsData.unreplied || 0} pending`;
+                }
+
+                // Update sidebar badge
+                const badge = document.getElementById('uniboxBadge');
+                if (statsData.unreplied > 0) { badge.textContent = statsData.unreplied; badge.style.display = ''; }
+                else { badge.style.display = 'none'; }
+
+                renderUniboxList(uniboxConversations);
+            } catch(e) { console.error('Unibox load error:', e); }
+        }
+
+        function filterUniboxConversations() {
+            const search = (document.getElementById('uniboxSearch')?.value || '').toLowerCase();
+            const classif = document.getElementById('uniboxClassFilter')?.value || '';
+            const status = document.getElementById('uniboxStatusFilter')?.value || '';
+
+            const filtered = uniboxConversations.filter(c => {
+                if (classif && c.reply_classification !== classif) return false;
+                if (status && c.conversation_status !== status) return false;
+                if (search) {
+                    const hay = `${c.ig_username||''} ${c.ig_full_name||''} ${c.last_message_preview||''}`.toLowerCase();
+                    if (!hay.includes(search)) return false;
+                }
+                return true;
+            });
+            renderUniboxList(filtered);
+        }
+
+        function renderUniboxList(conversations) {
+            const list = document.getElementById('uniboxList');
+            if (!conversations.length) {
+                list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No conversations found. Send DMs first via the Pipeline.</div>';
+                return;
+            }
+            list.innerHTML = conversations.map(c => {
+                const scoreColor = (c.score||0) >= 70 ? 'var(--green)' : (c.score||0) >= 40 ? 'var(--yellow)' : 'var(--red)';
+                const classifBadge = c.reply_classification
+                    ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${classifColor(c.reply_classification)};color:#fff">${c.reply_classification}</span>`
+                    : '';
+                const isActive = c.lead_id === uniboxActiveLeadId;
+                const hasReply = c.has_reply;
+                const timeAgo = c.last_message_at ? formatTimeAgo(c.last_message_at) : '';
+
+                return `<div onclick="openUniboxThread('${c.lead_id}')" style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:10px;align-items:flex-start;${isActive ? 'background:var(--surface2);' : ''}transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='${isActive?'var(--surface2)':'transparent'}'">
+                    <div style="width:36px;height:36px;border-radius:50%;background:${scoreColor}22;color:${scoreColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">${c.score||'?'}</div>
+                    <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                            <span style="font-weight:600;font-size:13px;color:var(--text)">@${escapeHTML(c.ig_username)}</span>
+                            ${classifBadge}
+                            ${hasReply ? '<span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block"></span>' : ''}
+                        </div>
+                        <div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(c.last_message_preview||'No message')}</div>
+                        <div style="font-size:11px;color:var(--text3);margin-top:2px">${timeAgo}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function classifColor(c) {
+            const colors = { positive:'#22c55e', negative:'#dc2626', question:'#2563eb', not_interested:'#9b9ba8', out_of_office:'#ea580c', spam:'#6b6b76' };
+            return colors[c] || '#6b6b76';
+        }
+
+        function formatTimeAgo(isoStr) {
+            if (!isoStr) return '';
+            const diff = Date.now() - new Date(isoStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            const days = Math.floor(hrs / 24);
+            return days + 'd ago';
+        }
+
+        async function openUniboxThread(leadId) {
+            uniboxActiveLeadId = leadId;
+            // Re-render list to highlight active
+            filterUniboxConversations();
+
+            const panel = document.getElementById('uniboxThread');
+            panel.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3)">Loading thread...</div>';
+
+            try {
+                const res = await authFetch(`${API}/unibox/conversations/${leadId}/thread`);
+                const data = await res.json();
+                renderUniboxThread(data);
+            } catch(e) {
+                panel.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--red)">Error loading thread</div>';
+            }
+        }
+
+        function renderUniboxThread(data) {
+            const panel = document.getElementById('uniboxThread');
+            const lead = data.lead;
+            const messages = data.messages || [];
+            const suggestions = data.suggestions;
+
+            const scoreColor = (lead.score||0) >= 70 ? 'var(--green)' : (lead.score||0) >= 40 ? 'var(--yellow)' : 'var(--red)';
+            const classifBadge = lead.reply_classification
+                ? `<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${classifColor(lead.reply_classification)}22;color:${classifColor(lead.reply_classification)};font-weight:600">${lead.reply_classification}</span>`
+                : '';
+
+            // Header
+            let html = `<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+                <div style="width:40px;height:40px;border-radius:50%;background:${scoreColor}22;color:${scoreColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${lead.score||'?'}</div>
+                <div style="flex:1">
+                    <div style="font-weight:700;font-size:15px">@${escapeHTML(lead.ig_username)}</div>
+                    <div style="font-size:12px;color:var(--text2)">${escapeHTML(lead.ig_full_name||'')} ${lead.ig_follower_count ? '| '+formatNum(lead.ig_follower_count)+' followers' : ''} ${lead.lead_category ? '| '+lead.lead_category : ''}</div>
+                </div>
+                ${classifBadge}
+                <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--surface2);color:var(--text2)">${lead.conversation_status}</span>
+            </div>`;
+
+            // Lead info expandable
+            if (lead.ig_bio || lead.research_summary) {
+                html += `<div style="padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface2)">
+                    <details>
+                        <summary style="font-size:12px;font-weight:600;color:var(--text2);cursor:pointer">Lead Info</summary>
+                        <div style="font-size:12px;color:var(--text2);margin-top:6px">
+                            ${lead.ig_bio ? '<div style="margin-bottom:4px"><strong>Bio:</strong> '+escapeHTML(lead.ig_bio)+'</div>' : ''}
+                            ${lead.score_reason ? '<div style="margin-bottom:4px"><strong>Score reason:</strong> '+escapeHTML(lead.score_reason)+'</div>' : ''}
+                            ${lead.research_summary ? '<div><strong>Research:</strong> '+escapeHTML(lead.research_summary)+'</div>' : ''}
+                            ${lead.comment_message ? '<div style="margin-top:4px"><strong>Comment sent:</strong> '+escapeHTML(lead.comment_message)+'</div>' : ''}
+                        </div>
+                    </details>
+                </div>`;
+            }
+
+            // Messages
+            html += '<div style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px">';
+            if (messages.length === 0) {
+                html += '<div style="text-align:center;color:var(--text3);padding:40px">No messages in this conversation yet.</div>';
+            }
+            for (const msg of messages) {
+                const isOut = msg.direction === 'outbound';
+                const bubbleColor = isOut ? 'var(--accent)' : 'var(--surface2)';
+                const textColor = isOut ? '#ffffff' : 'var(--text)';
+                const align = isOut ? 'flex-end' : 'flex-start';
+                const label = isOut ? (msg.message_type === 'manual_reply' ? 'You (manual)' : msg.message_type === 'follow_up' ? 'Follow-up' : 'DM sent') : '@'+lead.ig_username;
+                const time = msg.sent_at ? formatTimeAgo(msg.sent_at) : '';
+                const variant = msg.variant_used ? ` (${msg.variant_used})` : '';
+
+                html += `<div style="display:flex;flex-direction:column;align-items:${align};max-width:80%${isOut ? ';align-self:flex-end' : ';align-self:flex-start'}">
+                    <div style="font-size:10px;color:var(--text3);margin-bottom:2px">${label}${variant} — ${time}</div>
+                    <div style="padding:10px 14px;border-radius:${isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px'};background:${bubbleColor};color:${textColor};font-size:13px;line-height:1.5;white-space:pre-wrap">${escapeHTML(msg.content)}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            // AI Suggestions
+            html += '<div id="uniboxSuggestions" style="padding:8px 16px;border-top:1px solid var(--border);flex-shrink:0">';
+            if (suggestions && suggestions.length > 0) {
+                html += '<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">AI Reply Suggestions <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="regenerateSuggestions()">Regenerate</button></div>';
+                html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+                for (const s of suggestions) {
+                    const intentColor = s.intent === 'close' ? 'var(--green)' : s.intent === 'nurture' ? 'var(--blue)' : 'var(--orange)';
+                    html += `<div onclick="useSuggestion(this)" data-message="${escapeHTML(s.message)}" style="flex:1;min-width:140px;padding:8px 10px;border:1px solid ${intentColor}33;border-radius:8px;cursor:pointer;background:${intentColor}08;transition:all 0.15s" onmouseover="this.style.background='${intentColor}15'" onmouseout="this.style.background='${intentColor}08'">
+                        <div style="font-size:10px;font-weight:700;color:${intentColor};text-transform:uppercase;margin-bottom:3px">${escapeHTML(s.label || s.intent)}</div>
+                        <div style="font-size:11px;color:var(--text2);line-height:1.4">${escapeHTML((s.message||'').substring(0,100))}${(s.message||'').length>100?'...':''}</div>
+                    </div>`;
+                }
+                html += '</div>';
+            } else {
+                html += `<button class="btn btn-secondary btn-sm" onclick="regenerateSuggestions()" style="width:100%;padding:8px;font-size:12px">Generate AI Reply Suggestions</button>`;
+            }
+            html += '</div>';
+
+            // Reply input
+            html += `<div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0">
+                <textarea id="uniboxReplyInput" placeholder="Write a reply..." style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:none;min-height:42px;max-height:120px" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+                <button class="btn btn-primary" onclick="sendUniboxReply()" style="padding:10px 20px;align-self:flex-end">Send</button>
+            </div>`;
+
+            panel.innerHTML = html;
+        }
+
+        function useSuggestion(el) {
+            const msg = el.getAttribute('data-message');
+            const input = document.getElementById('uniboxReplyInput');
+            if (input && msg) {
+                input.value = msg;
+                input.style.height = 'auto';
+                input.style.height = input.scrollHeight + 'px';
+                input.focus();
+            }
+        }
+
+        async function regenerateSuggestions() {
+            if (!uniboxActiveLeadId) return;
+            const sugDiv = document.getElementById('uniboxSuggestions');
+            if (sugDiv) sugDiv.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">Generating suggestions with AI...</div>';
+
+            try {
+                const res = await authFetch(`${API}/unibox/conversations/${uniboxActiveLeadId}/suggest`, { method: 'POST' });
+                if (res.ok) {
+                    await openUniboxThread(uniboxActiveLeadId);
+                    showToast('Suggestions generated');
+                } else {
+                    const err = await res.json();
+                    showToast(err.detail || 'Failed to generate suggestions');
+                    await openUniboxThread(uniboxActiveLeadId);
+                }
+            } catch(e) {
+                showToast('Error generating suggestions');
+                await openUniboxThread(uniboxActiveLeadId);
+            }
+        }
+
+        async function sendUniboxReply() {
+            if (!uniboxActiveLeadId) return;
+            const input = document.getElementById('uniboxReplyInput');
+            const message = input?.value?.trim();
+            if (!message) { showToast('Write a message first'); return; }
+
+            input.disabled = true;
+            try {
+                const res = await authFetch(`${API}/unibox/conversations/${uniboxActiveLeadId}/reply`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message }),
+                });
+                if (res.ok) {
+                    showToast('Reply sent!');
+                    await openUniboxThread(uniboxActiveLeadId);
+                    loadUnibox();
+                } else {
+                    const err = await res.json();
+                    showToast(err.detail || 'Failed to send reply');
+                }
+            } catch(e) {
+                showToast('Error sending reply: ' + e.message);
+            } finally {
+                if (input) input.disabled = false;
+            }
+        }
+
+        // Poll unibox badge every 60s
+        setInterval(async () => {
+            try {
+                const res = await authFetch(`${API}/unibox/stats`);
+                if (res.ok) {
+                    const s = await res.json();
+                    const badge = document.getElementById('uniboxBadge');
+                    if (s.unreplied > 0) { badge.textContent = s.unreplied; badge.style.display = ''; }
+                    else { badge.style.display = 'none'; }
+                }
+            } catch(e) {}
+        }, 60000);
 
         // Update DM badge in sidebar
         const _origUpdateStats = updateStats;
