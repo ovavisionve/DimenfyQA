@@ -912,6 +912,13 @@ class DMSenderService:
                 sent_count += 1
                 logger.info(f"Sent DM ({variant}) to @{lead.ig_username} [{sent_count}/{len(leads)}]")
 
+                # CRM: auto-classify stage to "contacted"
+                try:
+                    from app.services.crm_service import crm_service
+                    await crm_service.auto_classify_stage(str(lead.id), db, event="dm_sent")
+                except Exception:
+                    pass
+
                 # Trigger webhook for successful DM send
                 try:
                     await webhook_service.trigger_event(

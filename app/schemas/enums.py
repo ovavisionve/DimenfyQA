@@ -57,3 +57,13 @@ class ReplyClassification(StrEnum):
     NOT_INTERESTED = "not_interested"
     OUT_OF_OFFICE = "out_of_office"
     SPAM = "spam"
+
+
+class CrmStage(StrEnum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    REPLIED = "replied"
+    INTERESTED = "interested"
+    CALL_SCHEDULED = "call_scheduled"
+    CLOSED_WON = "closed_won"
+    CLOSED_LOST = "closed_lost"

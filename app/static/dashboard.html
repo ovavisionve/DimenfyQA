@@ -1522,6 +1522,9 @@
                 <i data-lucide="inbox" class="nav-lucide"></i> Unibox
                 <span class="nav-badge" id="uniboxBadge" style="display:none">0</span>
             </button>
+            <button class="nav-item" onclick="navigateTo('crm')" data-page="crm">
+                <i data-lucide="kanban" class="nav-lucide"></i> CRM
+            </button>
 
             <div class="sidebar-section">Management</div>
             <button class="nav-item" onclick="navigateTo('clients')" data-page="clients">
@@ -2343,6 +2346,41 @@
         </div>
     </div>
 
+    <!-- =============== PAGE: CRM KANBAN =============== -->
+    <div class="page-section" id="page-crm">
+        <div class="container">
+            <div class="page-header">
+                <h2>CRM — Pipeline</h2>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="crmStatsBar" style="font-size:13px;color:var(--text2)"></span>
+                    <select id="crmCampaignFilter" onchange="loadCrmBoard()" style="padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:12px">
+                        <option value="">All Campaigns</option>
+                    </select>
+                    <button class="btn btn-secondary btn-sm" onclick="loadCrmBoard()">Refresh</button>
+                </div>
+            </div>
+
+            <!-- Stats bar -->
+            <div id="crmMetrics" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"></div>
+
+            <!-- Kanban board -->
+            <div id="crmBoard" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;min-height:500px">
+                <div style="text-align:center;padding:60px;color:var(--text3);width:100%">Loading CRM board...</div>
+            </div>
+        </div>
+
+        <!-- Lead detail side panel -->
+        <div class="modal-overlay" id="crmDetailOverlay" onclick="if(event.target===this)closeCrmDetail()" style="display:none">
+            <div style="position:fixed;right:0;top:0;width:480px;max-width:90vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;padding:24px;box-shadow:-4px 0 20px rgba(0,0,0,0.1)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 id="crmDetailTitle" style="font-size:16px">Lead Detail</h3>
+                    <button onclick="closeCrmDetail()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text2)">&times;</button>
+                </div>
+                <div id="crmDetailContent">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- DM Modal -->
     <!-- New Campaign Modal -->
     <div class="modal-overlay" id="newCampaignModal" onclick="if(event.target===this)closeNewCampaignModal()">
@@ -2456,6 +2494,7 @@
             if (page === 'logs') { connectLogWS(); }
             if (page === 'system') { loadSystemHealth(); loadAuditLog(); }
             if (page === 'unibox') { loadUnibox(); }
+            if (page === 'crm') { loadCrmBoard(); }
 
             // Close mobile sidebar
             document.querySelector('.sidebar').classList.remove('open');
@@ -4438,6 +4477,260 @@
         // Load notifications periodically
         setInterval(loadNotifications, 60000);
         loadNotifications();
+
+        // ===== CRM KANBAN =====
+        let crmBoardData = {};
+
+        async function loadCrmBoard() {
+            try {
+                const campaignId = document.getElementById('crmCampaignFilter')?.value || '';
+                const params = campaignId ? `?campaign_id=${campaignId}` : '';
+                const [boardRes, statsRes] = await Promise.all([
+                    authFetch(`${API}/crm/board${params}`),
+                    authFetch(`${API}/crm/board/stats${params}`),
+                ]);
+                const boardData = await boardRes.json();
+                const statsData = await statsRes.json();
+                crmBoardData = boardData;
+
+                // Populate campaign filter if needed
+                populateCrmCampaignFilter();
+
+                // Render metrics
+                const metrics = document.getElementById('crmMetrics');
+                if (metrics) {
+                    metrics.innerHTML = [
+                        metricCard('Total Leads', statsData.total_leads),
+                        metricCard('Response Rate', statsData.response_rate + '%'),
+                        metricCard('Interest Rate', statsData.interest_rate + '%'),
+                        metricCard('Closed Won', statsData.closed_won),
+                    ].join('');
+                }
+
+                // Update stats bar
+                const bar = document.getElementById('crmStatsBar');
+                if (bar) bar.textContent = `${statsData.total_leads} leads in pipeline`;
+
+                // Render kanban
+                renderCrmKanban(boardData);
+            } catch(e) { console.error('CRM load error:', e); }
+        }
+
+        function metricCard(label, value) {
+            return `<div style="flex:1;min-width:120px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+                <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">${label}</div>
+                <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px">${value}</div>
+            </div>`;
+        }
+
+        async function populateCrmCampaignFilter() {
+            const sel = document.getElementById('crmCampaignFilter');
+            if (!sel || sel.options.length > 1) return;
+            try {
+                const res = await authFetch(`${API}/campaigns/`);
+                const campaigns = await res.json();
+                campaigns.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        function renderCrmKanban(data) {
+            const board = document.getElementById('crmBoard');
+            const stages = data.stages || {};
+            const labels = data.stage_labels || {};
+            const stageOrder = ['new','contacted','replied','interested','call_scheduled','closed_won','closed_lost'];
+            const stageColors = {
+                new: 'var(--text3)', contacted: 'var(--blue)', replied: 'var(--cyan)',
+                interested: 'var(--yellow)', call_scheduled: 'var(--orange)',
+                closed_won: 'var(--green)', closed_lost: 'var(--red)'
+            };
+
+            board.innerHTML = stageOrder.map(stage => {
+                const cards = stages[stage] || [];
+                const color = stageColors[stage] || 'var(--text3)';
+                const label = labels[stage] || stage;
+
+                return `<div class="crm-column" data-stage="${stage}" ondragover="event.preventDefault();this.style.background='var(--surface2)'" ondragleave="this.style.background=''" ondrop="crmDrop(event,'${stage}');this.style.background=''" style="min-width:220px;width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:600px">
+                    <div style="padding:10px 12px;border-bottom:2px solid ${color};display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+                        <span style="font-size:12px;font-weight:700;color:${color}">${label}</span>
+                        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${color}15;color:${color};font-weight:600">${cards.length}</span>
+                    </div>
+                    <div style="flex:1;overflow-y:auto;padding:6px">
+                        ${cards.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text3);font-size:11px">Sin leads</div>' : ''}
+                        ${cards.map(c => crmCardHTML(c)).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function crmCardHTML(c) {
+            const scoreColor = (c.score||0) >= 70 ? 'var(--green)' : (c.score||0) >= 40 ? 'var(--yellow)' : 'var(--red)';
+            const timeAgo = c.last_message_at ? formatTimeAgo(c.last_message_at) : '';
+
+            return `<div draggable="true" ondragstart="crmDragStart(event,'${c.lead_id}')" onclick="openCrmDetail('${c.lead_id}')" style="padding:10px;margin-bottom:6px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:grab;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                    <div style="width:24px;height:24px;border-radius:50%;background:${scoreColor}22;color:${scoreColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;flex-shrink:0">${c.score||'?'}</div>
+                    <span style="font-weight:600;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@${escapeHTML(c.ig_username)}</span>
+                </div>
+                ${c.last_message_preview ? `<div style="font-size:11px;color:var(--text2);line-height:1.3;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(c.last_message_preview)}</div>` : ''}
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-size:10px;color:var(--text3)">${timeAgo}</span>
+                    ${c.reply_classification ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${classifColor(c.reply_classification)}22;color:${classifColor(c.reply_classification)}">${c.reply_classification}</span>` : ''}
+                </div>
+            </div>`;
+        }
+
+        // Drag & Drop
+        let crmDraggedLeadId = null;
+
+        function crmDragStart(ev, leadId) {
+            crmDraggedLeadId = leadId;
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', leadId);
+        }
+
+        async function crmDrop(ev, newStage) {
+            ev.preventDefault();
+            const leadId = crmDraggedLeadId || ev.dataTransfer.getData('text/plain');
+            if (!leadId) return;
+
+            try {
+                const res = await authFetch(`${API}/crm/leads/${leadId}/stage`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ stage: newStage }),
+                });
+                if (res.ok) {
+                    showToast('Lead moved');
+                    loadCrmBoard();
+                } else {
+                    const err = await res.json();
+                    showToast(err.detail || 'Error moving lead');
+                }
+            } catch(e) {
+                showToast('Error: ' + e.message);
+            }
+            crmDraggedLeadId = null;
+        }
+
+        // Lead detail panel
+        async function openCrmDetail(leadId) {
+            const overlay = document.getElementById('crmDetailOverlay');
+            const content = document.getElementById('crmDetailContent');
+            overlay.style.display = 'flex';
+            content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">Loading...</div>';
+
+            try {
+                const res = await authFetch(`${API}/crm/leads/${leadId}`);
+                const data = await res.json();
+                renderCrmDetail(data, leadId);
+            } catch(e) {
+                content.innerHTML = '<div style="color:var(--red)">Error loading detail</div>';
+            }
+        }
+
+        function closeCrmDetail() {
+            document.getElementById('crmDetailOverlay').style.display = 'none';
+        }
+
+        function renderCrmDetail(data, leadId) {
+            const content = document.getElementById('crmDetailContent');
+            const lead = data.lead;
+            const scoreColor = (lead.score||0) >= 70 ? 'var(--green)' : (lead.score||0) >= 40 ? 'var(--yellow)' : 'var(--red)';
+
+            let html = `
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                    <div style="width:48px;height:48px;border-radius:50%;background:${scoreColor}22;color:${scoreColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px">${lead.score||'?'}</div>
+                    <div>
+                        <div style="font-weight:700;font-size:16px">@${escapeHTML(lead.ig_username)}</div>
+                        <div style="font-size:12px;color:var(--text2)">${escapeHTML(lead.ig_full_name||'')} ${lead.ig_follower_count ? '| '+formatNum(lead.ig_follower_count)+' followers' : ''}</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+                    <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--surface2);color:var(--text2)">${lead.crm_stage}</span>
+                    ${lead.lead_category ? `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--cyan-dim);color:var(--cyan)">${lead.lead_category}</span>` : ''}
+                    ${lead.reply_classification ? `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:${classifColor(lead.reply_classification)}22;color:${classifColor(lead.reply_classification)}">${lead.reply_classification}</span>` : ''}
+                </div>`;
+
+            // Bio & Research
+            if (lead.ig_bio || lead.research_summary) {
+                html += `<div style="margin-bottom:16px;padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
+                    ${lead.ig_bio ? '<div style="margin-bottom:6px"><strong>Bio:</strong> '+escapeHTML(lead.ig_bio)+'</div>' : ''}
+                    ${lead.score_reason ? '<div style="margin-bottom:6px"><strong>Score:</strong> '+escapeHTML(lead.score_reason)+'</div>' : ''}
+                    ${lead.research_summary ? '<div><strong>Research:</strong> '+escapeHTML(lead.research_summary)+'</div>' : ''}
+                </div>`;
+            }
+
+            // Score history
+            if (data.score_history && data.score_history.length > 0) {
+                html += '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Score History</div>';
+                html += data.score_history.slice(0, 5).map(h => {
+                    const color = h.delta > 0 ? 'var(--green)' : h.delta < 0 ? 'var(--red)' : 'var(--text3)';
+                    const sign = h.delta > 0 ? '+' : '';
+                    return `<div style="font-size:11px;padding:4px 0;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)">
+                        <span style="color:${color};font-weight:600">${sign}${h.delta}</span>
+                        <span style="color:var(--text2);flex:1;margin:0 8px">${escapeHTML(h.reason)}</span>
+                        <span style="color:var(--text3)">${h.old_score}→${h.new_score}</span>
+                    </div>`;
+                }).join('');
+                html += '</div>';
+            }
+
+            // Conversation
+            if (data.messages && data.messages.length > 0) {
+                html += '<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Conversation</div>';
+                html += data.messages.map(m => {
+                    const isOut = m.direction === 'outbound';
+                    return `<div style="padding:6px 10px;margin-bottom:4px;border-radius:8px;font-size:12px;background:${isOut ? 'var(--accent)' : 'var(--surface2)'};color:${isOut ? '#fff' : 'var(--text)'};${isOut ? 'margin-left:20px' : 'margin-right:20px'}">${escapeHTML(m.content)}</div>`;
+                }).join('');
+                html += '</div>';
+            }
+
+            // Notes
+            html += `<div style="margin-bottom:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">Notes</div>
+                <div id="crmNotesList">`;
+            if (data.notes && data.notes.length > 0) {
+                html += data.notes.map(n => `<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);color:var(--text2)">${escapeHTML(n.content)} <span style="color:var(--text3);font-size:10px">${formatTimeAgo(n.created_at)}</span></div>`).join('');
+            } else {
+                html += '<div style="font-size:11px;color:var(--text3)">No notes yet</div>';
+            }
+            html += `</div>
+                <div style="display:flex;gap:6px;margin-top:6px">
+                    <input type="text" id="crmNoteInput" placeholder="Add a note..." style="flex:1;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
+                    <button class="btn btn-primary btn-sm" onclick="addCrmNote('${leadId}')">Add</button>
+                </div>
+            </div>`;
+
+            // Actions
+            html += `<div style="display:flex;gap:6px">
+                <button class="btn btn-secondary btn-sm" style="flex:1" onclick="navigateTo('unibox');setTimeout(()=>openUniboxThread('${leadId}'),300)">Open in Unibox</button>
+            </div>`;
+
+            content.innerHTML = html;
+        }
+
+        async function addCrmNote(leadId) {
+            const input = document.getElementById('crmNoteInput');
+            const note = input?.value?.trim();
+            if (!note) return;
+
+            try {
+                const res = await authFetch(`${API}/crm/leads/${leadId}/notes`, {
+                    method: 'POST',
+                    body: JSON.stringify({ content: note }),
+                });
+                if (res.ok) {
+                    showToast('Note added');
+                    openCrmDetail(leadId);
+                }
+            } catch(e) {
+                showToast('Error adding note');
+            }
+        }
 
         // ===== UNIBOX =====
         let uniboxConversations = [];
