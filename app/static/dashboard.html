@@ -5,39 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IG DM Engine — Live Pipeline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #06060b;
-            --surface: #0d0d14;
-            --surface2: #14141e;
-            --surface3: #1c1c2a;
-            --border: #222236;
-            --border2: #2e2e44;
-            --text: #eeeef5;
-            --text2: #7a7a95;
-            --text3: #50506a;
-            --accent: #7c5cfc;
-            --accent2: #a78bfa;
-            --accent-glow: rgba(124, 92, 252, 0.15);
-            --green: #34d399;
-            --green-dim: rgba(52, 211, 153, 0.12);
-            --yellow: #fbbf24;
-            --yellow-dim: rgba(251, 191, 36, 0.12);
-            --red: #f87171;
-            --red-dim: rgba(248, 113, 113, 0.12);
-            --blue: #60a5fa;
-            --blue-dim: rgba(96, 165, 250, 0.12);
-            --cyan: #22d3ee;
-            --cyan-dim: rgba(34, 211, 238, 0.12);
+            --bg: #0f1117;
+            --surface: #161821;
+            --surface2: #1d1f2b;
+            --surface3: #252736;
+            --border: #2a2c3e;
+            --border2: #363850;
+            --text: #e4e4e7;
+            --text2: #8b8da0;
+            --text3: #5c5e72;
+            --accent: #e2a84b;
+            --accent2: #f0c274;
+            --accent-glow: rgba(226, 168, 75, 0.12);
+            --green: #4ade80;
+            --green-dim: rgba(74, 222, 128, 0.10);
+            --yellow: #f59e0b;
+            --yellow-dim: rgba(245, 158, 11, 0.10);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.10);
+            --blue: #38bdf8;
+            --blue-dim: rgba(56, 189, 248, 0.10);
+            --cyan: #2dd4bf;
+            --cyan-dim: rgba(45, 212, 191, 0.10);
             --orange: #fb923c;
-            --orange-dim: rgba(251, 146, 60, 0.12);
+            --orange-dim: rgba(251, 146, 60, 0.10);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            font-family: 'Space Grotesk', -apple-system, system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
@@ -45,7 +45,7 @@
         }
 
         .header {
-            background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
             padding: 16px 32px;
             display: flex;
@@ -55,10 +55,8 @@
 
         .logo {
             font-size: 20px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            color: var(--accent);
             letter-spacing: -0.5px;
         }
 
@@ -132,11 +130,11 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, #6344e0 100%);
-            color: white;
+            background: var(--accent);
+            color: #0f1117;
         }
 
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.1); }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         .btn-danger {
@@ -196,8 +194,7 @@
 
         .tab.active {
             background: var(--accent-glow);
-            color: var(--accent2);
-            box-shadow: 0 0 20px rgba(124,92,252,0.08);
+            color: var(--accent);
         }
 
         .tab-badge {
@@ -216,8 +213,8 @@
         }
 
         .tab.active .tab-badge {
-            background: rgba(124,92,252,0.3);
-            color: var(--accent2);
+            background: rgba(226,168,75,0.25);
+            color: var(--accent);
         }
 
         .tab-content { display: none; }
@@ -743,7 +740,7 @@
 
         .progress-bar-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--accent) 0%, var(--cyan) 100%);
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
             border-radius: 4px;
             transition: width 0.5s ease-out;
             position: relative;
@@ -874,8 +871,8 @@
 
         .dm-variant-btn.active {
             background: var(--accent-glow);
-            color: var(--accent2);
-            border-color: rgba(124,92,252,0.3);
+            color: var(--accent);
+            border-color: rgba(226,168,75,0.3);
         }
 
         .dm-card-text {
@@ -926,7 +923,6 @@
 
         .export-card:hover {
             border-color: var(--accent);
-            box-shadow: 0 0 30px var(--accent-glow);
             transform: translateY(-2px);
         }
 
@@ -1064,10 +1060,9 @@
 
         .sidebar-logo h1 {
             font-size: 18px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: -0.5px;
         }
 
         .sidebar-nav {
@@ -1167,6 +1162,7 @@
             margin-left: 240px;
             flex: 1;
             min-height: 100vh;
+            max-width: calc(100% - 240px);
         }
 
         .mobile-toggle {
@@ -1191,7 +1187,7 @@
         .has-sidebar .header { display: none; }
 
         /* ===== NEW PAGE SECTIONS ===== */
-        .page-section { display: none; padding: 24px 32px; }
+        .page-section { display: none; padding: 32px 40px; max-width: 1200px; }
         .page-section.active { display: block; }
 
         .page-header {
@@ -1212,7 +1208,7 @@
             transition: all 0.2s;
             cursor: pointer;
         }
-        .client-card:hover { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        .client-card:hover { border-color: var(--accent); }
         .client-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
         .client-card .client-type { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
         .client-card .client-stats { display: flex; gap: 16px; font-size: 12px; color: var(--text3); }
@@ -1402,16 +1398,6 @@
                 <span class="nav-icon">&#128154;</span> System Health
             </button>
 
-            <div class="sidebar-section">Analytics</div>
-            <button class="nav-item" onclick="navigateTo('ab')" data-page="ab">
-                <span class="nav-icon">&#128202;</span> A/B Testing
-            </button>
-            <button class="nav-item" onclick="navigateTo('analytics')" data-page="analytics">
-                <span class="nav-icon">&#128200;</span> Analytics
-            </button>
-            <button class="nav-item" onclick="navigateTo('export')" data-page="export">
-                <span class="nav-icon">&#128229;</span> Export
-            </button>
         </nav>
 
         <div class="sidebar-footer" style="position:relative">
@@ -2093,20 +2079,6 @@
         </div>
     </div>
 
-    <!-- =============== PAGE: A/B (moves to standalone) =============== -->
-    <div class="page-section" id="page-ab">
-        <div class="container" id="abPageContainer"></div>
-    </div>
-
-    <!-- =============== PAGE: ANALYTICS (moves to standalone) =============== -->
-    <div class="page-section" id="page-analytics">
-        <div class="container" id="analyticsPageContainer"></div>
-    </div>
-
-    <!-- =============== PAGE: EXPORT (moves to standalone) =============== -->
-    <div class="page-section" id="page-export">
-        <div class="container" id="exportPageContainer"></div>
-    </div>
 
     <!-- DM Modal -->
     <!-- New Campaign Modal -->
@@ -2214,10 +2186,6 @@
             const navEl = document.querySelector(`[data-page="${page}"]`);
             if (navEl) navEl.classList.add('active');
 
-            // Move tab content for AB/Analytics/Export into standalone pages
-            if (page === 'ab') { moveTabContent('ab'); loadABResults(); }
-            if (page === 'analytics') { moveTabContent('analytics'); loadAnalytics(); }
-            if (page === 'export') { moveTabContent('export'); updateExportStats(); }
             if (page === 'dms') { renderDMGallery(); }
             if (page === 'clients') { loadClients(); }
             if (page === 'settings') { loadSettings(); }
@@ -2226,16 +2194,6 @@
 
             // Close mobile sidebar
             document.querySelector('.sidebar').classList.remove('open');
-        }
-
-        function moveTabContent(tab) {
-            const container = document.getElementById(tab + 'PageContainer');
-            const content = document.getElementById('content-' + tab);
-            if (container && content && !container.hasChildNodes()) {
-                container.appendChild(content);
-                content.classList.add('active');
-                content.style.display = 'block';
-            }
         }
 
         const API = '/api/v1';

@@ -5,30 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IG DM Engine — Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #06060b;
-            --surface: #0d0d14;
-            --surface2: #14141e;
-            --surface3: #1c1c2a;
-            --border: #222236;
-            --border2: #2e2e44;
-            --text: #eeeef5;
-            --text2: #7a7a95;
-            --text3: #50506a;
-            --accent: #7c5cfc;
-            --accent2: #a78bfa;
-            --accent-glow: rgba(124, 92, 252, 0.15);
-            --green: #34d399;
-            --red: #f87171;
-            --cyan: #22d3ee;
+            --bg: #0f1117;
+            --surface: #161821;
+            --surface2: #1d1f2b;
+            --surface3: #252736;
+            --border: #2a2c3e;
+            --border2: #363850;
+            --text: #e4e4e7;
+            --text2: #8b8da0;
+            --text3: #5c5e72;
+            --accent: #e2a84b;
+            --accent2: #f0c274;
+            --accent-glow: rgba(226, 168, 75, 0.12);
+            --green: #4ade80;
+            --red: #ef4444;
+            --cyan: #2dd4bf;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            font-family: 'Space Grotesk', -apple-system, system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
@@ -43,9 +43,9 @@
             position: fixed;
             inset: 0;
             background-image:
-                radial-gradient(circle at 20% 50%, rgba(124, 92, 252, 0.06) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(34, 211, 238, 0.04) 0%, transparent 50%),
-                radial-gradient(circle at 50% 80%, rgba(124, 92, 252, 0.03) 0%, transparent 50%);
+                radial-gradient(circle at 20% 50%, rgba(226, 168, 75, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(45, 212, 191, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(226, 168, 75, 0.02) 0%, transparent 50%);
             animation: bgShift 20s ease-in-out infinite;
         }
 
@@ -67,7 +67,7 @@
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 40px;
-            box-shadow: 0 0 60px rgba(124, 92, 252, 0.08);
+            box-shadow: 0 0 60px rgba(226, 168, 75, 0.06);
         }
 
         .auth-logo {
@@ -77,10 +77,8 @@
 
         .auth-logo h1 {
             font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            color: var(--accent);
             letter-spacing: -0.5px;
         }
 
@@ -113,7 +111,7 @@
 
         .auth-tab.active {
             background: var(--accent);
-            color: white;
+            color: #0f1117;
         }
 
         .form-group {
@@ -153,8 +151,8 @@
         .btn-primary {
             width: 100%;
             padding: 13px;
-            background: linear-gradient(135deg, var(--accent) 0%, #6c4ce6 100%);
-            color: white;
+            background: var(--accent);
+            color: #0f1117;
             border: none;
             border-radius: 10px;
             font-size: 15px;
@@ -167,7 +165,7 @@
 
         .btn-primary:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 20px rgba(124, 92, 252, 0.4);
+            filter: brightness(1.1);
         }
 
         .btn-primary:disabled {
