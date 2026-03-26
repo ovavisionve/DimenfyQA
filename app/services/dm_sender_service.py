@@ -540,9 +540,29 @@ class DMSenderService:
         self._current_account_idx = 0
 
     def _init_accounts(self):
-        """Initialize accounts from config (multi-account or single)."""
+        """Initialize accounts from config (ig_config.json, multi-account env, or single)."""
         if self._accounts:
             return
+
+        # Try ig_config.json first (set via Accounts & Proxies UI)
+        config_path = Path("ig_config.json")
+        if config_path.exists():
+            try:
+                import json
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+                cfg_accounts = data.get("accounts", [])
+                if cfg_accounts:
+                    for acc in cfg_accounts:
+                        self._accounts.append(IGAccount(
+                            username=acc["username"],
+                            password=acc["password"],
+                            proxy=acc.get("proxy", ""),
+                            session_dir=self._session_path,
+                        ))
+                    logger.info(f"Configured {len(self._accounts)} IG accounts from ig_config.json")
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to read ig_config.json: {e}")
 
         # Try multi-account config first
         multi = _parse_accounts(settings.IG_ACCOUNTS)

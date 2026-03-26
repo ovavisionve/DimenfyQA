@@ -592,21 +592,56 @@ async def get_ig_accounts_status():
 
 @app.get("/api/v1/system/ig-config")
 async def get_ig_config():
-    """Return saved IG accounts and proxies config from a JSON file."""
+    """Return saved IG accounts and proxies config, falling back to env vars."""
+    from app.config import settings
+    from app.services.dm_sender_service import _parse_accounts
+
     config_path = Path("ig_config.json")
     if config_path.exists():
         data = json.loads(config_path.read_text(encoding="utf-8"))
-        return data
-    return {"accounts": [], "proxies": []}
+        if data.get("accounts"):
+            return data
+
+    # Fallback: read from env vars so UI shows existing accounts
+    accounts = []
+    proxies = []
+    multi = _parse_accounts(settings.IG_ACCOUNTS)
+    if multi:
+        seen_proxies: set[str] = set()
+        for acc in multi:
+            accounts.append({
+                "username": acc["username"],
+                "password": acc["password"],
+                "proxy": acc["proxy"],
+            })
+            if acc["proxy"] and acc["proxy"] not in seen_proxies:
+                seen_proxies.add(acc["proxy"])
+                proxies.append({"url": acc["proxy"], "label": ""})
+    elif settings.IG_USERNAME and settings.IG_PASSWORD:
+        accounts.append({
+            "username": settings.IG_USERNAME,
+            "password": settings.IG_PASSWORD,
+            "proxy": settings.PROXY_URL or "",
+        })
+        if settings.PROXY_URL:
+            proxies.append({"url": settings.PROXY_URL, "label": ""})
+
+    return {"accounts": accounts, "proxies": proxies}
 
 
 @app.put("/api/v1/system/ig-config")
 async def save_ig_config(request: Request):
-    """Save IG accounts and proxies config to a JSON file (encrypted at rest)."""
+    """Save IG accounts and proxies config to a JSON file."""
+    from app.services.dm_sender_service import dm_sender_service
+
     body = await request.json()
     config_path = Path("ig_config.json")
     config_path.write_text(json.dumps(body, indent=2), encoding="utf-8")
-    return {"ok": True}
+
+    # Force re-initialization of accounts on next use
+    dm_sender_service._accounts = []
+
+    return {"ok": True, "accounts": len(body.get("accounts", [])), "proxies": len(body.get("proxies", []))}
 
 
 @app.post("/api/v1/notifications/{notification_id}/read")
