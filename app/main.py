@@ -39,6 +39,7 @@ app.add_middleware(
         "https://dimenfy-qa.vercel.app",
         *[o.strip() for o in _cors_extra if o.strip()],
     ],
+    allow_origin_regex=r"https://dimenfy.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
