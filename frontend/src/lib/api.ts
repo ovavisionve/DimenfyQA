@@ -2,13 +2,27 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000";
 
 interface FetchOptions extends RequestInit {
   noAuth?: boolean;
+  cache_ttl?: number; // Cache TTL in ms (0 = no cache)
 }
+
+// Simple in-memory cache for GET requests
+const _cache = new Map<string, { data: unknown; expires: number }>();
 
 export async function api<T = unknown>(
   path: string,
   opts: FetchOptions = {}
 ): Promise<T> {
-  const { noAuth, ...fetchOpts } = opts;
+  const { noAuth, cache_ttl, ...fetchOpts } = opts;
+  const method = (fetchOpts.method || "GET").toUpperCase();
+
+  // Check cache for GET requests
+  if (method === "GET" && cache_ttl && cache_ttl > 0) {
+    const cached = _cache.get(path);
+    if (cached && cached.expires > Date.now()) {
+      return cached.data as T;
+    }
+  }
+
   const headers = new Headers(fetchOpts.headers);
 
   if (!noAuth) {
@@ -20,7 +34,12 @@ export async function api<T = unknown>(
   }
 
   if (!headers.has("Content-Type") && fetchOpts.body) {
-    headers.set("Content-Type", "application/json");
+    headers.set("Content-Type", "application/json; charset=utf-8");
+  }
+
+  // Accept UTF-8 responses
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json; charset=utf-8");
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...fetchOpts, headers });
@@ -38,7 +57,27 @@ export async function api<T = unknown>(
     throw new Error(text || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // Store in cache for GET requests
+  if (method === "GET" && cache_ttl && cache_ttl > 0) {
+    _cache.set(path, { data, expires: Date.now() + cache_ttl });
+  }
+
+  return data;
+}
+
+/** Invalidate cached entries matching a path prefix */
+export function invalidateCache(pathPrefix?: string) {
+  if (!pathPrefix) {
+    _cache.clear();
+    return;
+  }
+  for (const key of _cache.keys()) {
+    if (key.startsWith(pathPrefix)) {
+      _cache.delete(key);
+    }
+  }
 }
 
 export function wsUrl(path: string): string {

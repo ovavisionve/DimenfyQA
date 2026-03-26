@@ -405,13 +405,13 @@ export default function PipelinePage() {
     : 0;
   const statItems = [
     { label: "Total Leads", value: leads.length },
-    { label: "Avg Score", value: avgScore },
-    { label: "Qualified 70+", value: leads.filter((l) => (l.score || 0) >= 70).length },
+    { label: "Score Prom.", value: avgScore },
+    { label: "Calificados 70+", value: leads.filter((l) => (l.score || 0) >= 70).length },
     { label: "DMs Generados", value: leads.filter((l) => l.dm_message).length },
     { label: "DMs Enviados", value: leads.filter((l) => l.status === "sent").length },
     { label: "Respondidos", value: leads.filter((l) => l.status === "replied").length },
     { label: "Fallidos", value: leads.filter((l) => l.status === "failed").length },
-    { label: "Status", value: selected?.status || "—", isText: true },
+    { label: "Estado", value: selected?.status || "—", isText: true },
   ] as Array<{ label: string; value: number | string; isText?: boolean }>;
 
   const filteredLeads = leads.filter(
@@ -729,7 +729,7 @@ export default function PipelinePage() {
               onClick={startPipeline}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
             >
-              <Play size={14} /> Start Pipeline
+              <Play size={14} /> Iniciar Pipeline
             </button>
           )}
           {selected?.status === "ready" && (
@@ -737,7 +737,7 @@ export default function PipelinePage() {
               onClick={sendDMs}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             >
-              <Send size={14} /> Send DMs
+              <Send size={14} /> Enviar DMs
             </button>
           )}
           <button
@@ -807,11 +807,11 @@ export default function PipelinePage() {
             { key: "leads" as TabKey, label: "Leads" },
             { key: "dms" as TabKey, label: "DMs" },
             { key: "inbox" as TabKey, label: "Inbox" },
-            { key: "followups" as TabKey, label: "Follow-ups" },
-            { key: "analytics" as TabKey, label: "Analytics" },
+            { key: "followups" as TabKey, label: "Seguimientos" },
+            { key: "analytics" as TabKey, label: "Analíticas" },
             { key: "ab_testing" as TabKey, label: "A/B Testing" },
-            { key: "content" as TabKey, label: "Content Analysis" },
-            { key: "export" as TabKey, label: "Export" },
+            { key: "content" as TabKey, label: "Análisis de Contenido" },
+            { key: "export" as TabKey, label: "Exportar" },
           ]).map((t) => (
             <button
               key={t.key}
@@ -856,7 +856,7 @@ export default function PipelinePage() {
                     Bio
                   </th>
                   <th className="px-4 py-2.5 text-right font-medium text-zinc-600">
-                    Followers
+                    Seguidores
                   </th>
                   <th className="px-4 py-2.5 text-center font-medium text-zinc-600">
                     Score
@@ -865,10 +865,10 @@ export default function PipelinePage() {
                     Categoría
                   </th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
-                    Status
+                    Estado
                   </th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
-                    DM Preview
+                    Preview DM
                   </th>
                 </tr>
               </thead>

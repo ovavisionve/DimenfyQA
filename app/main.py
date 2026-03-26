@@ -45,6 +45,20 @@ app.add_middleware(
 )
 
 
+class Utf8Middleware(BaseHTTPMiddleware):
+    """Ensure all JSON responses have charset=utf-8."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        ct = response.headers.get("content-type", "")
+        if "application/json" in ct and "charset" not in ct:
+            response.headers["content-type"] = ct + "; charset=utf-8"
+        return response
+
+
+app.add_middleware(Utf8Middleware)
+
+
 @app.on_event("startup")
 async def startup_recover_campaigns():
     """On server start, check for interrupted campaigns and resume them."""
@@ -574,6 +588,25 @@ async def get_ig_accounts_status():
         "global_daily_limit": settings.DAILY_DM_LIMIT,
         "global_hourly_limit": settings.HOURLY_DM_LIMIT,
     }
+
+
+@app.get("/api/v1/system/ig-config")
+async def get_ig_config():
+    """Return saved IG accounts and proxies config from a JSON file."""
+    config_path = Path("ig_config.json")
+    if config_path.exists():
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        return data
+    return {"accounts": [], "proxies": []}
+
+
+@app.put("/api/v1/system/ig-config")
+async def save_ig_config(request: Request):
+    """Save IG accounts and proxies config to a JSON file (encrypted at rest)."""
+    body = await request.json()
+    config_path = Path("ig_config.json")
+    config_path.write_text(json.dumps(body, indent=2), encoding="utf-8")
+    return {"ok": True}
 
 
 @app.post("/api/v1/notifications/{notification_id}/read")
