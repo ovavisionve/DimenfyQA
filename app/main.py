@@ -27,9 +27,18 @@ app = FastAPI(
 )
 
 # CORS — allow Next.js frontend (dev + production)
+import os
+_cors_extra = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else []
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "https://dimenfy-qa.vercel.app",
+        *[o.strip() for o in _cors_extra if o.strip()],
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
