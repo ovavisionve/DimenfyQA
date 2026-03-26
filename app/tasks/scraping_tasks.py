@@ -240,7 +240,19 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             saved = await apify_service.save_leads(
                 quality_profiles, campaign_id, str(campaign.client_id), db
             )
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                logger.warning(f"DB commit failed after save_leads ({commit_err}), retrying with fresh session")
+                await db.rollback()
+                fresh_sm = create_worker_session()
+                async with fresh_sm() as fresh_db:
+                    saved = await apify_service.save_leads(
+                        quality_profiles, campaign_id, str(campaign.client_id), fresh_db
+                    )
+                    await fresh_db.commit()
+                    # Replace db reference for subsequent queries
+                    db = fresh_db
 
             # Return lead IDs for next pipeline step
             from app.models.lead import Lead
@@ -430,9 +442,25 @@ async def _scrape_comments_with_quality_filter(
             scrape_limit = min(scrape_limit + remaining * OVERSCRAPE_MULTIPLIER, 2000)
             logger.info(f"[SmartScrape] Need {remaining} more leads. Next round will scrape {scrape_limit} comments.")
 
-    scrape_job.status = "completed"
-    scrape_job.items_found = len(all_quality_profiles)
-    await db.commit()
+    # Use a fresh DB session for the final commit — the original connection
+    # may have been dropped by Supabase/PgBouncer during the long Apify wait.
+    try:
+        scrape_job.status = "completed"
+        scrape_job.items_found = len(all_quality_profiles)
+        await db.commit()
+    except Exception as commit_err:
+        logger.warning(f"[SmartScrape] Original session commit failed ({commit_err}), using fresh session")
+        await db.rollback()
+        fresh_session_maker = create_worker_session()
+        async with fresh_session_maker() as fresh_db:
+            from sqlalchemy import update as sa_update
+            from app.models.scrape_job import ScrapeJob as SJ2
+            await fresh_db.execute(
+                sa_update(SJ2).where(SJ2.id == scrape_job.id).values(
+                    status="completed", items_found=len(all_quality_profiles)
+                )
+            )
+            await fresh_db.commit()
 
     logger.info(f"[SmartScrape] Final: {len(all_quality_profiles)} quality leads from {len(seen_usernames)} total usernames")
     return all_quality_profiles
