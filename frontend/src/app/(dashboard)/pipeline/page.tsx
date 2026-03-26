@@ -724,7 +724,7 @@ export default function PipelinePage() {
         )}
 
         <div className="ml-auto flex gap-2">
-          {selected?.status === "draft" && (
+          {(selected?.status === "draft" || selected?.status === "pending") && (
             <button
               onClick={startPipeline}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
