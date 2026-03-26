@@ -205,7 +205,7 @@ export default function PipelinePage() {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const data = await api<Campaign[]>("/api/v1/campaigns/");
+      const data = await api<Campaign[]>("/api/v1/campaigns/", { cache_ttl: 5000 });
       setCampaigns(data);
       setSelected((prev) => {
         if (prev) {
@@ -223,7 +223,8 @@ export default function PipelinePage() {
   const loadLeads = useCallback(async (campaignId: string) => {
     try {
       const data = await api<Lead[]>(
-        `/api/v1/leads/?campaign_id=${campaignId}&limit=500`
+        `/api/v1/leads/?campaign_id=${campaignId}&limit=500`,
+        { cache_ttl: 10000 }
       );
       setLeads(data);
     } catch {
@@ -235,7 +236,7 @@ export default function PipelinePage() {
   useEffect(() => {
     setLoading(true);
     loadCampaigns().finally(() => setLoading(false));
-    api<Array<{ id: string; name: string }>>("/api/v1/clients/")
+    api<Array<{ id: string; name: string }>>("/api/v1/clients/", { cache_ttl: 60000 })
       .then(setClients)
       .catch(() => {});
   }, [loadCampaigns]);
@@ -263,7 +264,7 @@ export default function PipelinePage() {
       } catch {
         /* ignore */
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(id);
   }, [selected?.id, selected?.status, loadLeads]);
 

@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.database import get_db
 from app.models.campaign import Campaign
@@ -35,7 +36,11 @@ async def list_campaigns(
     client_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Campaign)
+    query = select(Campaign).options(
+        noload(Campaign.leads),
+        noload(Campaign.scrape_jobs),
+        noload(Campaign.follow_up_rules),
+    )
     if client_id:
         query = query.where(Campaign.client_id == client_id)
     query = query.order_by(Campaign.created_at.desc())

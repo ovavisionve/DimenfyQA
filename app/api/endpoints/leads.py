@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.database import get_db
 from app.models.lead import Lead
@@ -22,7 +23,11 @@ async def list_leads(
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Lead)
+    query = select(Lead).options(
+        defer(Lead.research_data),
+        defer(Lead.ig_posts),
+        defer(Lead.ig_post_analysis),
+    )
 
     if campaign_id:
         query = query.where(Lead.campaign_id == campaign_id)
