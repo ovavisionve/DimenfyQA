@@ -19,6 +19,8 @@ import {
   Inbox,
   ListOrdered,
   Trash2,
+  Square,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -277,6 +279,28 @@ export default function PipelinePage() {
     await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
     const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
     setSelected(c);
+  };
+
+  const stopCampaign = async () => {
+    if (!selected) return;
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/pause`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+      loadCampaigns();
+    } catch { /* ignore */ }
+  };
+
+  const resetCampaign = async () => {
+    if (!selected) return;
+    if (!confirm("¿Reiniciar campaña? Se eliminarán todos los leads scrapeados.")) return;
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/reset`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+      setLeads([]);
+      loadCampaigns();
+    } catch { /* ignore */ }
   };
 
   // Load analytics when tab switches
@@ -738,6 +762,22 @@ export default function PipelinePage() {
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             >
               <Send size={14} /> Enviar DMs
+            </button>
+          )}
+          {selected && ["scraping", "scoring", "researching", "writing_dms", "sending"].includes(selected.status) && (
+            <button
+              onClick={stopCampaign}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-500"
+            >
+              <Square size={14} /> Detener
+            </button>
+          )}
+          {selected && ["failed", "completed", "paused"].includes(selected.status) && (
+            <button
+              onClick={resetCampaign}
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-700 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-600"
+            >
+              <RotateCcw size={14} /> Reiniciar
             </button>
           )}
           <button

@@ -86,16 +86,26 @@ async def start_campaign_pipeline(
 async def reset_campaign(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Reset a campaign: delete all leads and set status back to pending."""
+    """Reset a campaign: revoke tasks, delete all leads, set status to pending."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # Revoke Celery task if running
+    if campaign.celery_task_id:
+        try:
+            from app.tasks.celery_app import celery_app
+            celery_app.control.revoke(campaign.celery_task_id, terminate=True)
+        except Exception:
+            pass
+
     from sqlalchemy import delete
     await db.execute(delete(Lead).where(Lead.campaign_id == campaign_id))
     campaign.status = "pending"
     campaign.stats = {}
+    campaign.celery_task_id = None
+    campaign.last_phase = None
     await db.flush()
 
     return {"message": "Campaign reset", "campaign_id": str(campaign_id)}
@@ -163,25 +173,35 @@ async def get_campaign_stats(
 async def pause_campaign(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Pause a running campaign (stops DM sending)."""
+    """Pause/stop a running campaign at any phase."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status != "sending":
+    active_statuses = ("sending", "scraping", "scoring", "researching", "writing_dms", "pending")
+    if campaign.status not in active_statuses:
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is '{campaign.status}', can only pause while sending.",
+            detail=f"Campaign is '{campaign.status}', cannot pause.",
         )
 
-    campaign.status = "paused"
+    # Revoke Celery task if running
+    if campaign.celery_task_id:
+        try:
+            from app.tasks.celery_app import celery_app
+            celery_app.control.revoke(campaign.celery_task_id, terminate=True)
+        except Exception:
+            pass
+
+    campaign.status = "failed"
+    campaign.celery_task_id = None
     stats = dict(campaign.stats or {})
-    stats["send_error"] = "Manually paused by user"
+    stats["send_error"] = "Manually stopped by user"
     campaign.stats = stats
     await db.flush()
 
-    return {"message": "Campaign paused", "campaign_id": str(campaign_id)}
+    return {"message": "Campaign stopped", "campaign_id": str(campaign_id)}
 
 
 @router.post("/{campaign_id}/resume-sending")
