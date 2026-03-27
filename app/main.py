@@ -62,12 +62,9 @@ app.add_middleware(Utf8Middleware)
 
 @app.on_event("startup")
 async def startup_recover_campaigns():
-    """On server start, check for interrupted campaigns and resume them."""
-    try:
-        from app.tasks.pipeline import recover_interrupted_campaigns
-        await recover_interrupted_campaigns()
-    except Exception as e:
-        logger.error(f"Campaign recovery on startup failed: {e}")
+    """Disabled: auto-recovery was re-launching campaigns on every deploy,
+    consuming Apify credits. Users should manually restart via the UI."""
+    logger.info("Startup complete — campaign auto-recovery is disabled")
 
 
 # ---------------------------------------------------------------------------
