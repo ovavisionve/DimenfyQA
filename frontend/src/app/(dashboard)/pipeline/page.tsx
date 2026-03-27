@@ -34,7 +34,9 @@ interface Campaign {
   source_value: string;
   max_leads: number;
   stats: Record<string, unknown>;
+  settings: Record<string, unknown>;
   created_at: string;
+  updated_at: string;
 }
 
 interface Lead {
