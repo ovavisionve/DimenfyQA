@@ -231,19 +231,20 @@ async def pause_campaign(
 
 
 @router.post("/{campaign_id}/resume-sending")
+@router.post("/{campaign_id}/send-dms")
 async def resume_sending(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Resume sending DMs for a paused campaign."""
+    """Resume/start sending DMs for a campaign."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status not in ("paused", "ready"):
+    if campaign.status not in ("paused", "ready", "failed"):
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is '{campaign.status}', can only send from paused or ready.",
+            detail=f"Campaign is '{campaign.status}', can only send from paused, ready, or failed.",
         )
 
     from app.tasks.sending_tasks import send_dms_task
@@ -269,6 +270,30 @@ async def resume_sending(
         "campaign_id": str(campaign_id),
         "task_id": task_result.id,
         "leads_to_send": len(lead_ids),
+    }
+
+
+@router.post("/{campaign_id}/send-dm/{lead_id}")
+async def send_single_dm(
+    campaign_id: uuid.UUID, lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Send a single DM to a specific lead."""
+    result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.campaign_id == campaign_id))
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found in this campaign")
+
+    if not lead.dm_message:
+        raise HTTPException(status_code=400, detail="Lead has no DM generated")
+
+    from app.tasks.sending_tasks import send_dms_task
+
+    task_result = send_dms_task.delay([str(lead_id)])
+    return {
+        "message": f"Sending DM to @{lead.ig_username}",
+        "campaign_id": str(campaign_id),
+        "lead_id": str(lead_id),
+        "task_id": task_result.id,
     }
 
 
