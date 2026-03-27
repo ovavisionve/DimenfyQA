@@ -540,11 +540,19 @@ class DMSenderService:
         self._current_account_idx = 0
 
     def _init_accounts(self):
-        """Initialize accounts from config (ig_config.json, multi-account env, or single)."""
+        """Initialize accounts from config (DB, ig_config.json, multi-account env, or single)."""
         if self._accounts:
             return
 
-        # Try ig_config.json first (set via Accounts & Proxies UI)
+        # Try database first (set via Accounts & Proxies UI)
+        try:
+            self._load_accounts_from_db()
+            if self._accounts:
+                return
+        except Exception as e:
+            logger.debug(f"DB config not available: {e}")
+
+        # Fallback: ig_config.json (legacy)
         config_path = Path("ig_config.json")
         if config_path.exists():
             try:
@@ -584,6 +592,52 @@ class DMSenderService:
                 session_dir=self._session_path,
             ))
             logger.info("Configured 1 IG account (single mode)")
+
+    def _load_accounts_from_db(self):
+        """Load IG accounts from the system_config table in the database."""
+        import json
+        import asyncio
+
+        async def _read():
+            from sqlalchemy import select
+            from app.database import create_worker_session
+            from app.models.system_config import SystemConfig
+
+            async with create_worker_session()() as db:
+                result = await db.execute(
+                    select(SystemConfig).where(SystemConfig.key == "ig_config")
+                )
+                row = result.scalar_one_or_none()
+                if not row:
+                    return None
+                return json.loads(row.value)
+
+        # Run async query in a new event loop (called from sync context)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're inside an async context, use a thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    data = pool.submit(lambda: asyncio.run(_read())).result(timeout=10)
+            else:
+                data = loop.run_until_complete(_read())
+        except RuntimeError:
+            data = asyncio.run(_read())
+
+        if not data:
+            return
+
+        cfg_accounts = data.get("accounts", [])
+        for acc in cfg_accounts:
+            self._accounts.append(IGAccount(
+                username=acc["username"],
+                password=acc["password"],
+                proxy=acc.get("proxy", ""),
+                session_dir=self._session_path,
+            ))
+        if self._accounts:
+            logger.info(f"Configured {len(self._accounts)} IG accounts from database")
 
     def login(self) -> bool:
         """Login all configured accounts. Returns True if at least one succeeds."""

@@ -590,15 +590,36 @@ async def get_ig_accounts_status():
 
 @app.get("/api/v1/system/ig-config")
 async def get_ig_config():
-    """Return saved IG accounts and proxies config, falling back to env vars."""
+    """Return saved IG accounts and proxies config from DB, falling back to env vars."""
+    from sqlalchemy import select
+    from app.database import async_session
+    from app.models.system_config import SystemConfig
     from app.config import settings
     from app.services.dm_sender_service import _parse_accounts
 
+    # Try DB first
+    try:
+        async with async_session() as db:
+            result = await db.execute(
+                select(SystemConfig).where(SystemConfig.key == "ig_config")
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                data = json.loads(row.value)
+                if data.get("accounts"):
+                    return data
+    except Exception:
+        pass  # Table may not exist yet, fall through to env vars
+
+    # Fallback: ig_config.json (legacy)
     config_path = Path("ig_config.json")
     if config_path.exists():
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-        if data.get("accounts"):
-            return data
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            if data.get("accounts"):
+                return data
+        except Exception:
+            pass
 
     # Fallback: read from env vars so UI shows existing accounts
     accounts = []
@@ -629,12 +650,25 @@ async def get_ig_config():
 
 @app.put("/api/v1/system/ig-config")
 async def save_ig_config(request: Request):
-    """Save IG accounts and proxies config to a JSON file."""
+    """Save IG accounts and proxies config to the database."""
+    from sqlalchemy import select
+    from app.database import async_session
+    from app.models.system_config import SystemConfig
     from app.services.dm_sender_service import dm_sender_service
 
     body = await request.json()
-    config_path = Path("ig_config.json")
-    config_path.write_text(json.dumps(body, indent=2), encoding="utf-8")
+
+    # Save to DB
+    async with async_session() as db:
+        result = await db.execute(
+            select(SystemConfig).where(SystemConfig.key == "ig_config")
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.value = json.dumps(body)
+        else:
+            db.add(SystemConfig(key="ig_config", value=json.dumps(body)))
+        await db.commit()
 
     # Force re-initialization of accounts on next use
     dm_sender_service._accounts = []
