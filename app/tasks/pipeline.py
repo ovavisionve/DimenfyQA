@@ -8,6 +8,7 @@ from app.tasks.scraping_tasks import scrape_leads_task
 from app.tasks.scoring_tasks import score_leads_task
 from app.tasks.research_tasks import research_leads_task
 from app.tasks.copywriting_tasks import write_dms_task
+from app.tasks.comment_tasks import fetch_posts_and_generate_comments_task
 from app.database import create_worker_session
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def run_campaign_pipeline(campaign_id: str) -> str:
         score_leads_task.s(),
         research_leads_task.s(),
         write_dms_task.s(),
+        fetch_posts_and_generate_comments_task.s(),
     )
     result = pipeline.apply_async()
     task_id = result.id
@@ -85,6 +87,7 @@ def resume_campaign(campaign_id: str, from_phase: str) -> str | None:
             score_leads_task.s(),
             research_leads_task.s(),
             write_dms_task.s(),
+            fetch_posts_and_generate_comments_task.s(),
         )
     elif from_phase == "score":
         # Re-score: get lead_ids from DB
@@ -93,17 +96,20 @@ def resume_campaign(campaign_id: str, from_phase: str) -> str | None:
             score_leads_task.s(lead_ids),
             research_leads_task.s(),
             write_dms_task.s(),
+            fetch_posts_and_generate_comments_task.s(),
         )
     elif from_phase == "research":
         lead_ids = _get_campaign_lead_ids(campaign_id)
         pipeline = chain(
             research_leads_task.s(lead_ids),
             write_dms_task.s(),
+            fetch_posts_and_generate_comments_task.s(),
         )
     elif from_phase == "write":
         lead_ids = _get_campaign_lead_ids(campaign_id)
         pipeline = chain(
             write_dms_task.s(lead_ids),
+            fetch_posts_and_generate_comments_task.s(),
         )
     else:
         logger.warning(f"Unknown phase '{from_phase}' for campaign {campaign_id}")
