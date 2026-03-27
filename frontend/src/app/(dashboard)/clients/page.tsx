@@ -65,6 +65,8 @@ export default function ClientsPage() {
     setShowModal(true);
   };
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -76,24 +78,37 @@ export default function ClientsPage() {
         max_daily_dms: form.max_daily_dms,
       },
     };
-    if (editing) {
-      const updated = await api<Client>(`/api/v1/clients/${editing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    } else {
-      const created = await api<Client>("/api/v1/clients/", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setClients((prev) => [created, ...prev]);
+    try {
+      if (editing) {
+        const updated = await api<Client>(`/api/v1/clients/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      } else {
+        const created = await api<Client>("/api/v1/clients/", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setClients((prev) => [created, ...prev]);
+      }
+      setShowModal(false);
+    } catch (err) {
+      setErrorMsg(`Error guardando cliente: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
-    setShowModal(false);
   };
 
   return (
     <div className="space-y-6">
+      {/* Error toast */}
+      {errorMsg && (
+        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ml-2 hover:opacity-80">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Clientes</h1>
@@ -130,7 +145,7 @@ export default function ClientsPage() {
               </div>
 
               {/* Client stats */}
-              {stats && (
+              {stats ? (
                 <div className="flex gap-4 mb-2 text-xs">
                   <div className="flex items-center gap-1 text-zinc-500">
                     <BarChart3 size={12} />
@@ -145,23 +160,23 @@ export default function ClientsPage() {
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
 
-              {c.settings?.dm_prompt && (
+              {c.settings?.dm_prompt ? (
                 <p className="text-xs text-zinc-500 line-clamp-2">
-                  {c.settings.dm_prompt as string}
+                  {String(c.settings.dm_prompt)}
                 </p>
-              )}
+              ) : null}
 
               <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-zinc-400">
                   Creado: {new Date(c.created_at).toLocaleDateString()}
                 </p>
-                {stats && stats.avg_score > 0 && (
+                {stats && stats.avg_score > 0 ? (
                   <p className="text-xs text-zinc-400">
                     Avg Score: {stats.avg_score.toFixed(1)}
                   </p>
-                )}
+                ) : null}
               </div>
             </button>
           );

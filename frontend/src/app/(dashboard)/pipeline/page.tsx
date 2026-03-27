@@ -188,6 +188,14 @@ export default function PipelinePage() {
   const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>([]);
   const [showNewRule, setShowNewRule] = useState(false);
   const [newRule, setNewRule] = useState({ step_number: 1, delay_days: 3, template_prompt: "", max_attempts: 3 });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Auto-dismiss error toast
+  useEffect(() => {
+    if (!errorMsg) return;
+    const t = setTimeout(() => setErrorMsg(null), 6000);
+    return () => clearTimeout(t);
+  }, [errorMsg]);
 
   // Edit campaign
   const [showEdit, setShowEdit] = useState(false);
@@ -307,16 +315,24 @@ export default function PipelinePage() {
 
   const startPipeline = async () => {
     if (!selected) return;
-    await api(`/api/v1/campaigns/${selected.id}/start`, { method: "POST" });
-    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
-    setSelected(c);
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/start`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+    } catch (err) {
+      setErrorMsg(`Error iniciando pipeline: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
   };
 
   const sendDMs = async () => {
     if (!selected) return;
-    await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
-    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
-    setSelected(c);
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+    } catch (err) {
+      setErrorMsg(`Error enviando DMs: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
   };
 
   const stopCampaign = async () => {
@@ -400,8 +416,8 @@ export default function PipelinePage() {
         }),
       });
       setContentAnalysis(result.analysis);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setErrorMsg(`Error en análisis de contenido: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
     setAnalyzing(false);
   };
@@ -415,7 +431,7 @@ export default function PipelinePage() {
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000"}/api/v1/export/${selected.id}/${format}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -423,8 +439,8 @@ export default function PipelinePage() {
       a.download = `${selected.name}_leads.${format === "excel" ? "xlsx" : format}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setErrorMsg(`Error exportando ${format.toUpperCase()}: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
     setExporting(null);
   };
@@ -492,6 +508,15 @@ export default function PipelinePage() {
 
   return (
     <div className="space-y-6">
+      {/* Error toast */}
+      {errorMsg && (
+        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ml-2 hover:opacity-80">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
