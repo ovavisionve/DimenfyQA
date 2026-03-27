@@ -181,23 +181,29 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             campaign.last_phase = "scrape"
             await db.commit()
 
+            # Extract all campaign data upfront to avoid lazy-load after long Apify wait
+            campaign_settings = dict(campaign.settings or {})
+            campaign_source_type = campaign.source_type
+            campaign_source_value = campaign.source_value
+            campaign_client_id = str(campaign.client_id)
+
             # Target number of quality leads
-            max_leads = (campaign.settings or {}).get("max_leads", 0)
+            max_leads = campaign_settings.get("max_leads", 0)
 
             # Get content context for Claude pre-evaluation
             content_context = ""
-            content_analysis = (campaign.settings or {}).get("content_analysis")
+            content_analysis = campaign_settings.get("content_analysis")
             if content_analysis:
                 content_context = f"## Contexto del negocio del cliente:\n{json.dumps(content_analysis, ensure_ascii=False)[:500]}"
 
             await update_progress(campaign_id, "scraping",
-                            f"Starting smart scraper for @{campaign.source_value[:50]}...",
-                            detail=f"Source: {campaign.source_type}, target: {max_leads or 'all'} quality leads")
+                            f"Starting smart scraper for @{campaign_source_value[:50]}...",
+                            detail=f"Source: {campaign_source_type}, target: {max_leads or 'all'} quality leads")
 
-            if campaign.source_type == "comments":
+            if campaign_source_type == "comments":
                 quality_profiles = await _scrape_comments_with_quality_filter(
                     campaign_id=campaign_id,
-                    source_value=campaign.source_value,
+                    source_value=campaign_source_value,
                     target_leads=max_leads,
                     content_context=content_context,
                     db=db,
@@ -212,7 +218,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 )
 
             # Bio keyword filter — only keep profiles whose bio contains at least one keyword
-            bio_keywords = (campaign.settings or {}).get("bio_keywords", [])
+            bio_keywords = campaign_settings.get("bio_keywords", [])
             if bio_keywords:
                 before_count = len(quality_profiles)
                 kw_lower = [kw.lower().strip() for kw in bio_keywords if kw.strip()]
@@ -238,7 +244,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                             detail="Deduplicating and storing leads")
 
             saved = await apify_service.save_leads(
-                quality_profiles, campaign_id, str(campaign.client_id), db
+                quality_profiles, campaign_id, campaign_client_id, db
             )
             try:
                 await db.commit()
@@ -248,7 +254,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 fresh_sm = create_worker_session()
                 async with fresh_sm() as fresh_db:
                     saved = await apify_service.save_leads(
-                        quality_profiles, campaign_id, str(campaign.client_id), fresh_db
+                        quality_profiles, campaign_id, campaign_client_id, fresh_db
                     )
                     await fresh_db.commit()
                     # Replace db reference for subsequent queries
@@ -271,9 +277,9 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                             detail="Moving to scoring phase...")
 
             # Auto-analyze campaign content if URLs/text are configured
-            content_urls = (campaign.settings or {}).get("content_urls", [])
-            content_text = (campaign.settings or {}).get("content_text", "")
-            existing_analysis = (campaign.settings or {}).get("content_analysis")
+            content_urls = campaign_settings.get("content_urls", [])
+            content_text = campaign_settings.get("content_text", "")
+            existing_analysis = campaign_settings.get("content_analysis")
 
             if (content_urls or content_text) and not existing_analysis:
                 try:
