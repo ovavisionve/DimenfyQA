@@ -57,6 +57,27 @@ async def get_campaign(campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return campaign
 
 
+@router.patch("/{campaign_id}", response_model=CampaignRead)
+async def update_campaign(
+    campaign_id: uuid.UUID, data: CampaignUpdate, db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if data.name is not None:
+        campaign.name = data.name
+    if data.settings is not None:
+        campaign.settings = data.settings
+    if data.status is not None:
+        campaign.status = data.status.value
+
+    await db.flush()
+    await db.refresh(campaign)
+    return campaign
+
+
 @router.post("/{campaign_id}/start")
 async def start_campaign_pipeline(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)

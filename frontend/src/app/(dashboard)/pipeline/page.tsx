@@ -21,6 +21,7 @@ import {
   Trash2,
   Square,
   RotateCcw,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -185,6 +186,40 @@ export default function PipelinePage() {
   const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>([]);
   const [showNewRule, setShowNewRule] = useState(false);
   const [newRule, setNewRule] = useState({ step_number: 1, delay_days: 3, template_prompt: "", max_attempts: 3 });
+
+  // Edit campaign
+  const [showEdit, setShowEdit] = useState(false);
+  const [editSettings, setEditSettings] = useState<Record<string, unknown>>({});
+  const [editBioKeywords, setEditBioKeywords] = useState<string[]>([]);
+  const [editKeywordInput, setEditKeywordInput] = useState("");
+  const [editMaxLeads, setEditMaxLeads] = useState(0);
+
+  const openEditModal = () => {
+    if (!selected) return;
+    const s = selected.settings || {};
+    setEditSettings(s);
+    setEditBioKeywords((s.bio_keywords as string[]) || []);
+    setEditMaxLeads((s.max_leads as number) || 0);
+    setEditKeywordInput("");
+    setShowEdit(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    const newSettings = {
+      ...editSettings,
+      bio_keywords: editBioKeywords,
+      max_leads: editMaxLeads,
+    };
+    await api(`/api/v1/campaigns/${selected.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ settings: newSettings }),
+    });
+    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+    setSelected(c);
+    setShowEdit(false);
+    loadCampaigns();
+  };
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -773,6 +808,14 @@ export default function PipelinePage() {
               <Square size={14} /> Detener
             </button>
           )}
+          {selected && ["failed", "completed", "paused", "pending"].includes(selected.status) && (
+            <button
+              onClick={openEditModal}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              <Pencil size={14} /> Editar
+            </button>
+          )}
           {selected && ["failed", "completed", "paused"].includes(selected.status) && (
             <button
               onClick={resetCampaign}
@@ -792,6 +835,74 @@ export default function PipelinePage() {
           </button>
         </div>
       </div>
+
+      {/* Edit Campaign Modal */}
+      {showEdit && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold mb-4">Editar Campaña</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Max Leads</label>
+                <input
+                  type="number"
+                  value={editMaxLeads}
+                  onChange={(e) => setEditMaxLeads(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="0 = sin límite"
+                />
+                <p className="text-xs text-zinc-500 mt-1">0 = sin límite. Recomendado: 20-50</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Bio Keywords</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    value={editKeywordInput}
+                    onChange={(e) => setEditKeywordInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === ",") && editKeywordInput.trim()) {
+                        e.preventDefault();
+                        setEditBioKeywords([...editBioKeywords, editKeywordInput.trim()]);
+                        setEditKeywordInput("");
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Escribe y presiona Enter"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {editBioKeywords.map((kw, i) => (
+                    <span key={i} className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      {kw}
+                      <button onClick={() => setEditBioKeywords(editBioKeywords.filter((_, j) => j !== i))} className="hover:text-red-600">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">Dejar vacío para procesar todos los leads sin filtro de bio.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowEdit(false)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress indicator */}
       {selected && !["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status) && (
