@@ -85,7 +85,13 @@ def check_inbox_task(self, campaign_id: str) -> dict:
                 for lead_id in result["replied_lead_ids"]:
                     try:
                         # CRM: auto-classify stage based on reply
-                        event = "reply_positive" if classifications.get("positive") else "reply_received"
+                        # Check the individual lead's classification, not the global counts
+                        from app.models.lead import Lead as InboxLead
+                        lead_row = await db.execute(
+                            select(InboxLead.reply_classification).where(InboxLead.id == lead_id)
+                        )
+                        lead_classification = lead_row.scalar_one_or_none()
+                        event = "reply_positive" if lead_classification == "positive" else "reply_received"
                         await crm_service.auto_classify_stage(lead_id, db, event=event)
                     except Exception as e:
                         logger.warning(f"CRM auto-classify failed for lead {lead_id}: {e}")
