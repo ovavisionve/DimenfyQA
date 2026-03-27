@@ -206,7 +206,6 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                     source_value=campaign_source_value,
                     target_leads=max_leads,
                     content_context=content_context,
-                    db=db,
                 )
             else:
                 # Non-comment sources: use original flow
@@ -238,31 +237,26 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                                 f"Bio filter: {len(quality_profiles)} of {before_count} profiles matched keywords.",
                                 detail=f"Keywords: {', '.join(bio_keywords)}")
 
+        # === FRESH DB SESSION ===
+        # After the long Apify scraping (10-20 min), the original DB connection
+        # is dead (Supabase/PgBouncer drops idle connections). Instead of trying
+        # to reuse it and catching errors, we proactively create a fresh session.
+        logger.info(f"[SmartScrape] Creating fresh DB session for saving {len(quality_profiles)} profiles")
+        async with create_worker_session()() as db2:
+            from app.models.lead import Lead
+
             # Save leads with dedup
             await update_progress(campaign_id, "scraping",
                             f"Saving {len(quality_profiles)} quality profiles to database...",
                             detail="Deduplicating and storing leads")
 
             saved = await apify_service.save_leads(
-                quality_profiles, campaign_id, campaign_client_id, db
+                quality_profiles, campaign_id, campaign_client_id, db2
             )
-            try:
-                await db.commit()
-            except Exception as commit_err:
-                logger.warning(f"DB commit failed after save_leads ({commit_err}), retrying with fresh session")
-                await db.rollback()
-                fresh_sm = create_worker_session()
-                async with fresh_sm() as fresh_db:
-                    saved = await apify_service.save_leads(
-                        quality_profiles, campaign_id, campaign_client_id, fresh_db
-                    )
-                    await fresh_db.commit()
-                    # Replace db reference for subsequent queries
-                    db = fresh_db
+            await db2.commit()
 
             # Return lead IDs for next pipeline step
-            from app.models.lead import Lead
-            lead_result = await db.execute(
+            lead_result = await db2.execute(
                 select(Lead.id).where(
                     Lead.campaign_id == campaign_id,
                     Lead.status == "scraped",
@@ -288,11 +282,11 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                                     "Analyzing campaign content with Gemini AI...",
                                     detail="Multimodal analysis of video/image/webpage content")
                     await content_analysis_service.analyze_campaign_content(
-                        campaign_id, db,
+                        campaign_id, db2,
                         content_urls=content_urls,
                         content_text=content_text,
                     )
-                    await db.commit()
+                    await db2.commit()
                     logger.info(f"Content analysis completed for campaign {campaign_id}")
                 except Exception as e:
                     logger.warning(f"Content analysis failed (non-blocking): {e}")
@@ -318,24 +312,29 @@ async def _scrape_comments_with_quality_filter(
     source_value: str,
     target_leads: int,
     content_context: str,
-    db,
 ) -> list[dict]:
     """Scrape comments with over-scraping loop + pre-filters + Claude evaluation.
 
     Keeps scraping in increasing batches until we reach the target number
     of quality leads, or exhaust all available comments.
+
+    NOTE: This function creates its own DB session for the scrape_job record
+    because the calling session will be dead after the long Apify wait.
     """
     from app.models.scrape_job import ScrapeJob as SJ
 
-    scrape_job = SJ(
-        campaign_id=campaign_id,
-        apify_run_id="smart-scrape",
-        actor_type="comments",
-        status="running",
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(scrape_job)
-    await db.flush()
+    # Use a short-lived session just to create the scrape_job record
+    async with create_worker_session()() as init_db:
+        scrape_job = SJ(
+            campaign_id=campaign_id,
+            apify_run_id="smart-scrape",
+            actor_type="comments",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+        init_db.add(scrape_job)
+        await init_db.commit()
+        scrape_job_id = scrape_job.id
 
     all_quality_profiles = []
     seen_usernames = set()
@@ -448,25 +447,17 @@ async def _scrape_comments_with_quality_filter(
             scrape_limit = min(scrape_limit + remaining * OVERSCRAPE_MULTIPLIER, 2000)
             logger.info(f"[SmartScrape] Need {remaining} more leads. Next round will scrape {scrape_limit} comments.")
 
-    # Use a fresh DB session for the final commit — the original connection
-    # may have been dropped by Supabase/PgBouncer during the long Apify wait.
-    try:
-        scrape_job.status = "completed"
-        scrape_job.items_found = len(all_quality_profiles)
-        await db.commit()
-    except Exception as commit_err:
-        logger.warning(f"[SmartScrape] Original session commit failed ({commit_err}), using fresh session")
-        await db.rollback()
-        fresh_session_maker = create_worker_session()
-        async with fresh_session_maker() as fresh_db:
-            from sqlalchemy import update as sa_update
-            from app.models.scrape_job import ScrapeJob as SJ2
-            await fresh_db.execute(
-                sa_update(SJ2).where(SJ2.id == scrape_job.id).values(
-                    status="completed", items_found=len(all_quality_profiles)
-                )
+    # Use a fresh DB session to update scrape_job — the original connection
+    # is dead after the long Apify wait (Supabase drops idle connections).
+    async with create_worker_session()() as final_db:
+        from sqlalchemy import update as sa_update
+        from app.models.scrape_job import ScrapeJob as SJ2
+        await final_db.execute(
+            sa_update(SJ2).where(SJ2.id == scrape_job_id).values(
+                status="completed", items_found=len(all_quality_profiles)
             )
-            await fresh_db.commit()
+        )
+        await final_db.commit()
 
     logger.info(f"[SmartScrape] Final: {len(all_quality_profiles)} quality leads from {len(seen_usernames)} total usernames")
     return all_quality_profiles
