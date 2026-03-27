@@ -66,6 +66,7 @@ def check_inbox_task(self, campaign_id: str) -> dict:
 
     async def _check():
         async with create_worker_session()() as db:
+            from sqlalchemy import select
             from app.services.inbox_service import inbox_service
             from app.services.unibox_service import unibox_service
             from app.services.crm_service import crm_service
