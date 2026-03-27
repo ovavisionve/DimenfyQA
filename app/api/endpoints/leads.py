@@ -7,7 +7,7 @@ from sqlalchemy.orm import defer
 
 from app.database import get_db
 from app.models.lead import Lead
-from app.schemas.lead import LeadDMReady, LeadRead, LeadScored
+from app.schemas.lead import LeadDMReady, LeadDetail, LeadRead, LeadScored
 
 router = APIRouter()
 
@@ -74,7 +74,7 @@ async def list_dm_ready_leads(
     return result.scalars().all()
 
 
-@router.get("/{lead_id}", response_model=LeadRead)
+@router.get("/{lead_id}", response_model=LeadDetail)
 async def get_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()
