@@ -296,7 +296,7 @@ export default function PipelinePage() {
   useEffect(() => {
     if (
       !selected ||
-      ["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status)
+      ["draft", "ready", "completed", "failed", "paused"].includes(selected.status)
     )
       return;
     const id = setInterval(async () => {
