@@ -599,18 +599,18 @@ class DMSenderService:
         import asyncio
 
         async def _read():
-            from sqlalchemy import select
+            from sqlalchemy import text
             from app.database import create_worker_session
-            from app.models.system_config import SystemConfig
 
             async with create_worker_session()() as db:
                 result = await db.execute(
-                    select(SystemConfig).where(SystemConfig.key == "ig_config")
+                    text("SELECT value FROM public.system_config WHERE key = :k"),
+                    {"k": "ig_config"},
                 )
                 row = result.scalar_one_or_none()
                 if not row:
                     return None
-                return json.loads(row.value)
+                return json.loads(row)
 
         # Run async query in a new event loop (called from sync context)
         try:

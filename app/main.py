@@ -591,25 +591,25 @@ async def get_ig_accounts_status():
 @app.get("/api/v1/system/ig-config")
 async def get_ig_config():
     """Return saved IG accounts and proxies config from DB, falling back to env vars."""
-    from sqlalchemy import select
+    from sqlalchemy import text
     from app.database import async_session
-    from app.models.system_config import SystemConfig
     from app.config import settings
     from app.services.dm_sender_service import _parse_accounts
 
-    # Try DB first
+    # Try DB first — use raw SQL with explicit schema to avoid PgBouncer search_path issues
     try:
         async with async_session() as db:
             result = await db.execute(
-                select(SystemConfig).where(SystemConfig.key == "ig_config")
+                text("SELECT value FROM public.system_config WHERE key = :k"),
+                {"k": "ig_config"},
             )
             row = result.scalar_one_or_none()
             if row:
-                data = json.loads(row.value)
+                data = json.loads(row)
                 if data.get("accounts"):
                     return data
-    except Exception:
-        pass  # Table may not exist yet, fall through to env vars
+    except Exception as e:
+        logger.warning(f"Could not read ig_config from DB: {e}")  # Log instead of silent pass
 
     # Fallback: ig_config.json (legacy)
     config_path = Path("ig_config.json")
@@ -651,23 +651,30 @@ async def get_ig_config():
 @app.put("/api/v1/system/ig-config")
 async def save_ig_config(request: Request):
     """Save IG accounts and proxies config to the database."""
-    from sqlalchemy import select
+    from sqlalchemy import text
     from app.database import async_session
-    from app.models.system_config import SystemConfig
 
     try:
         body = await request.json()
+        body_json = json.dumps(body)
 
-        # Save to DB
+        # Save to DB — use raw SQL with explicit schema to avoid PgBouncer search_path issues
         async with async_session() as db:
             result = await db.execute(
-                select(SystemConfig).where(SystemConfig.key == "ig_config")
+                text("SELECT key FROM public.system_config WHERE key = :k"),
+                {"k": "ig_config"},
             )
-            row = result.scalar_one_or_none()
-            if row:
-                row.value = json.dumps(body)
+            exists = result.scalar_one_or_none()
+            if exists:
+                await db.execute(
+                    text("UPDATE public.system_config SET value = :v, updated_at = NOW() WHERE key = :k"),
+                    {"k": "ig_config", "v": body_json},
+                )
             else:
-                db.add(SystemConfig(key="ig_config", value=json.dumps(body)))
+                await db.execute(
+                    text("INSERT INTO public.system_config (key, value, created_at, updated_at) VALUES (:k, :v, NOW(), NOW())"),
+                    {"k": "ig_config", "v": body_json},
+                )
             await db.commit()
 
         # Force re-initialization of accounts on next use
