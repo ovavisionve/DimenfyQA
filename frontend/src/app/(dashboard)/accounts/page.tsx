@@ -35,6 +35,7 @@ export default function AccountsPage() {
   const [showPasswords, setShowPasswords] = useState<Record<number, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [loading, setLoading] = useState(false);
 
   // New account form
@@ -86,6 +87,7 @@ export default function AccountsPage() {
 
   const saveConfig = async () => {
     setSaving(true);
+    setSaveError("");
     try {
       await api("/api/v1/system/ig-config", {
         method: "PUT",
@@ -93,8 +95,9 @@ export default function AccountsPage() {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Error guardando configuración");
+      setTimeout(() => setSaveError(""), 6000);
     }
     setSaving(false);
   };
@@ -195,6 +198,11 @@ export default function AccountsPage() {
           {saved && (
             <span className="text-sm text-emerald-600 font-medium">
               {locale === "es" ? "Guardado" : "Saved"}
+            </span>
+          )}
+          {saveError && (
+            <span className="text-sm text-red-600 font-medium">
+              {saveError}
             </span>
           )}
           <button
