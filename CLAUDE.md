@@ -614,7 +614,83 @@ Per-campaign sending hours with timezone support. DMs only sent during configure
 - [x] Campaign sending schedule with timezone (Phase 6)
 - [x] Next.js frontend — 9 pages replacing vanilla JS SPA (Phase 6)
 
+## Deployment Architecture (Production)
+
+### Services
+| Service | Platform | URL |
+|---------|----------|-----|
+| Frontend | Vercel (auto-deploy from GitHub) | `https://dimenfy-qa.vercel.app` |
+| API | Railway ("Dimenfy IG DM") | `https://dimenfy-ig-dm-production.up.railway.app` |
+| Worker | Railway ("charming-liberation") | N/A (background) |
+| Database | Supabase (PostgreSQL) | Project ID: `ywxgezapyttdgrbbwdso` |
+| Redis | Railway | Internal |
+
+### Vercel Environment Variables
+- `NEXT_PUBLIC_API_URL` = `https://dimenfy-ig-dm-production.up.railway.app`
+
+### Railway Environment Variables (both API and Worker)
+- `DATABASE_URL` — PostgreSQL connection string pointing to Supabase pooler (`aws-1-us-east-1.pooler.supabase.com:5432`)
+- `REDIS_URL`, `ANTHROPIC_API_KEY`, `APIFY_API_TOKEN`, `GOOGLE_API_KEY` — see Railway dashboard
+- **CRITICAL: The DATABASE_URL contains URL-encoded special characters in the password (`%25`, `%2B`, `%26`). NEVER edit this URL manually — you WILL break authentication. If the password is lost, reset it in Supabase → Settings → Database.**
+
+### Supabase
+- **Project:** Dimenfy (ID: `ywxgezapyttdgrbbwdso`)
+- **Region:** `aws-1-us-east-1`
+- **API Key (anon):** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3eGdlemFweXR0ZGdyYmJ3ZHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzEwMjksImV4cCI6MjA5MDA0NzAyOX0.2NeYF9mmDWx1M0fpeRoQ7InlBUfTGFHbMKEEesNykHs`
+- **15 tables** in `public` schema — created via raw SQL (NOT Alembic migrations)
+- **Connection pooler** (PgBouncer) is used — port 5432 via `pooler.supabase.com`
+- The `system_config` table exists but the pooler may not find it due to search_path. This is a **known unresolved issue**. Do NOT try fixing by editing DATABASE_URL — it breaks auth.
+
+### Database Schema
+- Full schema SQL is in `/supabase_schema.sql` (15 tables, all indexes, all constraints)
+- Tables were created directly in Supabase SQL Editor, NOT via Alembic
+- Alembic migration files exist (001-013) but are for reference/local dev only
+- **Migration 013** added `system_config` table for persistent key-value settings (IG accounts, proxies)
+
+### Railway IP (for proxy whitelist)
+- API + Worker outbound IP: `159.26.100.228` — give this to proxy providers for whitelist
+
+### Deploy Process
+- **Frontend (Vercel):** Auto-deploys on push to GitHub branch
+- **Backend (Railway):** Redeploy from Railway dashboard → service → Deployments → "Redeploy" on latest
+- **`railway up` from Windows terminal has permission issues** (os error 5) — use Railway web dashboard instead
+- **`railway login --browserless`** to authenticate CLI without default browser
+
+### Users
+- First registered user becomes admin automatically
+- Users stored in `users` table with PBKDF2-HMAC-SHA256 hashed passwords
+- Auth: JWT tokens via `/api/v1/auth/login` and `/api/v1/auth/register`
+- Platform user: `jose@dimenfy.com` (admin, created via SQL INSERT)
+
+### IG Accounts & Proxies
+- Managed via dashboard "Cuentas y Proxies" page → saves to `system_config` table in DB
+- Accounts configured: `orlandodimenfy`, `legist.ai`
+- Proxy list provided (25 IPs on port 8800) — **none functional from external test**; require IP whitelist from provider
+- Provider needs Railway IP `159.26.100.228` added to whitelist
+
+## Bugs Fixed (Session 2026-04-03)
+
+### Code Fixes
+1. **TypeScript build error** — Added `settings` and `updated_at` to Campaign interface in pipeline/page.tsx
+2. **MissingGreenlet spam on leads endpoint** — Removed `ig_posts`/`ig_post_analysis` from `LeadRead`, created `LeadDetail` for individual endpoint
+3. **DB session death after long Apify scraping** — Restructured `scraping_tasks.py` to use fresh sessions after scraping completes (old sessions die after 12+ min idle on Supabase/PgBouncer)
+4. **Pipeline not generating comments** — Added `fetch_posts_and_generate_comments_task` to Celery chain in `pipeline.py`
+5. **Missing DM sending endpoints** — Created `/send-dms` and `/send-dm/{lead_id}` in `campaigns.py`
+6. **Unibox missing crm_stage** — Added `crm_stage` to `_lead_to_conversation()` and `get_conversation_thread()`
+7. **CRM wrong reply classification** — Was using global `classifications` dict instead of individual lead's classification in `inbox_tasks.py`
+8. **Missing `select` import in inbox_tasks** — Added `from sqlalchemy import select` in `check_inbox_task._check()` — was causing NameError
+9. **Pipeline polling not updating UI** — Removed `"pending"` from no-poll list so UI updates after clicking "Iniciar Pipeline"
+10. **Client Management frontend** — Fixed save (PUT→PATCH), settings dict wrapping, stats fields, TypeScript types
+11. **Silent error handling everywhere** — Added error toasts with auto-dismiss to Pipeline, Clients, and Accounts pages
+12. **Export missing campaign validation** — Added 404 check before exporting
+
+### Known Unresolved Issues
+- **`system_config` table not found via pooler**: The Supabase connection pooler (PgBouncer) doesn't resolve the `system_config` table. The GET endpoint works (falls back to env vars), but PUT fails with 500. **Do NOT fix by editing DATABASE_URL** — the password contains special chars that break. Needs investigation: possibly schema search_path issue with PgBouncer, or need to use direct connection for this specific query.
+- **`railway up` fails on Windows** with "Acceso denegado (os error 5)" — use Railway web dashboard to redeploy instead
+- **Proxy connectivity** — 25 proxy IPs provided but none respond externally. Provider needs to whitelist Railway IP `159.26.100.228`.
+
 ### TODO (Future)
+- [ ] Fix system_config pooler issue (investigate PgBouncer search_path or use direct Supabase connection)
 - [ ] User onboarding flow (guided setup wizard for new clients)
 - [ ] API documentation (auto-generated Swagger is available at /docs, but needs customer-facing docs)
 - [ ] WhatsApp notifications (complement Slack for mobile-first clients)
