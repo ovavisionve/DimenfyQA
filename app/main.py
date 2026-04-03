@@ -654,26 +654,33 @@ async def save_ig_config(request: Request):
     from sqlalchemy import select
     from app.database import async_session
     from app.models.system_config import SystemConfig
-    from app.services.dm_sender_service import dm_sender_service
 
-    body = await request.json()
+    try:
+        body = await request.json()
 
-    # Save to DB
-    async with async_session() as db:
-        result = await db.execute(
-            select(SystemConfig).where(SystemConfig.key == "ig_config")
-        )
-        row = result.scalar_one_or_none()
-        if row:
-            row.value = json.dumps(body)
-        else:
-            db.add(SystemConfig(key="ig_config", value=json.dumps(body)))
-        await db.commit()
+        # Save to DB
+        async with async_session() as db:
+            result = await db.execute(
+                select(SystemConfig).where(SystemConfig.key == "ig_config")
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.value = json.dumps(body)
+            else:
+                db.add(SystemConfig(key="ig_config", value=json.dumps(body)))
+            await db.commit()
 
-    # Force re-initialization of accounts on next use
-    dm_sender_service._accounts = []
+        # Force re-initialization of accounts on next use
+        try:
+            from app.services.dm_sender_service import dm_sender_service
+            dm_sender_service._accounts = []
+        except Exception:
+            pass  # dm_sender may not be initialized
 
-    return {"ok": True, "accounts": len(body.get("accounts", [])), "proxies": len(body.get("proxies", []))}
+        return {"ok": True, "accounts": len(body.get("accounts", [])), "proxies": len(body.get("proxies", []))}
+    except Exception as e:
+        logger.error(f"Error saving ig-config: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
 @app.post("/api/v1/notifications/{notification_id}/read")
