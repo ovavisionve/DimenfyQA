@@ -639,7 +639,7 @@ Per-campaign sending hours with timezone support. DMs only sent during configure
 - **API Key (anon):** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3eGdlemFweXR0ZGdyYmJ3ZHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzEwMjksImV4cCI6MjA5MDA0NzAyOX0.2NeYF9mmDWx1M0fpeRoQ7InlBUfTGFHbMKEEesNykHs`
 - **15 tables** in `public` schema — created via raw SQL (NOT Alembic migrations)
 - **Connection pooler** (PgBouncer) is used — port 5432 via `pooler.supabase.com`
-- The `system_config` table exists but the pooler may not find it due to search_path. This is a **known unresolved issue**. Do NOT try fixing by editing DATABASE_URL — it breaks auth.
+- The `system_config` table exists. PgBouncer search_path issue was **fixed** by using raw SQL with explicit `public.system_config` schema in all queries (main.py, dm_sender_service.py). Do NOT try fixing by editing DATABASE_URL — it breaks auth.
 
 ### Database Schema
 - Full schema SQL is in `/supabase_schema.sql` (15 tables, all indexes, all constraints)
@@ -685,12 +685,11 @@ Per-campaign sending hours with timezone support. DMs only sent during configure
 12. **Export missing campaign validation** — Added 404 check before exporting
 
 ### Known Unresolved Issues
-- **`system_config` table not found via pooler**: The Supabase connection pooler (PgBouncer) doesn't resolve the `system_config` table. The GET endpoint works (falls back to env vars), but PUT fails with 500. **Do NOT fix by editing DATABASE_URL** — the password contains special chars that break. Needs investigation: possibly schema search_path issue with PgBouncer, or need to use direct connection for this specific query.
+- **`system_config` via pooler — FIXED**: Was failing with UndefinedTableError because PgBouncer in transaction mode doesn't persist search_path. Fixed by replacing ORM queries with raw SQL using explicit `public.system_config` schema (in `app/main.py` GET+PUT endpoints and `app/services/dm_sender_service.py`).
 - **`railway up` fails on Windows** with "Acceso denegado (os error 5)" — use Railway web dashboard to redeploy instead
 - **Proxy connectivity** — 25 proxy IPs provided but none respond externally. Provider needs to whitelist Railway IP `159.26.100.228`.
 
 ### TODO (Future)
-- [ ] Fix system_config pooler issue (investigate PgBouncer search_path or use direct Supabase connection)
 - [ ] User onboarding flow (guided setup wizard for new clients)
 - [ ] API documentation (auto-generated Swagger is available at /docs, but needs customer-facing docs)
 - [ ] WhatsApp notifications (complement Slack for mobile-first clients)
