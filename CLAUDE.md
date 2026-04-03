@@ -629,16 +629,21 @@ Per-campaign sending hours with timezone support. DMs only sent during configure
 - `NEXT_PUBLIC_API_URL` = `https://dimenfy-ig-dm-production.up.railway.app`
 
 ### Railway Environment Variables (both API and Worker)
-- `DATABASE_URL` — PostgreSQL connection string pointing to Supabase pooler (`aws-1-us-east-1.pooler.supabase.com:5432`)
+- `DATABASE_URL` = `postgresql+asyncpg://postgres.ywxgezapyttdgrbbwdso:fABLETHE21.@aws-0-us-west-2.pooler.supabase.com:5432/postgres`
 - `REDIS_URL`, `ANTHROPIC_API_KEY`, `APIFY_API_TOKEN`, `GOOGLE_API_KEY` — see Railway dashboard
-- **CRITICAL: The DATABASE_URL contains URL-encoded special characters in the password (`%25`, `%2B`, `%26`). NEVER edit this URL manually — you WILL break authentication. If the password is lost, reset it in Supabase → Settings → Database.**
+- **CRITICAL: If the DB password needs to be reset, go to Supabase → Connect button (top right) → or go directly to `https://supabase.com/dashboard/project/ywxgezapyttdgrbbwdso/settings/database`. Settings sidebar does NOT have a "Database" option — use the direct URL. Use a simple password (letters + numbers + dot only) to avoid URL-encoding issues.**
 
 ### Supabase
 - **Project:** Dimenfy (ID: `ywxgezapyttdgrbbwdso`)
-- **Region:** `aws-1-us-east-1`
+- **Owner:** `luissilvalaguna1@gmail.com`
+- **Region:** `aws-0-us-west-2`
+- **DB Password:** `fABLETHE21.`
+- **Pooler host:** `aws-0-us-west-2.pooler.supabase.com` (port 5432, Transaction pooler)
+- **Direct host:** `db.ywxgezapyttdgrbbwdso.supabase.co` (port 5432)
+- **DB user:** `postgres.ywxgezapyttdgrbbwdso` (pooler) / `postgres` (direct)
 - **API Key (anon):** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3eGdlemFweXR0ZGdyYmJ3ZHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzEwMjksImV4cCI6MjA5MDA0NzAyOX0.2NeYF9mmDWx1M0fpeRoQ7InlBUfTGFHbMKEEesNykHs`
 - **15 tables** in `public` schema — created via raw SQL (NOT Alembic migrations)
-- **Connection pooler** (PgBouncer) is used — port 5432 via `pooler.supabase.com`
+- **Connection pooler** (PgBouncer) is used — Transaction pooler mode, port 5432
 - The `system_config` table exists. PgBouncer search_path issue was **fixed** by using raw SQL with explicit `public.system_config` schema in all queries (main.py, dm_sender_service.py). Do NOT try fixing by editing DATABASE_URL — it breaks auth.
 
 ### Database Schema
