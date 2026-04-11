@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { KeyRound, Plus, Trash2, Eye, EyeOff, Shield, Globe, Lock } from "lucide-react";
+import { KeyRound, Plus, Trash2, Eye, EyeOff, Shield, Globe, Lock, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getLocale, t, type Locale } from "@/lib/i18n";
 
@@ -41,6 +41,14 @@ export default function AccountsPage() {
   // New account form
   const [newAccount, setNewAccount] = useState({ username: "", password: "", proxy: "" });
   const [showNewAccount, setShowNewAccount] = useState(false);
+
+  // Inline edit for existing accounts
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingAccount, setEditingAccount] = useState<IGAccountEntry>({
+    username: "",
+    password: "",
+    proxy: "",
+  });
 
   // New proxy form
   const [newProxy, setNewProxy] = useState({ url: "", label: "" });
@@ -111,6 +119,23 @@ export default function AccountsPage() {
 
   const removeAccount = (index: number) => {
     setAccounts(accounts.filter((_, i) => i !== index));
+  };
+
+  const startEditAccount = (index: number) => {
+    setEditingIndex(index);
+    setEditingAccount({ ...accounts[index] });
+  };
+
+  const saveEditAccount = () => {
+    if (editingIndex === null) return;
+    const updated = [...accounts];
+    updated[editingIndex] = { ...editingAccount };
+    setAccounts(updated);
+    setEditingIndex(null);
+  };
+
+  const cancelEditAccount = () => {
+    setEditingIndex(null);
   };
 
   const addProxy = () => {
@@ -286,43 +311,113 @@ export default function AccountsPage() {
         {/* Account List */}
         {accounts.length > 0 ? (
           <div className="divide-y divide-zinc-100">
-            {accounts.map((acc, i) => (
-              <div key={i} className="px-5 py-3 flex items-center gap-4">
-                <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                    {acc.username[0]?.toUpperCase()}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">@{acc.username}</p>
+            {accounts.map((acc, i) =>
+              editingIndex === i ? (
+                // ---- Edit mode ----
+                <div key={i} className="px-5 py-4 bg-amber-50">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 min-w-[180px]">
+                      <span className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                        {acc.username[0]?.toUpperCase()}
+                      </span>
+                      <p className="text-sm font-medium text-zinc-900">@{acc.username}</p>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder={t("accounts.password", locale)}
+                      value={editingAccount.password}
+                      onChange={(e) =>
+                        setEditingAccount({ ...editingAccount, password: e.target.value })
+                      }
+                      className="min-w-[200px] rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                    <select
+                      value={editingAccount.proxy}
+                      onChange={(e) =>
+                        setEditingAccount({ ...editingAccount, proxy: e.target.value })
+                      }
+                      className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    >
+                      <option value="">{locale === "es" ? "Sin proxy" : "No proxy"}</option>
+                      {proxies.map((p, idx) => (
+                        <option key={idx} value={p.url}>
+                          {p.label || p.url}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={saveEditAccount}
+                      className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                      title={locale === "es" ? "Aplicar" : "Apply"}
+                    >
+                      <Check size={14} />
+                      {locale === "es" ? "Aplicar" : "Apply"}
+                    </button>
+                    <button
+                      onClick={cancelEditAccount}
+                      className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-100"
+                      title={t("accounts.cancel", locale)}
+                    >
+                      <X size={14} />
+                      {t("accounts.cancel", locale)}
+                    </button>
                   </div>
+                  <p className="mt-2 text-xs text-amber-700">
+                    {locale === "es"
+                      ? "Recuerda pulsar \"Guardar\" arriba a la derecha para persistir los cambios."
+                      : "Remember to click \"Save\" at the top right to persist changes."}
+                  </p>
                 </div>
-                <div className="flex items-center gap-1 min-w-[200px]">
-                  <span className="text-sm text-zinc-500 font-mono">
-                    {showPasswords[i] ? acc.password : "••••••••"}
-                  </span>
+              ) : (
+                // ---- Display mode ----
+                <div key={i} className="px-5 py-3 flex items-center gap-4">
+                  <div className="flex items-center gap-2 min-w-[180px]">
+                    <span className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                      {acc.username[0]?.toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">@{acc.username}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-w-[200px]">
+                    <span className="text-sm text-zinc-500 font-mono">
+                      {showPasswords[i] ? acc.password : "••••••••"}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setShowPasswords({ ...showPasswords, [i]: !showPasswords[i] })
+                      }
+                      className="text-zinc-400 hover:text-zinc-600"
+                    >
+                      {showPasswords[i] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <div className="flex-1">
+                    {acc.proxy ? (
+                      <span className="text-xs text-zinc-400 font-mono">{acc.proxy}</span>
+                    ) : (
+                      <span className="text-xs text-zinc-300">
+                        {locale === "es" ? "Sin proxy" : "No proxy"}
+                      </span>
+                    )}
+                  </div>
                   <button
-                    onClick={() => setShowPasswords({ ...showPasswords, [i]: !showPasswords[i] })}
-                    className="text-zinc-400 hover:text-zinc-600"
+                    onClick={() => startEditAccount(i)}
+                    className="text-zinc-400 hover:text-amber-600 transition-colors"
+                    title={locale === "es" ? "Editar" : "Edit"}
                   >
-                    {showPasswords[i] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => removeAccount(i)}
+                    className="text-zinc-400 hover:text-red-500 transition-colors"
+                    title={t("accounts.delete", locale)}
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
-                <div className="flex-1">
-                  {acc.proxy ? (
-                    <span className="text-xs text-zinc-400 font-mono">{acc.proxy}</span>
-                  ) : (
-                    <span className="text-xs text-zinc-300">{locale === "es" ? "Sin proxy" : "No proxy"}</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => removeAccount(i)}
-                  className="text-zinc-400 hover:text-red-500 transition-colors"
-                  title={t("accounts.delete", locale)}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+              )
+            )}
           </div>
         ) : (
           <div className="p-8 text-center text-zinc-400">
