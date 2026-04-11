@@ -77,7 +77,7 @@ export function Sidebar() {
   let currentGroup = "";
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-zinc-950 text-zinc-300 h-screen sticky top-0">
+    <aside className="flex w-60 shrink-0 flex-col bg-zinc-950 text-zinc-300 h-screen sticky top-0 print:hidden">
       {/* Brand */}
       <div className="flex items-center gap-2 px-5 py-5 border-b border-zinc-800">
         <div className="h-8 w-8 rounded-lg bg-amber-500 flex items-center justify-center text-black font-bold text-sm">
