@@ -616,12 +616,11 @@ export default function PipelinePage() {
               onChange={(e) => setNewCampaign({ ...newCampaign, source_type: e.target.value })}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             >
-              <option value="comments">Comentarios</option>
-              <option value="followers">Seguidores</option>
-              <option value="hashtag">Hashtag</option>
+              <option value="comments">Comentarios de Post</option>
+              <option value="followers">Followers / Perfiles</option>
             </select>
             <input
-              placeholder="URL del post o hashtag"
+              placeholder={newCampaign.source_type === "comments" ? "URL del post (ej: https://instagram.com/p/xxx/)" : "Username o usernames separados por coma"}
               value={newCampaign.source_value}
               onChange={(e) => setNewCampaign({ ...newCampaign, source_value: e.target.value })}
               required
