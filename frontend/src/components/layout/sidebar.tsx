@@ -20,6 +20,7 @@ import {
   Globe,
   Upload,
   KeyRound,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { getUser, clearAuth } from "@/lib/auth";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { i18n: "nav.import", href: "/import", icon: Upload, group: "group.pipeline" },
   { i18n: "nav.unibox", href: "/unibox", icon: Inbox, group: "group.communication" },
   { i18n: "nav.crm", href: "/crm", icon: Kanban, group: "group.communication" },
+  { i18n: "nav.reports", href: "/reports", icon: BarChart3, group: "group.communication" },
   { i18n: "nav.clients", href: "/clients", icon: Users, group: "group.management" },
   { i18n: "nav.accounts", href: "/accounts", icon: KeyRound, group: "group.management" },
   { i18n: "nav.settings", href: "/settings", icon: SlidersHorizontal, group: "group.management" },
