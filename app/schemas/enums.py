@@ -30,6 +30,7 @@ class SourceType(StrEnum):
     FOLLOWERS = "followers"
     COMMENTS = "comments"
     PROFILES = "profiles"
+    HASHTAG = "hashtag"
 
 
 class LeadCategory(StrEnum):

@@ -516,7 +516,7 @@ async def _scrape_other_source(campaign, campaign_id: str, max_leads: int, db) -
     )
 
     # Get detailed profiles if needed
-    if campaign.source_type == "followers":
+    if campaign.source_type in ("followers", "hashtag"):
         usernames = []
         for p in raw_profiles:
             uname = (

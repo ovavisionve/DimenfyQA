@@ -25,6 +25,7 @@ ACTORS = {
     "followers": "apify~instagram-profile-scraper",  # fallback to profile scraper
     "comments": "apify~instagram-scraper",            # main scraper with resultsType=comments
     "profiles": "apify~instagram-profile-scraper",    # dedicated profile scraper
+    "hashtag": "apify~instagram-scraper",             # main scraper with search=hashtag
 }
 
 
@@ -444,6 +445,22 @@ class ApifyService:
         elif source_type == "profiles":
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]
             return {"usernames": usernames}
+        elif source_type == "hashtag":
+            # apify~instagram-scraper with search=hashtag
+            # Returns posts from the hashtag; we'll extract ownerUsername later
+            hashtag = source_value.lstrip("#").strip()
+            data = {
+                "search": hashtag,
+                "searchType": "hashtag",
+                "searchLimit": 1,
+                "resultsType": "posts",
+            }
+            if max_leads > 0:
+                # Overscrape to compensate for duplicates and filtering
+                data["resultsLimit"] = max(max_leads * 2, 50)
+            else:
+                data["resultsLimit"] = 100
+            return data
         else:
             raise ValueError(f"Unknown source type: {source_type}")
 
