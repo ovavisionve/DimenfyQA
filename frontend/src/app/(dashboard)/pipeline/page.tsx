@@ -458,20 +458,24 @@ export default function PipelinePage() {
       ...newCampaign,
       settings: campaignSettings,
     };
-    const data = await api<Campaign>("/api/v1/campaigns/", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setCampaigns((prev) => [data, ...prev]);
-    setSelected(data);
-    setShowNew(false);
-    setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
-    setBioKeywords([]);
-    setKeywordInput("");
-    setScheduleEnabled(false);
-    setSendingStart("09:00");
-    setSendingEnd("21:00");
-    setSendingTimezone("America/Caracas");
+    try {
+      const data = await api<Campaign>("/api/v1/campaigns/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setCampaigns((prev) => [data, ...prev]);
+      setSelected(data);
+      setShowNew(false);
+      setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
+      setBioKeywords([]);
+      setKeywordInput("");
+      setScheduleEnabled(false);
+      setSendingStart("09:00");
+      setSendingEnd("21:00");
+      setSendingTimezone("America/Caracas");
+    } catch (err) {
+      setErrorMsg(`Error creando campaña: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
   };
 
   // Stats
