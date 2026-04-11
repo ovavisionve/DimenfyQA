@@ -349,7 +349,10 @@ class IGAccount:
             return False
 
         def _do_check() -> bool:
-            user_info = self._client.user_info_by_username(username)
+            # Skip the public GraphQL path (www.instagram.com) — Instagram rate-limits
+            # it aggressively with 429s. Go straight to the authenticated private API
+            # (i.instagram.com) which works reliably while logged in.
+            user_info = self._client.user_info_by_username_v1(username)
             if user_info.is_private:
                 logger.info(f"Pre-send check: @{username} is private, skipping")
                 return False
@@ -930,7 +933,10 @@ class DMSenderService:
 
             if progress_callback:
                 try:
-                    progress_callback(i + 1, len(leads), lead.ig_username, result["success"])
+                    cb_result = progress_callback(i + 1, len(leads), lead.ig_username, result["success"])
+                    # Support both sync and async callbacks
+                    if asyncio.iscoroutine(cb_result):
+                        await cb_result
                 except Exception:
                     pass
 
@@ -1248,7 +1254,10 @@ class DMSenderService:
 
             if progress_callback:
                 try:
-                    progress_callback(i + 1, len(leads), lead.ig_username, result["success"])
+                    cb_result = progress_callback(i + 1, len(leads), lead.ig_username, result["success"])
+                    # Support both sync and async callbacks
+                    if asyncio.iscoroutine(cb_result):
+                        await cb_result
                 except Exception:
                     pass
 

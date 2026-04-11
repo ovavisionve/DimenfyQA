@@ -1,7 +1,7 @@
 import logging
 
 from app.tasks.celery_app import celery_app
-from app.tasks.base import _run_async, fail_campaign, update_progress, sync_update_progress, RETRY_KWARGS
+from app.tasks.base import _run_async, fail_campaign, update_progress, RETRY_KWARGS
 from app.database import create_worker_session
 from app.services.browser_manager import get_sender_service
 
@@ -84,10 +84,10 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
                             current=0, total=len(lead_ids),
                             detail=f"Active accounts: {active_accounts}")
 
-            def _sending_progress(cur, tot, uname, success):
-                """Sync callback for send progress."""
+            async def _sending_progress(cur, tot, uname, success):
+                """Async callback for send progress — awaited from send_campaign_dms."""
                 status_text = "sent" if success else "failed"
-                sync_update_progress(cid, "sending",
+                await update_progress(cid, "sending",
                                 f"DM {cur}/{tot}: @{uname} ({status_text})",
                                 current=cur, total=tot,
                                 detail=f"Delay {settings.DM_DELAY_MIN}-{settings.DM_DELAY_MAX}s between sends")
