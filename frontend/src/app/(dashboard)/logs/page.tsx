@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { wsUrl } from "@/lib/api";
 import { Terminal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getLocale, t, type Locale } from "@/lib/i18n";
 
 interface LogEntry {
   timestamp: string;
@@ -28,6 +29,14 @@ export default function LogsPage() {
   const [connected, setConnected] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [locale, setLocale] = useState<Locale>("es");
+
+  useEffect(() => {
+    setLocale(getLocale());
+    const handler = () => setLocale(getLocale());
+    window.addEventListener("locale-change", handler);
+    return () => window.removeEventListener("locale-change", handler);
+  }, []);
 
   const connect = useCallback(() => {
     const ws = new WebSocket(wsUrl("/ws/logs"));
@@ -67,7 +76,7 @@ export default function LogsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-zinc-900">Live Logs</h1>
+          <h1 className="text-xl font-semibold text-zinc-900">{t("logs.title", locale)}</h1>
           <span
             className={cn(
               "flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -82,14 +91,14 @@ export default function LogsPage() {
                 connected ? "bg-emerald-500" : "bg-red-500"
               )}
             />
-            {connected ? "Conectado" : "Desconectado"}
+            {connected ? t("logs.connected", locale) : t("logs.disconnected", locale)}
           </span>
         </div>
         <button
           onClick={() => setLogs([])}
           className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-50"
         >
-          <Trash2 size={12} /> Limpiar
+          <Trash2 size={12} /> {t("logs.clear", locale)}
         </button>
       </div>
 
@@ -106,11 +115,11 @@ export default function LogsPage() {
                 : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
             )}
           >
-            {lvl}
+            {lvl === "ALL" ? t("logs.all", locale) : lvl}
           </button>
         ))}
         <input
-          placeholder="Filtrar..."
+          placeholder={t("logs.filter", locale)}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="ml-2 rounded-md border border-zinc-200 px-2.5 py-1 text-xs w-48 focus:border-amber-500 focus:outline-none"
@@ -122,7 +131,7 @@ export default function LogsPage() {
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800">
           <Terminal size={14} className="text-zinc-500" />
           <span className="text-xs text-zinc-500">
-            {filtered.length} entries
+            {filtered.length} {t("logs.entries", locale)}
           </span>
         </div>
         <div className="h-[calc(100vh-300px)] overflow-y-auto p-4 font-mono text-xs leading-6">

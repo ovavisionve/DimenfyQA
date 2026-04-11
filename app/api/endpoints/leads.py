@@ -3,10 +3,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.database import get_db
 from app.models.lead import Lead
-from app.schemas.lead import LeadDMReady, LeadRead, LeadScored
+from app.schemas.lead import LeadDMReady, LeadDetail, LeadRead, LeadScored
 
 router = APIRouter()
 
@@ -22,7 +23,11 @@ async def list_leads(
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Lead)
+    query = select(Lead).options(
+        defer(Lead.research_data),
+        defer(Lead.ig_posts),
+        defer(Lead.ig_post_analysis),
+    )
 
     if campaign_id:
         query = query.where(Lead.campaign_id == campaign_id)
@@ -69,7 +74,7 @@ async def list_dm_ready_leads(
     return result.scalars().all()
 
 
-@router.get("/{lead_id}", response_model=LeadRead)
+@router.get("/{lead_id}", response_model=LeadDetail)
 async def get_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()

@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     PRE_SEND_CHECK_PUBLIC: bool = True  # Verify target is public before sending DM
     SKIP_PRIVATE_ACCOUNTS: bool = True  # Filter out private accounts during scraping
 
+    # Proxy kill-switch — when True, all configured proxies are ignored and
+    # Instagram calls go out directly from the host IP. Useful when proxies
+    # are broken (e.g. 407 auth errors) and you need to unblock sending.
+    IG_DISABLE_PROXIES: bool = False
+
     # Playwright + Stealth (browser automation mode)
     USE_PLAYWRIGHT: bool = False  # True = use Playwright, False = use instagrapi
     PW_HEADLESS: bool = True  # Run browser headless (True for servers)

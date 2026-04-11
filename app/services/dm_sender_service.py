@@ -202,11 +202,38 @@ class IGAccount:
                 f"{dp['device']}; {dp['model']}; en_US; 314665256)"
             )
 
-            if self.proxy:
+            if self.proxy and not settings.IG_DISABLE_PROXIES:
                 self._client.set_proxy(self.proxy)
 
             # Anti-detection: add random request delay
             self._client.delay_range = [2, 5]
+
+    def _is_proxy_error(self, exc: Exception) -> bool:
+        """Return True if the given exception is caused by a proxy failure."""
+        msg = str(exc).lower()
+        return (
+            "proxyerror" in msg
+            or "tunnel connection failed" in msg
+            or "407 proxy" in msg
+            or "unable to connect to proxy" in msg
+        )
+
+    def _disable_proxy(self, reason: str = ""):
+        """Clear the proxy on this account and its live client, then recreate
+        the client so the old urllib3 pool manager is fully discarded."""
+        if not self.proxy and self._client is None:
+            return
+        logger.warning(
+            f"Disabling proxy for @{self.username}"
+            + (f": {reason}" if reason else "")
+        )
+        self.proxy = ""
+        # Drop the current instagrapi client entirely — just calling
+        # set_proxy(None) isn't enough because urllib3 caches the connection
+        # pool. Recreating the client guarantees the next call opens a new
+        # direct connection.
+        self._client = None
+        self._ensure_client()
 
     def login(self) -> bool:
         if self._logged_in:
@@ -221,47 +248,81 @@ class IGAccount:
             logger.warning(f"Account @{self.username} in cooldown: {reason}")
             return False
 
-        # Try to restore saved session first (with decryption)
-        if self.session_file.exists():
-            tmp_path = self.session_file.with_suffix(".tmp")
-            try:
-                decrypted = _decrypt_file(self.session_file)
-                if decrypted:
-                    # Write decrypted to temp file for instagrapi to load
-                    tmp_path.write_bytes(decrypted)
-                    self._client.load_settings(tmp_path)
-                    self._client.login(self.username, self.password)
-                    # Validate session with a lightweight call
-                    self._client.get_timeline_feed()
-                    self._logged_in = True
-                    # Re-encrypt session after successful restore
-                    self._client.dump_settings(self.session_file)
-                    _encrypt_file(self.session_file)
-                    logger.info(f"Restored Instagram session for @{self.username}")
-                    return True
-            except Exception as e:
-                logger.warning(f"Session restore failed for @{self.username} ({type(e).__name__}), doing fresh login")
-                self.session_file.unlink(missing_ok=True)
-            finally:
-                tmp_path.unlink(missing_ok=True)
+        def _do_login() -> bool:
+            # Try to restore saved session first (with decryption)
+            if self.session_file.exists():
+                tmp_path = self.session_file.with_suffix(".tmp")
+                try:
+                    decrypted = _decrypt_file(self.session_file)
+                    if decrypted:
+                        # Write decrypted to temp file for instagrapi to load
+                        tmp_path.write_bytes(decrypted)
+                        self._client.load_settings(tmp_path)
+                        self._client.login(self.username, self.password)
+                        # Validate session with a lightweight call
+                        self._client.get_timeline_feed()
+                        self._logged_in = True
+                        # Re-encrypt session after successful restore
+                        self._client.dump_settings(self.session_file)
+                        _encrypt_file(self.session_file)
+                        logger.info(f"Restored Instagram session for @{self.username}")
+                        return True
+                except Exception as e:
+                    if self._is_proxy_error(e):
+                        # Bubble up so outer handler can disable the proxy.
+                        raise
+                    logger.warning(
+                        f"Session restore failed for @{self.username} "
+                        f"({type(e).__name__}), doing fresh login"
+                    )
+                    self.session_file.unlink(missing_ok=True)
+                finally:
+                    tmp_path.unlink(missing_ok=True)
 
-        # Fresh login
+            # Fresh login
+            try:
+                self._client.login(self.username, self.password)
+                # Save and encrypt session
+                self._client.dump_settings(self.session_file)
+                _encrypt_file(self.session_file)
+                self._logged_in = True
+                if self.created_at is None:
+                    self.created_at = datetime.now(timezone.utc)
+                    self._save_health()
+                logger.info(f"Fresh login successful for @{self.username}")
+                return True
+            except Exception as e:
+                if self._is_proxy_error(e):
+                    raise
+                error_str = str(e).lower()
+                if "challenge" in error_str or "checkpoint" in error_str:
+                    self._record_challenge()
+                logger.error(
+                    f"Instagram login failed for @{self.username}: "
+                    f"{type(e).__name__}: {e}"
+                )
+                return False
+
         try:
-            self._client.login(self.username, self.password)
-            # Save and encrypt session
-            self._client.dump_settings(self.session_file)
-            _encrypt_file(self.session_file)
-            self._logged_in = True
-            if self.created_at is None:
-                self.created_at = datetime.now(timezone.utc)
-                self._save_health()
-            logger.info(f"Fresh login successful for @{self.username}")
-            return True
+            return _do_login()
         except Exception as e:
-            error_str = str(e).lower()
-            if "challenge" in error_str or "checkpoint" in error_str:
-                self._record_challenge()
-            logger.error(f"Instagram login failed for @{self.username}: {type(e).__name__}: {e}")
+            if self._is_proxy_error(e):
+                # Proxy leaked through validation — disable it live and retry
+                # once with a direct connection. This unblocks sending even
+                # when validate_proxy() passed but the real route fails.
+                self._disable_proxy(reason=f"login proxy error: {type(e).__name__}")
+                try:
+                    return _do_login()
+                except Exception as e2:
+                    logger.error(
+                        f"Instagram login failed for @{self.username} after "
+                        f"disabling proxy: {type(e2).__name__}: {e2}"
+                    )
+                    return False
+            logger.error(
+                f"Instagram login failed for @{self.username}: "
+                f"{type(e).__name__}: {e}"
+            )
             return False
 
     def _record_challenge(self):
@@ -286,13 +347,34 @@ class IGAccount:
         """Pre-send check: verify target account is public and can receive DMs."""
         if not self._logged_in or not self._client:
             return False
-        try:
+
+        def _do_check() -> bool:
             user_info = self._client.user_info_by_username(username)
             if user_info.is_private:
                 logger.info(f"Pre-send check: @{username} is private, skipping")
                 return False
             return True
+
+        try:
+            return _do_check()
         except Exception as e:
+            if self._is_proxy_error(e) and self.proxy:
+                # A proxy leaked through earlier validation. Kill it live so
+                # the send flow isn't stuck retrying forever against a dead
+                # tunnel, then re-login and retry once.
+                self._disable_proxy(
+                    reason=f"pre-send proxy error: {type(e).__name__}"
+                )
+                self._logged_in = False
+                if self.login():
+                    try:
+                        return _do_check()
+                    except Exception as e2:
+                        logger.warning(
+                            f"Pre-send check still failed for @{username} "
+                            f"after disabling proxy: {e2}"
+                        )
+                        return True
             logger.warning(f"Pre-send check failed for @{username}: {e}")
             # On error, allow sending (don't block due to check failure)
             return True
@@ -513,18 +595,29 @@ class IGAccount:
                 logger.warning(f"Failed to load health data for @{self.username}: {type(e).__name__}: {e}")
 
     def validate_proxy(self) -> bool:
-        """Validate that the proxy is reachable before using it for sends."""
+        """Validate that the proxy is reachable before using it for sends.
+
+        Tests the proxy against Instagram itself, not a generic site like
+        httpbin.org — a proxy can work for generic sites but still fail to
+        reach Instagram (e.g. 407 Proxy Authentication Required when
+        tunneling to i.instagram.com).
+        """
         if not self.proxy:
             return True  # No proxy configured, OK
         try:
             import httpx
             with httpx.Client(proxy=self.proxy, timeout=10) as client:
-                resp = client.get("https://httpbin.org/ip")
-                if resp.status_code == 200:
-                    ip = resp.json().get("origin", "unknown")
-                    logger.info(f"Proxy validated for @{self.username}: IP={ip}")
+                # Use Instagram's own favicon — always 200, no auth needed,
+                # routes through the same CONNECT tunnel as real API calls.
+                resp = client.get("https://www.instagram.com/favicon.ico")
+                if resp.status_code < 400:
+                    logger.info(f"Proxy validated for @{self.username} against Instagram")
                     return True
-            return False
+                logger.warning(
+                    f"Proxy for @{self.username} returned HTTP {resp.status_code} "
+                    f"when reaching Instagram"
+                )
+                return False
         except Exception as e:
             logger.warning(f"Proxy validation failed for @{self.username}: {e}")
             return False
@@ -540,30 +633,117 @@ class DMSenderService:
         self._current_account_idx = 0
 
     def _init_accounts(self):
-        """Initialize accounts from config (multi-account or single)."""
+        """Initialize accounts from config (DB, ig_config.json, multi-account env, or single)."""
         if self._accounts:
             return
+
+        # Try database first (set via Accounts & Proxies UI)
+        try:
+            self._load_accounts_from_db()
+            if self._accounts:
+                return
+        except Exception as e:
+            logger.debug(f"DB config not available: {e}")
+
+        disable_proxies = settings.IG_DISABLE_PROXIES
+
+        # Fallback: ig_config.json (legacy)
+        config_path = Path("ig_config.json")
+        if config_path.exists():
+            try:
+                import json
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+                cfg_accounts = data.get("accounts", [])
+                if cfg_accounts:
+                    for acc in cfg_accounts:
+                        proxy = "" if disable_proxies else acc.get("proxy", "")
+                        self._accounts.append(IGAccount(
+                            username=acc["username"],
+                            password=acc["password"],
+                            proxy=proxy,
+                            session_dir=self._session_path,
+                        ))
+                    logger.info(f"Configured {len(self._accounts)} IG accounts from ig_config.json")
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to read ig_config.json: {e}")
 
         # Try multi-account config first
         multi = _parse_accounts(settings.IG_ACCOUNTS)
         if multi:
             for acc in multi:
+                proxy = "" if disable_proxies else acc["proxy"]
                 self._accounts.append(IGAccount(
                     username=acc["username"],
                     password=acc["password"],
-                    proxy=acc["proxy"],
+                    proxy=proxy,
                     session_dir=self._session_path,
                 ))
             logger.info(f"Configured {len(self._accounts)} IG accounts for rotation")
         elif settings.IG_USERNAME and settings.IG_PASSWORD:
             # Fallback to single account
+            proxy = "" if disable_proxies else settings.PROXY_URL
             self._accounts.append(IGAccount(
                 username=settings.IG_USERNAME,
                 password=settings.IG_PASSWORD,
-                proxy=settings.PROXY_URL,
+                proxy=proxy,
                 session_dir=self._session_path,
             ))
             logger.info("Configured 1 IG account (single mode)")
+
+    def _load_accounts_from_db(self):
+        """Load IG accounts from the system_config table in the database."""
+        import json
+        import asyncio
+
+        async def _read():
+            from sqlalchemy import text
+            from app.database import create_worker_session
+
+            async with create_worker_session()() as db:
+                result = await db.execute(
+                    text("SELECT value FROM public.system_config WHERE key = :k"),
+                    {"k": "ig_config"},
+                )
+                row = result.scalar_one_or_none()
+                if not row:
+                    return None
+                return json.loads(row)
+
+        # Run async query in a new event loop (called from sync context)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're inside an async context, use a thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    data = pool.submit(lambda: asyncio.run(_read())).result(timeout=10)
+            else:
+                data = loop.run_until_complete(_read())
+        except RuntimeError:
+            data = asyncio.run(_read())
+
+        if not data:
+            return
+
+        cfg_accounts = data.get("accounts", [])
+        disable_proxies = settings.IG_DISABLE_PROXIES
+        for acc in cfg_accounts:
+            proxy = "" if disable_proxies else acc.get("proxy", "")
+            self._accounts.append(IGAccount(
+                username=acc["username"],
+                password=acc["password"],
+                proxy=proxy,
+                session_dir=self._session_path,
+            ))
+        if self._accounts:
+            if disable_proxies:
+                logger.info(
+                    f"Configured {len(self._accounts)} IG accounts from database "
+                    f"(proxies disabled via IG_DISABLE_PROXIES)"
+                )
+            else:
+                logger.info(f"Configured {len(self._accounts)} IG accounts from database")
 
     def login(self) -> bool:
         """Login all configured accounts. Returns True if at least one succeeds."""
@@ -573,10 +753,23 @@ class DMSenderService:
             logger.error("No IG accounts configured (set IG_USERNAME/IG_PASSWORD or IG_ACCOUNTS)")
             return False
 
-        # Security: validate proxies before login
+        # Security: validate proxies before login. If a proxy fails, actually
+        # clear it on the account so _ensure_client() won't re-apply it and
+        # subsequent Instagram API calls don't keep tunneling through a broken
+        # proxy (which was causing 407 Proxy Authentication Required errors).
         for acc in self._accounts:
             if acc.proxy and not acc.validate_proxy():
-                logger.warning(f"Proxy failed for @{acc.username}, proceeding without proxy")
+                logger.warning(
+                    f"Proxy failed for @{acc.username}, proceeding without proxy"
+                )
+                acc.proxy = ""
+                # If the instagrapi client was already instantiated, reset its
+                # proxy too so the broken one is removed from the live session.
+                if acc._client is not None:
+                    try:
+                        acc._client.set_proxy(None)
+                    except Exception:
+                        pass
 
         success_count = 0
         for acc in self._accounts:

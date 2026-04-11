@@ -181,26 +181,31 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
             campaign.last_phase = "scrape"
             await db.commit()
 
+            # Extract all campaign data upfront to avoid lazy-load after long Apify wait
+            campaign_settings = dict(campaign.settings or {})
+            campaign_source_type = campaign.source_type
+            campaign_source_value = campaign.source_value
+            campaign_client_id = str(campaign.client_id)
+
             # Target number of quality leads
-            max_leads = (campaign.settings or {}).get("max_leads", 0)
+            max_leads = campaign_settings.get("max_leads", 0)
 
             # Get content context for Claude pre-evaluation
             content_context = ""
-            content_analysis = (campaign.settings or {}).get("content_analysis")
+            content_analysis = campaign_settings.get("content_analysis")
             if content_analysis:
                 content_context = f"## Contexto del negocio del cliente:\n{json.dumps(content_analysis, ensure_ascii=False)[:500]}"
 
             await update_progress(campaign_id, "scraping",
-                            f"Starting smart scraper for @{campaign.source_value[:50]}...",
-                            detail=f"Source: {campaign.source_type}, target: {max_leads or 'all'} quality leads")
+                            f"Starting smart scraper for @{campaign_source_value[:50]}...",
+                            detail=f"Source: {campaign_source_type}, target: {max_leads or 'all'} quality leads")
 
-            if campaign.source_type == "comments":
+            if campaign_source_type == "comments":
                 quality_profiles = await _scrape_comments_with_quality_filter(
                     campaign_id=campaign_id,
-                    source_value=campaign.source_value,
+                    source_value=campaign_source_value,
                     target_leads=max_leads,
                     content_context=content_context,
-                    db=db,
                 )
             else:
                 # Non-comment sources: use original flow
@@ -212,7 +217,7 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                 )
 
             # Bio keyword filter — only keep profiles whose bio contains at least one keyword
-            bio_keywords = (campaign.settings or {}).get("bio_keywords", [])
+            bio_keywords = campaign_settings.get("bio_keywords", [])
             if bio_keywords:
                 before_count = len(quality_profiles)
                 kw_lower = [kw.lower().strip() for kw in bio_keywords if kw.strip()]
@@ -232,19 +237,26 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                                 f"Bio filter: {len(quality_profiles)} of {before_count} profiles matched keywords.",
                                 detail=f"Keywords: {', '.join(bio_keywords)}")
 
+        # === FRESH DB SESSION ===
+        # After the long Apify scraping (10-20 min), the original DB connection
+        # is dead (Supabase/PgBouncer drops idle connections). Instead of trying
+        # to reuse it and catching errors, we proactively create a fresh session.
+        logger.info(f"[SmartScrape] Creating fresh DB session for saving {len(quality_profiles)} profiles")
+        async with create_worker_session()() as db2:
+            from app.models.lead import Lead
+
             # Save leads with dedup
             await update_progress(campaign_id, "scraping",
                             f"Saving {len(quality_profiles)} quality profiles to database...",
                             detail="Deduplicating and storing leads")
 
             saved = await apify_service.save_leads(
-                quality_profiles, campaign_id, str(campaign.client_id), db
+                quality_profiles, campaign_id, campaign_client_id, db2
             )
-            await db.commit()
+            await db2.commit()
 
             # Return lead IDs for next pipeline step
-            from app.models.lead import Lead
-            lead_result = await db.execute(
+            lead_result = await db2.execute(
                 select(Lead.id).where(
                     Lead.campaign_id == campaign_id,
                     Lead.status == "scraped",
@@ -259,9 +271,9 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                             detail="Moving to scoring phase...")
 
             # Auto-analyze campaign content if URLs/text are configured
-            content_urls = (campaign.settings or {}).get("content_urls", [])
-            content_text = (campaign.settings or {}).get("content_text", "")
-            existing_analysis = (campaign.settings or {}).get("content_analysis")
+            content_urls = campaign_settings.get("content_urls", [])
+            content_text = campaign_settings.get("content_text", "")
+            existing_analysis = campaign_settings.get("content_analysis")
 
             if (content_urls or content_text) and not existing_analysis:
                 try:
@@ -270,11 +282,11 @@ def scrape_leads_task(self, campaign_id: str) -> list[str]:
                                     "Analyzing campaign content with Gemini AI...",
                                     detail="Multimodal analysis of video/image/webpage content")
                     await content_analysis_service.analyze_campaign_content(
-                        campaign_id, db,
+                        campaign_id, db2,
                         content_urls=content_urls,
                         content_text=content_text,
                     )
-                    await db.commit()
+                    await db2.commit()
                     logger.info(f"Content analysis completed for campaign {campaign_id}")
                 except Exception as e:
                     logger.warning(f"Content analysis failed (non-blocking): {e}")
@@ -300,24 +312,29 @@ async def _scrape_comments_with_quality_filter(
     source_value: str,
     target_leads: int,
     content_context: str,
-    db,
 ) -> list[dict]:
     """Scrape comments with over-scraping loop + pre-filters + Claude evaluation.
 
     Keeps scraping in increasing batches until we reach the target number
     of quality leads, or exhaust all available comments.
+
+    NOTE: This function creates its own DB session for the scrape_job record
+    because the calling session will be dead after the long Apify wait.
     """
     from app.models.scrape_job import ScrapeJob as SJ
 
-    scrape_job = SJ(
-        campaign_id=campaign_id,
-        apify_run_id="smart-scrape",
-        actor_type="comments",
-        status="running",
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(scrape_job)
-    await db.flush()
+    # Use a short-lived session just to create the scrape_job record
+    async with create_worker_session()() as init_db:
+        scrape_job = SJ(
+            campaign_id=campaign_id,
+            apify_run_id="smart-scrape",
+            actor_type="comments",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+        init_db.add(scrape_job)
+        await init_db.commit()
+        scrape_job_id = scrape_job.id
 
     all_quality_profiles = []
     seen_usernames = set()
@@ -430,9 +447,17 @@ async def _scrape_comments_with_quality_filter(
             scrape_limit = min(scrape_limit + remaining * OVERSCRAPE_MULTIPLIER, 2000)
             logger.info(f"[SmartScrape] Need {remaining} more leads. Next round will scrape {scrape_limit} comments.")
 
-    scrape_job.status = "completed"
-    scrape_job.items_found = len(all_quality_profiles)
-    await db.commit()
+    # Use a fresh DB session to update scrape_job — the original connection
+    # is dead after the long Apify wait (Supabase drops idle connections).
+    async with create_worker_session()() as final_db:
+        from sqlalchemy import update as sa_update
+        from app.models.scrape_job import ScrapeJob as SJ2
+        await final_db.execute(
+            sa_update(SJ2).where(SJ2.id == scrape_job_id).values(
+                status="completed", items_found=len(all_quality_profiles)
+            )
+        )
+        await final_db.commit()
 
     logger.info(f"[SmartScrape] Final: {len(all_quality_profiles)} quality leads from {len(seen_usernames)} total usernames")
     return all_quality_profiles
@@ -491,7 +516,7 @@ async def _scrape_other_source(campaign, campaign_id: str, max_leads: int, db) -
     )
 
     # Get detailed profiles if needed
-    if campaign.source_type == "followers":
+    if campaign.source_type in ("followers", "hashtag"):
         usernames = []
         for p in raw_profiles:
             uname = (

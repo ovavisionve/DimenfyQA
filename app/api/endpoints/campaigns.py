@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.database import get_db
 from app.models.campaign import Campaign
@@ -35,7 +36,11 @@ async def list_campaigns(
     client_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Campaign)
+    query = select(Campaign).options(
+        noload(Campaign.leads),
+        noload(Campaign.scrape_jobs),
+        noload(Campaign.follow_up_rules),
+    )
     if client_id:
         query = query.where(Campaign.client_id == client_id)
     query = query.order_by(Campaign.created_at.desc())
@@ -49,6 +54,27 @@ async def get_campaign(campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign
+
+
+@router.patch("/{campaign_id}", response_model=CampaignRead)
+async def update_campaign(
+    campaign_id: uuid.UUID, data: CampaignUpdate, db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if data.name is not None:
+        campaign.name = data.name
+    if data.settings is not None:
+        campaign.settings = data.settings
+    if data.status is not None:
+        campaign.status = data.status.value
+
+    await db.flush()
+    await db.refresh(campaign)
     return campaign
 
 
@@ -86,16 +112,26 @@ async def start_campaign_pipeline(
 async def reset_campaign(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Reset a campaign: delete all leads and set status back to pending."""
+    """Reset a campaign: revoke tasks, delete all leads, set status to pending."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # Revoke Celery task if running
+    if campaign.celery_task_id:
+        try:
+            from app.tasks.celery_app import celery_app
+            celery_app.control.revoke(campaign.celery_task_id, terminate=True)
+        except Exception:
+            pass
+
     from sqlalchemy import delete
     await db.execute(delete(Lead).where(Lead.campaign_id == campaign_id))
     campaign.status = "pending"
     campaign.stats = {}
+    campaign.celery_task_id = None
+    campaign.last_phase = None
     await db.flush()
 
     return {"message": "Campaign reset", "campaign_id": str(campaign_id)}
@@ -163,41 +199,52 @@ async def get_campaign_stats(
 async def pause_campaign(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Pause a running campaign (stops DM sending)."""
+    """Pause/stop a running campaign at any phase."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status != "sending":
+    active_statuses = ("sending", "scraping", "scoring", "researching", "writing_dms", "pending")
+    if campaign.status not in active_statuses:
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is '{campaign.status}', can only pause while sending.",
+            detail=f"Campaign is '{campaign.status}', cannot pause.",
         )
 
-    campaign.status = "paused"
+    # Revoke Celery task if running
+    if campaign.celery_task_id:
+        try:
+            from app.tasks.celery_app import celery_app
+            celery_app.control.revoke(campaign.celery_task_id, terminate=True)
+        except Exception:
+            pass
+
+    campaign.status = "failed"
+    campaign.celery_task_id = None
     stats = dict(campaign.stats or {})
-    stats["send_error"] = "Manually paused by user"
+    stats["send_error"] = "Manually stopped by user"
     campaign.stats = stats
     await db.flush()
 
-    return {"message": "Campaign paused", "campaign_id": str(campaign_id)}
+    return {"message": "Campaign stopped", "campaign_id": str(campaign_id)}
 
 
 @router.post("/{campaign_id}/resume-sending")
+@router.post("/{campaign_id}/send-dms")
 async def resume_sending(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ):
-    """Resume sending DMs for a paused campaign."""
+    """Resume/start sending DMs for a campaign."""
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if campaign.status not in ("paused", "ready"):
+    if campaign.status not in ("paused", "ready", "failed"):
         raise HTTPException(
             status_code=400,
-            detail=f"Campaign is '{campaign.status}', can only send from paused or ready.",
+            detail=f"Campaign is '{campaign.status}', can only send from paused, ready, or failed.",
         )
 
     from app.tasks.sending_tasks import send_dms_task
@@ -223,6 +270,30 @@ async def resume_sending(
         "campaign_id": str(campaign_id),
         "task_id": task_result.id,
         "leads_to_send": len(lead_ids),
+    }
+
+
+@router.post("/{campaign_id}/send-dm/{lead_id}")
+async def send_single_dm(
+    campaign_id: uuid.UUID, lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Send a single DM to a specific lead."""
+    result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.campaign_id == campaign_id))
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found in this campaign")
+
+    if not lead.dm_message:
+        raise HTTPException(status_code=400, detail="Lead has no DM generated")
+
+    from app.tasks.sending_tasks import send_dms_task
+
+    task_result = send_dms_task.delay([str(lead_id)])
+    return {
+        "message": f"Sending DM to @{lead.ig_username}",
+        "campaign_id": str(campaign_id),
+        "lead_id": str(lead_id),
+        "task_id": task_result.id,
     }
 
 

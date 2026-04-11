@@ -9,6 +9,10 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.LOG_LEVEL.upper() == "DEBUG",
     pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=120,
+    connect_args={"server_settings": {"statement_timeout": "300000"}},
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -25,6 +29,10 @@ def create_worker_session() -> async_sessionmaker[AsyncSession]:
         settings.DATABASE_URL,
         echo=False,
         poolclass=NullPool,
+        connect_args={
+            "server_settings": {"statement_timeout": "300000"},
+            "timeout": 60,
+        },
     )
     return async_sessionmaker(worker_engine, class_=AsyncSession, expire_on_commit=False)
 

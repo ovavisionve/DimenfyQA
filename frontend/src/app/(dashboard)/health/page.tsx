@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { HeartPulse, Database, Radio, Cpu, Camera, RefreshCw, Shield, Clock, Zap } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getLocale, t, type Locale } from "@/lib/i18n";
 
 interface HealthData {
   db: string;
@@ -49,6 +50,14 @@ export default function HealthPage() {
   const [igData, setIgData] = useState<IGAccountsResponse | null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [locale, setLocale] = useState<Locale>("es");
+
+  useEffect(() => {
+    setLocale(getLocale());
+    const handler = () => setLocale(getLocale());
+    window.addEventListener("locale-change", handler);
+    return () => window.removeEventListener("locale-change", handler);
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -73,7 +82,7 @@ export default function HealthPage() {
 
   const healthItems = health
     ? [
-        { label: "Database", value: health.db, icon: Database },
+        { label: t("health.database", locale), value: health.db, icon: Database },
         { label: "Redis", value: health.redis, icon: Radio },
         { label: "Celery", value: health.celery, icon: Cpu },
       ]
@@ -85,8 +94,8 @@ export default function HealthPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900">System Health</h1>
-          <p className="text-sm text-zinc-500">Estado de la infraestructura</p>
+          <h1 className="text-xl font-semibold text-zinc-900">{t("health.title", locale)}</h1>
+          <p className="text-sm text-zinc-500">{t("health.subtitle", locale)}</p>
         </div>
         <button
           onClick={load}
@@ -94,7 +103,7 @@ export default function HealthPage() {
           className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Refrescar
+          {t("health.refresh", locale)}
         </button>
       </div>
 
@@ -142,12 +151,12 @@ export default function HealthPage() {
             <div className="flex items-center gap-2">
               <Camera size={16} className="text-zinc-500" />
               <h3 className="text-sm font-semibold text-zinc-900">
-                Cuentas de Instagram ({igData?.account_count})
+                {t("health.igAccounts", locale)} ({igData?.account_count})
               </h3>
             </div>
             {igData && (
               <div className="flex items-center gap-3 text-xs text-zinc-500">
-                <span>Límite global: {igData.global_daily_limit}/día, {igData.global_hourly_limit}/hora</span>
+                <span>{t("health.globalLimit", locale)}: {igData.global_daily_limit}/{t("common.day", locale)}, {igData.global_hourly_limit}/{t("common.hour", locale)}</span>
               </div>
             )}
           </div>
@@ -171,16 +180,16 @@ export default function HealthPage() {
                       )}
                     >
                       {acc.is_blocked
-                        ? "Bloqueado"
+                        ? t("health.blocked", locale)
                         : acc.in_cooldown
-                        ? "Cooldown"
+                        ? t("health.cooldown", locale)
                         : acc.logged_in
-                        ? "Activo"
-                        : "Offline"}
+                        ? t("health.active", locale)
+                        : t("health.offline", locale)}
                     </span>
                     {igData?.rotation_index === i && (
                       <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium">
-                        Activa
+                        {t("health.activeRotation", locale)}
                       </span>
                     )}
                   </div>
@@ -199,23 +208,23 @@ export default function HealthPage() {
                 <div className="grid grid-cols-5 gap-4 text-center">
                   <div>
                     <p className="text-lg font-semibold text-zinc-900">{acc.total_sent}</p>
-                    <p className="text-xs text-zinc-500">Enviados</p>
+                    <p className="text-xs text-zinc-500">{t("health.sent", locale)}</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-red-600">{acc.total_failed}</p>
-                    <p className="text-xs text-zinc-500">Fallidos</p>
+                    <p className="text-xs text-zinc-500">{t("health.failed", locale)}</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-zinc-900">{acc.hourly_sends_remaining}</p>
-                    <p className="text-xs text-zinc-500">Restantes/hora</p>
+                    <p className="text-xs text-zinc-500">{t("health.remaining", locale)}</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-zinc-900">{acc.daily_limit}</p>
-                    <p className="text-xs text-zinc-500">Límite/día</p>
+                    <p className="text-xs text-zinc-500">{t("health.dailyLimit", locale)}</p>
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-amber-600">{acc.challenges_today}</p>
-                    <p className="text-xs text-zinc-500">Challenges hoy</p>
+                    <p className="text-xs text-zinc-500">{t("health.challengesToday", locale)}</p>
                   </div>
                 </div>
 
@@ -223,7 +232,7 @@ export default function HealthPage() {
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-zinc-500 flex items-center gap-1">
-                      <Zap size={11} /> Warm-up
+                      <Zap size={11} /> {t("health.warmup", locale)}
                     </span>
                     <span className={cn(
                       "font-medium",
@@ -251,8 +260,8 @@ export default function HealthPage() {
       {accounts.length === 0 && !loading && (
         <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-400">
           <Camera size={32} className="mx-auto mb-2 opacity-40" />
-          <p className="text-sm">No hay cuentas de Instagram configuradas.</p>
-          <p className="text-xs mt-1">Configura IG_USERNAME/IG_ACCOUNTS en el .env del backend.</p>
+          <p className="text-sm">{t("health.noAccounts", locale)}</p>
+          <p className="text-xs mt-1">{t("health.noAccountsHint", locale)}</p>
         </div>
       )}
 
@@ -260,27 +269,17 @@ export default function HealthPage() {
       <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-100">
           <HeartPulse size={16} className="text-zinc-500" />
-          <h3 className="text-sm font-semibold text-zinc-900">Audit Log</h3>
+          <h3 className="text-sm font-semibold text-zinc-900">{t("health.auditLog", locale)}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50">
-                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
-                  Fecha
-                </th>
-                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
-                  Usuario
-                </th>
-                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
-                  Acción
-                </th>
-                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
-                  Recurso
-                </th>
-                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">
-                  Detalles
-                </th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">{t("health.date", locale)}</th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">{t("health.user", locale)}</th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">{t("health.action", locale)}</th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">{t("health.resource", locale)}</th>
+                <th className="px-5 py-2.5 text-left font-medium text-zinc-600">{t("health.details", locale)}</th>
               </tr>
             </thead>
             <tbody>
@@ -292,12 +291,8 @@ export default function HealthPage() {
                       : "—"}
                   </td>
                   <td className="px-5 py-2.5 text-xs">{entry.user_email || "—"}</td>
-                  <td className="px-5 py-2.5 text-xs font-mono">
-                    {entry.action}
-                  </td>
-                  <td className="px-5 py-2.5 text-xs text-zinc-500">
-                    {entry.resource_type || "—"}
-                  </td>
+                  <td className="px-5 py-2.5 text-xs font-mono">{entry.action}</td>
+                  <td className="px-5 py-2.5 text-xs text-zinc-500">{entry.resource_type || "—"}</td>
                   <td className="px-5 py-2.5 text-xs text-zinc-500 max-w-[300px]">
                     {entry.details && Object.keys(entry.details).length > 0 ? (
                       <pre className="whitespace-pre-wrap break-all text-[11px] text-zinc-400 font-mono">
@@ -314,7 +309,7 @@ export default function HealthPage() {
         </div>
         {audit.length === 0 && (
           <p className="text-center py-8 text-sm text-zinc-400">
-            No hay entradas de audit log.
+            {t("health.noAudit", locale)}
           </p>
         )}
       </div>

@@ -8,13 +8,33 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="fetch_posts_and_generate_comments", **RETRY_KWARGS)
-def fetch_posts_and_generate_comments_task(self, lead_ids: list[str], campaign_id: str) -> dict:
-    """Fetch posts for leads missing them, then generate comments."""
+def fetch_posts_and_generate_comments_task(self, lead_ids: list[str], campaign_id: str = None) -> list[str]:
+    """Fetch posts for leads missing them, then generate comments.
+
+    Can be called standalone with campaign_id, or chained in the pipeline
+    where campaign_id is derived from the first lead.
+    Returns lead_ids for pipeline chaining.
+    """
     logger.info(f"Fetching posts for up to {len(lead_ids)} leads, then generating comments")
 
     async def _run():
         async with create_worker_session()() as db:
             from app.services.apify_service import apify_service
+            from sqlalchemy import select
+            from app.models.lead import Lead
+
+            # Get campaign_id from leads if not provided
+            nonlocal campaign_id
+            if not campaign_id and lead_ids:
+                result = await db.execute(
+                    select(Lead.campaign_id).where(Lead.id == lead_ids[0])
+                )
+                cid = result.scalar_one_or_none()
+                campaign_id = str(cid) if cid else None
+
+            if not campaign_id:
+                logger.warning("No campaign_id found, skipping comment generation")
+                return lead_ids
 
             def _fetch_progress(cur, tot, uname):
                 sync_update_progress(campaign_id, "fetching_posts",
@@ -43,7 +63,7 @@ def fetch_posts_and_generate_comments_task(self, lead_ids: list[str], campaign_i
                 await update_progress(campaign_id, "comments_ready",
                                       "No se encontraron posts para generar comentarios",
                                       current=0, total=0)
-                return {"posts_fetched": updated, "comments_generated": 0}
+                return lead_ids
 
             # Generate comments
             from app.services.comment_copywriting_service import comment_copywriting_service
@@ -62,7 +82,8 @@ def fetch_posts_and_generate_comments_task(self, lead_ids: list[str], campaign_i
                                   f"Comentarios generados: {len(comment_ids)}",
                                   current=len(comment_ids), total=len(comment_ids))
 
-            return {"posts_fetched": updated, "comments_generated": len(comment_ids)}
+            logger.info(f"Comment generation complete: {len(comment_ids)} comments, {updated} posts fetched")
+            return lead_ids
 
     try:
         return _run_async(_run())

@@ -30,10 +30,10 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-zinc-50">
+    <div className="flex h-screen bg-zinc-50 print:block print:h-auto print:bg-white">
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="p-6">{children}</div>
+      <main className="flex-1 min-w-0 overflow-y-auto print:overflow-visible print:h-auto">
+        <div className="p-6 print:p-0">{children}</div>
       </main>
     </div>
   );

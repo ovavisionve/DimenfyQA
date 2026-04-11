@@ -18,8 +18,6 @@ class LeadRead(BaseModel):
     ig_follower_count: Optional[int]
     ig_following_count: Optional[int]
     ig_is_private: Optional[bool]
-    ig_posts: Optional[list] = None
-    ig_post_analysis: Optional[dict] = None
     score: Optional[int]
     score_reason: Optional[str]
     lead_category: Optional[str]
@@ -56,6 +54,13 @@ class LeadRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class LeadDetail(LeadRead):
+    """Full lead detail including heavy JSONB fields — use only for single lead endpoints."""
+    ig_posts: Optional[list] = None
+    ig_post_analysis: Optional[dict] = None
+    research_data: Optional[dict] = None
 
 
 class LeadScored(BaseModel):

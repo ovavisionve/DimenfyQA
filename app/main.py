@@ -39,20 +39,32 @@ app.add_middleware(
         "https://dimenfy-qa.vercel.app",
         *[o.strip() for o in _cors_extra if o.strip()],
     ],
+    allow_origin_regex=r"https://dimenfy.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+class Utf8Middleware(BaseHTTPMiddleware):
+    """Ensure all JSON responses have charset=utf-8."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        ct = response.headers.get("content-type", "")
+        if "application/json" in ct and "charset" not in ct:
+            response.headers["content-type"] = ct + "; charset=utf-8"
+        return response
+
+
+app.add_middleware(Utf8Middleware)
+
+
 @app.on_event("startup")
 async def startup_recover_campaigns():
-    """On server start, check for interrupted campaigns and resume them."""
-    try:
-        from app.tasks.pipeline import recover_interrupted_campaigns
-        await recover_interrupted_campaigns()
-    except Exception as e:
-        logger.error(f"Campaign recovery on startup failed: {e}")
+    """Disabled: auto-recovery was re-launching campaigns on every deploy,
+    consuming Apify credits. Users should manually restart via the UI."""
+    logger.info("Startup complete — campaign auto-recovery is disabled")
 
 
 # ---------------------------------------------------------------------------
@@ -574,6 +586,108 @@ async def get_ig_accounts_status():
         "global_daily_limit": settings.DAILY_DM_LIMIT,
         "global_hourly_limit": settings.HOURLY_DM_LIMIT,
     }
+
+
+@app.get("/api/v1/system/ig-config")
+async def get_ig_config():
+    """Return saved IG accounts and proxies config from DB, falling back to env vars."""
+    from sqlalchemy import text
+    from app.database import async_session
+    from app.config import settings
+    from app.services.dm_sender_service import _parse_accounts
+
+    # Try DB first — use raw SQL with explicit schema to avoid PgBouncer search_path issues
+    try:
+        async with async_session() as db:
+            result = await db.execute(
+                text("SELECT value FROM public.system_config WHERE key = :k"),
+                {"k": "ig_config"},
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                data = json.loads(row)
+                if data.get("accounts"):
+                    return data
+    except Exception as e:
+        logger.warning(f"Could not read ig_config from DB: {e}")  # Log instead of silent pass
+
+    # Fallback: ig_config.json (legacy)
+    config_path = Path("ig_config.json")
+    if config_path.exists():
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            if data.get("accounts"):
+                return data
+        except Exception:
+            pass
+
+    # Fallback: read from env vars so UI shows existing accounts
+    accounts = []
+    proxies = []
+    multi = _parse_accounts(settings.IG_ACCOUNTS)
+    if multi:
+        seen_proxies: set[str] = set()
+        for acc in multi:
+            accounts.append({
+                "username": acc["username"],
+                "password": acc["password"],
+                "proxy": acc["proxy"],
+            })
+            if acc["proxy"] and acc["proxy"] not in seen_proxies:
+                seen_proxies.add(acc["proxy"])
+                proxies.append({"url": acc["proxy"], "label": ""})
+    elif settings.IG_USERNAME and settings.IG_PASSWORD:
+        accounts.append({
+            "username": settings.IG_USERNAME,
+            "password": settings.IG_PASSWORD,
+            "proxy": settings.PROXY_URL or "",
+        })
+        if settings.PROXY_URL:
+            proxies.append({"url": settings.PROXY_URL, "label": ""})
+
+    return {"accounts": accounts, "proxies": proxies}
+
+
+@app.put("/api/v1/system/ig-config")
+async def save_ig_config(request: Request):
+    """Save IG accounts and proxies config to the database."""
+    from sqlalchemy import text
+    from app.database import async_session
+
+    try:
+        body = await request.json()
+        body_json = json.dumps(body)
+
+        # Save to DB — use raw SQL with explicit schema to avoid PgBouncer search_path issues
+        async with async_session() as db:
+            result = await db.execute(
+                text("SELECT key FROM public.system_config WHERE key = :k"),
+                {"k": "ig_config"},
+            )
+            exists = result.scalar_one_or_none()
+            if exists:
+                await db.execute(
+                    text("UPDATE public.system_config SET value = :v, updated_at = NOW() WHERE key = :k"),
+                    {"k": "ig_config", "v": body_json},
+                )
+            else:
+                await db.execute(
+                    text("INSERT INTO public.system_config (key, value, created_at, updated_at) VALUES (:k, :v, NOW(), NOW())"),
+                    {"k": "ig_config", "v": body_json},
+                )
+            await db.commit()
+
+        # Force re-initialization of accounts on next use
+        try:
+            from app.services.dm_sender_service import dm_sender_service
+            dm_sender_service._accounts = []
+        except Exception:
+            pass  # dm_sender may not be initialized
+
+        return {"ok": True, "accounts": len(body.get("accounts", [])), "proxies": len(body.get("proxies", []))}
+    except Exception as e:
+        logger.error(f"Error saving ig-config: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
 @app.post("/api/v1/notifications/{notification_id}/read")

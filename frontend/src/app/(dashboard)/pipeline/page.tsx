@@ -19,6 +19,9 @@ import {
   Inbox,
   ListOrdered,
   Trash2,
+  Square,
+  RotateCcw,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -31,7 +34,9 @@ interface Campaign {
   source_value: string;
   max_leads: number;
   stats: Record<string, unknown>;
+  settings: Record<string, unknown>;
   created_at: string;
+  updated_at: string;
 }
 
 interface Lead {
@@ -183,6 +188,48 @@ export default function PipelinePage() {
   const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>([]);
   const [showNewRule, setShowNewRule] = useState(false);
   const [newRule, setNewRule] = useState({ step_number: 1, delay_days: 3, template_prompt: "", max_attempts: 3 });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Auto-dismiss error toast
+  useEffect(() => {
+    if (!errorMsg) return;
+    const t = setTimeout(() => setErrorMsg(null), 6000);
+    return () => clearTimeout(t);
+  }, [errorMsg]);
+
+  // Edit campaign
+  const [showEdit, setShowEdit] = useState(false);
+  const [editSettings, setEditSettings] = useState<Record<string, unknown>>({});
+  const [editBioKeywords, setEditBioKeywords] = useState<string[]>([]);
+  const [editKeywordInput, setEditKeywordInput] = useState("");
+  const [editMaxLeads, setEditMaxLeads] = useState(0);
+
+  const openEditModal = () => {
+    if (!selected) return;
+    const s = selected.settings || {};
+    setEditSettings(s);
+    setEditBioKeywords((s.bio_keywords as string[]) || []);
+    setEditMaxLeads((s.max_leads as number) || 0);
+    setEditKeywordInput("");
+    setShowEdit(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    const newSettings = {
+      ...editSettings,
+      bio_keywords: editBioKeywords,
+      max_leads: editMaxLeads,
+    };
+    await api(`/api/v1/campaigns/${selected.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ settings: newSettings }),
+    });
+    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+    setSelected(c);
+    setShowEdit(false);
+    loadCampaigns();
+  };
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
@@ -203,7 +250,7 @@ export default function PipelinePage() {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const data = await api<Campaign[]>("/api/v1/campaigns/");
+      const data = await api<Campaign[]>("/api/v1/campaigns/", { cache_ttl: 5000 });
       setCampaigns(data);
       setSelected((prev) => {
         if (prev) {
@@ -221,7 +268,8 @@ export default function PipelinePage() {
   const loadLeads = useCallback(async (campaignId: string) => {
     try {
       const data = await api<Lead[]>(
-        `/api/v1/leads/?campaign_id=${campaignId}&limit=500`
+        `/api/v1/leads/?campaign_id=${campaignId}&limit=500`,
+        { cache_ttl: 10000 }
       );
       setLeads(data);
     } catch {
@@ -233,7 +281,7 @@ export default function PipelinePage() {
   useEffect(() => {
     setLoading(true);
     loadCampaigns().finally(() => setLoading(false));
-    api<Array<{ id: string; name: string }>>("/api/v1/clients/")
+    api<Array<{ id: string; name: string }>>("/api/v1/clients/", { cache_ttl: 60000 })
       .then(setClients)
       .catch(() => {});
   }, [loadCampaigns]);
@@ -248,7 +296,7 @@ export default function PipelinePage() {
   useEffect(() => {
     if (
       !selected ||
-      ["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status)
+      ["draft", "ready", "completed", "failed", "paused"].includes(selected.status)
     )
       return;
     const id = setInterval(async () => {
@@ -261,22 +309,52 @@ export default function PipelinePage() {
       } catch {
         /* ignore */
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(id);
   }, [selected?.id, selected?.status, loadLeads]);
 
   const startPipeline = async () => {
     if (!selected) return;
-    await api(`/api/v1/campaigns/${selected.id}/start`, { method: "POST" });
-    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
-    setSelected(c);
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/start`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+    } catch (err) {
+      setErrorMsg(`Error iniciando pipeline: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
   };
 
   const sendDMs = async () => {
     if (!selected) return;
-    await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
-    const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
-    setSelected(c);
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/send-dms`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+    } catch (err) {
+      setErrorMsg(`Error enviando DMs: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
+  };
+
+  const stopCampaign = async () => {
+    if (!selected) return;
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/pause`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+      loadCampaigns();
+    } catch { /* ignore */ }
+  };
+
+  const resetCampaign = async () => {
+    if (!selected) return;
+    if (!confirm("¿Reiniciar campaña? Se eliminarán todos los leads scrapeados.")) return;
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/reset`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+      setLeads([]);
+      loadCampaigns();
+    } catch { /* ignore */ }
   };
 
   // Load analytics when tab switches
@@ -338,8 +416,8 @@ export default function PipelinePage() {
         }),
       });
       setContentAnalysis(result.analysis);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setErrorMsg(`Error en análisis de contenido: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
     setAnalyzing(false);
   };
@@ -353,7 +431,7 @@ export default function PipelinePage() {
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000"}/api/v1/export/${selected.id}/${format}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -361,8 +439,8 @@ export default function PipelinePage() {
       a.download = `${selected.name}_leads.${format === "excel" ? "xlsx" : format}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setErrorMsg(`Error exportando ${format.toUpperCase()}: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
     setExporting(null);
   };
@@ -380,20 +458,24 @@ export default function PipelinePage() {
       ...newCampaign,
       settings: campaignSettings,
     };
-    const data = await api<Campaign>("/api/v1/campaigns/", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setCampaigns((prev) => [data, ...prev]);
-    setSelected(data);
-    setShowNew(false);
-    setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
-    setBioKeywords([]);
-    setKeywordInput("");
-    setScheduleEnabled(false);
-    setSendingStart("09:00");
-    setSendingEnd("21:00");
-    setSendingTimezone("America/Caracas");
+    try {
+      const data = await api<Campaign>("/api/v1/campaigns/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setCampaigns((prev) => [data, ...prev]);
+      setSelected(data);
+      setShowNew(false);
+      setNewCampaign({ name: "", client_id: "", source_type: "comments", source_value: "", max_leads: 50 });
+      setBioKeywords([]);
+      setKeywordInput("");
+      setScheduleEnabled(false);
+      setSendingStart("09:00");
+      setSendingEnd("21:00");
+      setSendingTimezone("America/Caracas");
+    } catch (err) {
+      setErrorMsg(`Error creando campaña: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
   };
 
   // Stats
@@ -405,13 +487,13 @@ export default function PipelinePage() {
     : 0;
   const statItems = [
     { label: "Total Leads", value: leads.length },
-    { label: "Avg Score", value: avgScore },
-    { label: "Qualified 70+", value: leads.filter((l) => (l.score || 0) >= 70).length },
+    { label: "Score Prom.", value: avgScore },
+    { label: "Calificados 70+", value: leads.filter((l) => (l.score || 0) >= 70).length },
     { label: "DMs Generados", value: leads.filter((l) => l.dm_message).length },
     { label: "DMs Enviados", value: leads.filter((l) => l.status === "sent").length },
     { label: "Respondidos", value: leads.filter((l) => l.status === "replied").length },
     { label: "Fallidos", value: leads.filter((l) => l.status === "failed").length },
-    { label: "Status", value: selected?.status || "—", isText: true },
+    { label: "Estado", value: selected?.status || "—", isText: true },
   ] as Array<{ label: string; value: number | string; isText?: boolean }>;
 
   const filteredLeads = leads.filter(
@@ -430,6 +512,15 @@ export default function PipelinePage() {
 
   return (
     <div className="space-y-6">
+      {/* Error toast */}
+      {errorMsg && (
+        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ml-2 hover:opacity-80">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -525,12 +616,18 @@ export default function PipelinePage() {
               onChange={(e) => setNewCampaign({ ...newCampaign, source_type: e.target.value })}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             >
-              <option value="comments">Comentarios</option>
-              <option value="followers">Seguidores</option>
               <option value="hashtag">Hashtag</option>
+              <option value="comments">Comentarios de Post</option>
+              <option value="followers">Followers / Perfiles</option>
             </select>
             <input
-              placeholder="URL del post o hashtag"
+              placeholder={
+                newCampaign.source_type === "comments"
+                  ? "URL del post (ej: https://instagram.com/p/xxx/)"
+                  : newCampaign.source_type === "hashtag"
+                  ? "Hashtag sin # (ej: immigrationlawyer)"
+                  : "Username o usernames separados por coma"
+              }
               value={newCampaign.source_value}
               onChange={(e) => setNewCampaign({ ...newCampaign, source_value: e.target.value })}
               required
@@ -724,12 +821,12 @@ export default function PipelinePage() {
         )}
 
         <div className="ml-auto flex gap-2">
-          {selected?.status === "draft" && (
+          {(selected?.status === "draft" || selected?.status === "pending") && (
             <button
               onClick={startPipeline}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
             >
-              <Play size={14} /> Start Pipeline
+              <Play size={14} /> Iniciar Pipeline
             </button>
           )}
           {selected?.status === "ready" && (
@@ -737,7 +834,31 @@ export default function PipelinePage() {
               onClick={sendDMs}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             >
-              <Send size={14} /> Send DMs
+              <Send size={14} /> Enviar DMs
+            </button>
+          )}
+          {selected && ["scraping", "scoring", "researching", "writing_dms", "sending"].includes(selected.status) && (
+            <button
+              onClick={stopCampaign}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-500"
+            >
+              <Square size={14} /> Detener
+            </button>
+          )}
+          {selected && ["failed", "completed", "paused", "pending"].includes(selected.status) && (
+            <button
+              onClick={openEditModal}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              <Pencil size={14} /> Editar
+            </button>
+          )}
+          {selected && ["failed", "completed", "paused"].includes(selected.status) && (
+            <button
+              onClick={resetCampaign}
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-700 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-600"
+            >
+              <RotateCcw size={14} /> Reiniciar
             </button>
           )}
           <button
@@ -751,6 +872,74 @@ export default function PipelinePage() {
           </button>
         </div>
       </div>
+
+      {/* Edit Campaign Modal */}
+      {showEdit && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold mb-4">Editar Campaña</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Max Leads</label>
+                <input
+                  type="number"
+                  value={editMaxLeads}
+                  onChange={(e) => setEditMaxLeads(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="0 = sin límite"
+                />
+                <p className="text-xs text-zinc-500 mt-1">0 = sin límite. Recomendado: 20-50</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Bio Keywords</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    value={editKeywordInput}
+                    onChange={(e) => setEditKeywordInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === ",") && editKeywordInput.trim()) {
+                        e.preventDefault();
+                        setEditBioKeywords([...editBioKeywords, editKeywordInput.trim()]);
+                        setEditKeywordInput("");
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Escribe y presiona Enter"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {editBioKeywords.map((kw, i) => (
+                    <span key={i} className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      {kw}
+                      <button onClick={() => setEditBioKeywords(editBioKeywords.filter((_, j) => j !== i))} className="hover:text-red-600">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">Dejar vacío para procesar todos los leads sin filtro de bio.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowEdit(false)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress indicator */}
       {selected && !["draft", "pending", "ready", "completed", "failed", "paused"].includes(selected.status) && (
@@ -807,11 +996,11 @@ export default function PipelinePage() {
             { key: "leads" as TabKey, label: "Leads" },
             { key: "dms" as TabKey, label: "DMs" },
             { key: "inbox" as TabKey, label: "Inbox" },
-            { key: "followups" as TabKey, label: "Follow-ups" },
-            { key: "analytics" as TabKey, label: "Analytics" },
+            { key: "followups" as TabKey, label: "Seguimientos" },
+            { key: "analytics" as TabKey, label: "Analíticas" },
             { key: "ab_testing" as TabKey, label: "A/B Testing" },
-            { key: "content" as TabKey, label: "Content Analysis" },
-            { key: "export" as TabKey, label: "Export" },
+            { key: "content" as TabKey, label: "Análisis de Contenido" },
+            { key: "export" as TabKey, label: "Exportar" },
           ]).map((t) => (
             <button
               key={t.key}
@@ -856,7 +1045,7 @@ export default function PipelinePage() {
                     Bio
                   </th>
                   <th className="px-4 py-2.5 text-right font-medium text-zinc-600">
-                    Followers
+                    Seguidores
                   </th>
                   <th className="px-4 py-2.5 text-center font-medium text-zinc-600">
                     Score
@@ -865,10 +1054,10 @@ export default function PipelinePage() {
                     Categoría
                   </th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
-                    Status
+                    Estado
                   </th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600">
-                    DM Preview
+                    Preview DM
                   </th>
                 </tr>
               </thead>

@@ -30,21 +30,28 @@ const DELIVERY_COLORS: Record<string, string> = {
 
 export default function DMsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Lead[]>("/api/v1/leads/?has_dm=true&limit=500")
-      .then(setLeads)
-      .catch(() => {
-        // Fallback to dm_ready filter
-        api<Lead[]>("/api/v1/leads/?status=dm_ready&limit=500")
-          .then(setLeads)
-          .catch(() => {});
-      });
+    api<Array<{ id: string; name: string }>>("/api/v1/campaigns/")
+      .then((c) => {
+        setCampaigns(c);
+        if (c.length) setSelectedCampaign(c[0].id);
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!selectedCampaign) return;
+    api<Lead[]>(`/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`)
+      .then((data) => setLeads(data.filter((l) => l.dm_message)))
+      .catch(() => {});
+  }, [selectedCampaign]);
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -115,7 +122,16 @@ export default function DMsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
+        <select
+          value={selectedCampaign}
+          onChange={(e) => setSelectedCampaign(e.target.value)}
+          className="rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+        >
+          {campaigns.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input

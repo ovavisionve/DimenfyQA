@@ -8,16 +8,17 @@ interface Client {
   id: string;
   name: string;
   business_type: string;
-  dm_prompt: string | null;
-  scoring_prompt: string | null;
-  max_daily_dms: number | null;
+  settings: Record<string, unknown>;
   created_at: string;
 }
 
 interface ClientStats {
-  campaign_count: number;
-  lead_count: number;
-  last_activity: string | null;
+  total_campaigns: number;
+  total_leads: number;
+  total_sent: number;
+  total_replied: number;
+  avg_score: number;
+  response_rate: number;
 }
 
 export default function ClientsPage() {
@@ -53,36 +54,61 @@ export default function ClientsPage() {
 
   const openEdit = (c: Client) => {
     setEditing(c);
+    const s = c.settings || {};
     setForm({
       name: c.name,
       business_type: c.business_type || "agency",
-      dm_prompt: c.dm_prompt || "",
-      scoring_prompt: c.scoring_prompt || "",
-      max_daily_dms: c.max_daily_dms ?? 30,
+      dm_prompt: (s.dm_prompt as string) || "",
+      scoring_prompt: (s.scoring_prompt as string) || "",
+      max_daily_dms: (s.max_daily_dms as number) ?? 30,
     });
     setShowModal(true);
   };
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      const updated = await api<Client>(`/api/v1/clients/${editing.id}`, {
-        method: "PUT",
-        body: JSON.stringify(form),
-      });
-      setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    } else {
-      const created = await api<Client>("/api/v1/clients/", {
-        method: "POST",
-        body: JSON.stringify(form),
-      });
-      setClients((prev) => [created, ...prev]);
+    const payload = {
+      name: form.name,
+      business_type: form.business_type,
+      settings: {
+        dm_prompt: form.dm_prompt,
+        scoring_prompt: form.scoring_prompt,
+        max_daily_dms: form.max_daily_dms,
+      },
+    };
+    try {
+      if (editing) {
+        const updated = await api<Client>(`/api/v1/clients/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      } else {
+        const created = await api<Client>("/api/v1/clients/", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setClients((prev) => [created, ...prev]);
+      }
+      setShowModal(false);
+    } catch (err) {
+      setErrorMsg(`Error guardando cliente: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
-    setShowModal(false);
   };
 
   return (
     <div className="space-y-6">
+      {/* Error toast */}
+      {errorMsg && (
+        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ml-2 hover:opacity-80">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Clientes</h1>
@@ -119,33 +145,38 @@ export default function ClientsPage() {
               </div>
 
               {/* Client stats */}
-              {stats && (
+              {stats ? (
                 <div className="flex gap-4 mb-2 text-xs">
                   <div className="flex items-center gap-1 text-zinc-500">
                     <BarChart3 size={12} />
-                    <span>{stats.campaign_count} campañas</span>
+                    <span>{stats.total_campaigns} campañas</span>
                   </div>
                   <div className="text-zinc-500">
-                    {stats.lead_count} leads
+                    {stats.total_leads} leads
                   </div>
+                  {stats.total_sent > 0 && (
+                    <div className="text-zinc-500">
+                      {stats.total_replied}/{stats.total_sent} respondidos
+                    </div>
+                  )}
                 </div>
-              )}
+              ) : null}
 
-              {c.dm_prompt && (
+              {c.settings?.dm_prompt ? (
                 <p className="text-xs text-zinc-500 line-clamp-2">
-                  {c.dm_prompt}
+                  {String(c.settings.dm_prompt)}
                 </p>
-              )}
+              ) : null}
 
               <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-zinc-400">
                   Creado: {new Date(c.created_at).toLocaleDateString()}
                 </p>
-                {stats?.last_activity && (
+                {stats && stats.avg_score > 0 ? (
                   <p className="text-xs text-zinc-400">
-                    Actividad: {new Date(stats.last_activity).toLocaleDateString()}
+                    Avg Score: {stats.avg_score.toFixed(1)}
                   </p>
-                )}
+                ) : null}
               </div>
             </button>
           );
