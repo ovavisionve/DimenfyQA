@@ -203,6 +203,7 @@ export default function PipelinePage() {
   const [editBioKeywords, setEditBioKeywords] = useState<string[]>([]);
   const [editKeywordInput, setEditKeywordInput] = useState("");
   const [editMaxLeads, setEditMaxLeads] = useState(0);
+  const [editIgAccounts, setEditIgAccounts] = useState<string[]>([]);
 
   const openEditModal = () => {
     if (!selected) return;
@@ -210,17 +211,24 @@ export default function PipelinePage() {
     setEditSettings(s);
     setEditBioKeywords((s.bio_keywords as string[]) || []);
     setEditMaxLeads((s.max_leads as number) || 0);
+    setEditIgAccounts((s.ig_accounts as string[]) || []);
     setEditKeywordInput("");
     setShowEdit(true);
   };
 
   const saveEdit = async () => {
     if (!selected) return;
-    const newSettings = {
+    const newSettings: Record<string, unknown> = {
       ...editSettings,
       bio_keywords: editBioKeywords,
       max_leads: editMaxLeads,
     };
+    if (editIgAccounts.length > 0) {
+      newSettings.ig_accounts = editIgAccounts;
+    } else {
+      // Empty list → remove the key so backend treats as "all accounts"
+      delete newSettings.ig_accounts;
+    }
     await api(`/api/v1/campaigns/${selected.id}`, {
       method: "PATCH",
       body: JSON.stringify({ settings: newSettings }),
@@ -288,9 +296,9 @@ export default function PipelinePage() {
       .catch(() => {});
   }, [loadCampaigns]);
 
-  // Load available IG accounts when the create-campaign modal opens
+  // Load available IG accounts when either the create or edit modal opens
   useEffect(() => {
-    if (!showNew) return;
+    if (!showNew && !showEdit) return;
     api<{ accounts?: Array<{ username?: string }> }>("/api/v1/system/ig-config", {
       cache_ttl: 30000,
     })
@@ -301,7 +309,7 @@ export default function PipelinePage() {
         setAvailableAccounts(names);
       })
       .catch(() => setAvailableAccounts([]));
-  }, [showNew]);
+  }, [showNew, showEdit]);
 
   // Load leads when selected campaign changes
   useEffect(() => {
@@ -984,6 +992,48 @@ export default function PipelinePage() {
                   ))}
                 </div>
                 <p className="text-xs text-zinc-500 mt-1">Dejar vacío para procesar todos los leads sin filtro de bio.</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-zinc-700">Cuentas de Instagram</label>
+                {availableAccounts.length === 0 ? (
+                  <p className="text-xs text-zinc-500 italic mt-1">
+                    No hay cuentas configuradas. Añádelas en &quot;Cuentas y Proxies&quot;.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-1 space-y-1.5 max-h-40 overflow-y-auto rounded-md border border-zinc-200 p-2 bg-zinc-50">
+                      {availableAccounts.map((username) => {
+                        const checked = editIgAccounts.includes(username);
+                        return (
+                          <label
+                            key={username}
+                            className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded px-1.5 py-1"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditIgAccounts([...editIgAccounts, username]);
+                                } else {
+                                  setEditIgAccounts(editIgAccounts.filter((u) => u !== username));
+                                }
+                              }}
+                              className="rounded border-zinc-300 accent-amber-500"
+                            />
+                            <span>@{username}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      {editIgAccounts.length === 0
+                        ? "Ninguna seleccionada → rotará entre todas las cuentas configuradas."
+                        : `Rotará solo entre: ${editIgAccounts.map((u) => "@" + u).join(", ")}`}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
