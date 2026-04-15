@@ -690,6 +690,91 @@ async def save_ig_config(request: Request):
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
+@app.post("/api/v1/system/test-login")
+async def test_ig_login(request: Request):
+    """Try to login a specific IG account and report the result.
+
+    Body: {"username": "<ig_username>"}
+
+    Useful for verifying that a newly added account works before running
+    a real campaign. Does not send DMs — only logs in and reports status.
+    """
+    import asyncio
+    import concurrent.futures
+    from app.config import settings
+    from app.services.dm_sender_service import dm_sender_service
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Invalid JSON body"})
+
+    username = (body or {}).get("username", "").strip()
+    if not username:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Missing 'username' in body"},
+        )
+
+    # Reset accounts so we pick up any recent config changes
+    dm_sender_service._accounts = []
+    dm_sender_service._init_accounts()
+
+    target = next(
+        (a for a in dm_sender_service._accounts if a.username.lower() == username.lower()),
+        None,
+    )
+    if not target:
+        configured = [a.username for a in dm_sender_service._accounts]
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": f"Account '{username}' not in configured accounts",
+                "configured": configured,
+            },
+        )
+
+    # instagrapi login is blocking — run it in a thread so the event loop isn't stalled
+    def _run_login() -> bool:
+        try:
+            return target.login()
+        except Exception as e:
+            logger.warning(f"test-login: login raised for @{username}: {e}")
+            return False
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            logged_in = await asyncio.get_event_loop().run_in_executor(pool, _run_login)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Unexpected error during login: {e}"},
+        )
+
+    in_cooldown, cooldown_reason = target.is_in_cooldown()
+    # Mask proxy password before returning
+    proxy_display = target.proxy or ""
+    if proxy_display and "@" in proxy_display and ":" in proxy_display.split("@")[0]:
+        parts = proxy_display.split("@")
+        auth = parts[0]
+        host = parts[1] if len(parts) > 1 else ""
+        proto_user = auth.rsplit(":", 1)
+        proxy_display = f"{proto_user[0]}:****@{host}"
+
+    return {
+        "username": target.username,
+        "logged_in": logged_in,
+        "proxy": proxy_display,
+        "proxy_disabled_globally": settings.IG_DISABLE_PROXIES,
+        "is_blocked": target.is_blocked,
+        "in_cooldown": in_cooldown,
+        "cooldown_reason": cooldown_reason if in_cooldown else None,
+        "challenges_today": target.challenges_today,
+        "total_sent": target.total_sent,
+        "total_failed": target.total_failed,
+    }
+
+
 @app.post("/api/v1/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str):
     """Mark a notification as read."""
