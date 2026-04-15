@@ -791,14 +791,22 @@ class DMSenderService:
         logger.info(f"Logged in to {success_count}/{len(self._accounts)} accounts")
         return True
 
-    def _get_next_account(self) -> IGAccount | None:
-        """Round-robin select next available (logged in, not blocked, not in cooldown) account."""
+    def _get_next_account(self, allowed_usernames: list[str] | None = None) -> IGAccount | None:
+        """Round-robin select next available (logged in, not blocked, not in cooldown) account.
+
+        If ``allowed_usernames`` is provided, only accounts whose username is in the
+        list are considered. An empty list or ``None`` means "any account".
+        """
         if not self._accounts:
             return None
+
+        allowed_set = {u.lower() for u in allowed_usernames} if allowed_usernames else None
 
         for _ in range(len(self._accounts)):
             acc = self._accounts[self._current_account_idx]
             self._current_account_idx = (self._current_account_idx + 1) % len(self._accounts)
+            if allowed_set is not None and acc.username.lower() not in allowed_set:
+                continue
             if acc._logged_in and not acc.is_blocked:
                 in_cooldown, _ = acc.is_in_cooldown()
                 if not in_cooldown:
@@ -806,10 +814,18 @@ class DMSenderService:
 
         return None
 
-    def send_dm(self, username: str, message: str) -> dict:
-        """Send a DM using the next available account."""
-        account = self._get_next_account()
+    def send_dm(self, username: str, message: str, allowed_usernames: list[str] | None = None) -> dict:
+        """Send a DM using the next available account.
+
+        If ``allowed_usernames`` is given, only those accounts are eligible.
+        """
+        account = self._get_next_account(allowed_usernames=allowed_usernames)
         if not account:
+            if allowed_usernames:
+                return {
+                    "success": False,
+                    "error": f"No available IG accounts in allowed list {allowed_usernames} (all blocked/cooldown/not logged in)",
+                }
             return {"success": False, "error": "No available IG accounts (all blocked/cooldown)"}
         return account.send_dm(username, message)
 
@@ -1069,6 +1085,28 @@ class DMSenderService:
             except Exception as e:
                 logger.warning(f"Failed to check sending schedule: {e}")
 
+        # Per-campaign account whitelist: only use these IG accounts for sending.
+        # Empty list or missing key = rotate through all configured accounts.
+        raw_allowed = campaign_settings.get("ig_accounts") or []
+        allowed_usernames = [u.strip() for u in raw_allowed if isinstance(u, str) and u.strip()]
+        if allowed_usernames:
+            available_usernames = {a.username.lower() for a in self._accounts}
+            missing = [u for u in allowed_usernames if u.lower() not in available_usernames]
+            if missing:
+                logger.warning(
+                    f"Campaign {campaign_id} requests accounts not configured: {missing} "
+                    f"(available: {sorted(available_usernames)})"
+                )
+            # Keep only the ones that actually exist
+            allowed_usernames = [u for u in allowed_usernames if u.lower() in available_usernames]
+            if not allowed_usernames:
+                return {
+                    "sent_count": 0, "failed_count": 0, "skipped_count": 0,
+                    "paused": True,
+                    "reason": f"None of the campaign's assigned accounts are configured: {raw_allowed}",
+                }
+            logger.info(f"Campaign {campaign_id} restricted to accounts: {allowed_usernames}")
+
         daily_count = await self.get_daily_send_count(db)
         daily_limit = self._get_effective_daily_limit()
 
@@ -1144,8 +1182,9 @@ class DMSenderService:
             lead.dm_variant_used = variant
             await db.commit()
 
-            # Send the DM (uses round-robin account rotation)
-            result = self.send_dm(lead.ig_username, message)
+            # Send the DM (uses round-robin account rotation, filtered by
+            # campaign.settings.ig_accounts if configured)
+            result = self.send_dm(lead.ig_username, message, allowed_usernames=allowed_usernames or None)
 
             if result["success"]:
                 lead.status = "sent"
@@ -1208,8 +1247,8 @@ class DMSenderService:
                     lead.delivery_status = "challenge" if result.get("is_challenge") else "blocked"
                     await db.commit()
 
-                    # Check if ANY account is still usable
-                    usable = self._get_next_account()
+                    # Check if ANY account (in the campaign's whitelist, if any) is still usable
+                    usable = self._get_next_account(allowed_usernames=allowed_usernames or None)
                     if usable is None:
                         reason = "All accounts challenged/blocked — waiting for cooldown"
                         logger.warning(f"Pausing campaign: {reason}")

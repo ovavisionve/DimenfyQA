@@ -247,6 +247,8 @@ export default function PipelinePage() {
   const [sendingEnd, setSendingEnd] = useState("21:00");
   const [sendingTimezone, setSendingTimezone] = useState("America/Caracas");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -285,6 +287,21 @@ export default function PipelinePage() {
       .then(setClients)
       .catch(() => {});
   }, [loadCampaigns]);
+
+  // Load available IG accounts when the create-campaign modal opens
+  useEffect(() => {
+    if (!showNew) return;
+    api<{ accounts?: Array<{ username?: string }> }>("/api/v1/system/ig-config", {
+      cache_ttl: 30000,
+    })
+      .then((cfg) => {
+        const names = (cfg.accounts || [])
+          .map((a) => (a.username || "").trim())
+          .filter((u) => u.length > 0);
+        setAvailableAccounts(names);
+      })
+      .catch(() => setAvailableAccounts([]));
+  }, [showNew]);
 
   // Load leads when selected campaign changes
   useEffect(() => {
@@ -454,6 +471,7 @@ export default function PipelinePage() {
       campaignSettings.sending_hours_end = sendingEnd;
       campaignSettings.sending_timezone = sendingTimezone;
     }
+    if (selectedAccounts.length > 0) campaignSettings.ig_accounts = selectedAccounts;
     const payload = {
       ...newCampaign,
       settings: campaignSettings,
@@ -473,6 +491,7 @@ export default function PipelinePage() {
       setSendingStart("09:00");
       setSendingEnd("21:00");
       setSendingTimezone("America/Caracas");
+      setSelectedAccounts([]);
     } catch (err) {
       setErrorMsg(`Error creando campaña: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
@@ -699,6 +718,51 @@ export default function PipelinePage() {
               <p className="text-[10px] text-zinc-400 mt-1">
                 Solo se procesarán leads que tengan al menos una de estas palabras en su bio. Dejar vacío para procesar todos.
               </p>
+            </div>
+
+            {/* IG Accounts — which accounts will send DMs for this campaign */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-2">
+                Cuentas de Instagram para esta campaña
+              </label>
+              {availableAccounts.length === 0 ? (
+                <p className="text-[11px] text-zinc-500 italic">
+                  No hay cuentas configuradas. Añádelas en &quot;Cuentas y Proxies&quot;.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto rounded-md border border-zinc-200 p-2 bg-zinc-50">
+                    {availableAccounts.map((username) => {
+                      const checked = selectedAccounts.includes(username);
+                      return (
+                        <label
+                          key={username}
+                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded px-1.5 py-1"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedAccounts([...selectedAccounts, username]);
+                              } else {
+                                setSelectedAccounts(selectedAccounts.filter((u) => u !== username));
+                              }
+                            }}
+                            className="rounded border-zinc-300 accent-amber-500"
+                          />
+                          <span>@{username}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    {selectedAccounts.length === 0
+                      ? "Ninguna seleccionada → rotará entre todas las cuentas configuradas."
+                      : `Rotará solo entre: ${selectedAccounts.map((u) => "@" + u).join(", ")}`}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Sending Schedule */}
