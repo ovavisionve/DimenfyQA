@@ -775,6 +775,80 @@ async def test_ig_login(request: Request):
     }
 
 
+@app.post("/api/v1/system/upload-session")
+async def upload_ig_session(request: Request):
+    """Upload a pre-generated instagrapi session file for a specific IG account.
+
+    Body: {"username": "<ig_username>", "session_b64": "<base64 of session json>"}
+
+    Useful when Instagram blacklists the API/Worker IP but accepts logins from
+    your residential IP: generate the session locally via `login_by_sessionid`,
+    base64-encode the resulting JSON, and POST it here. The next login attempt
+    will load this session instead of doing a fresh password login.
+
+    The session is stored in system_config (key: ig_session:{username}) so
+    both the API and Worker services can access it.
+    """
+    import base64 as _b64
+    from sqlalchemy import text
+    from app.database import async_session
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Invalid JSON body"})
+
+    username = (body or {}).get("username", "").strip()
+    session_b64 = (body or {}).get("session_b64", "").strip()
+    if not username or not session_b64:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Missing 'username' or 'session_b64' in body"},
+        )
+
+    # Validate base64 decodes to JSON
+    try:
+        decoded = _b64.b64decode(session_b64)
+        import json as _json
+        parsed = _json.loads(decoded)
+        if not isinstance(parsed, dict):
+            raise ValueError("session must be a JSON object")
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"Invalid base64 or not JSON: {e}"},
+        )
+
+    key = f"ig_session:{username.lower()}"
+    try:
+        async with async_session() as db:
+            existing = await db.execute(
+                text("SELECT key FROM public.system_config WHERE key = :k"),
+                {"k": key},
+            )
+            if existing.scalar_one_or_none():
+                await db.execute(
+                    text("UPDATE public.system_config SET value = :v, updated_at = NOW() WHERE key = :k"),
+                    {"k": key, "v": session_b64},
+                )
+            else:
+                await db.execute(
+                    text("INSERT INTO public.system_config (key, value, created_at, updated_at) VALUES (:k, :v, NOW(), NOW())"),
+                    {"k": key, "v": session_b64},
+                )
+            await db.commit()
+        logger.info(f"Uploaded session for @{username} ({len(decoded)} bytes)")
+        return {
+            "ok": True,
+            "username": username,
+            "stored_key": key,
+            "bytes": len(decoded),
+        }
+    except Exception as e:
+        logger.error(f"Error saving session for @{username}: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
 @app.post("/api/v1/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str):
     """Mark a notification as read."""

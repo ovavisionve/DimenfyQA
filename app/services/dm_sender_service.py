@@ -249,6 +249,18 @@ class IGAccount:
             return False
 
         def _do_login() -> bool:
+            # If no local session file exists, try to fetch one from the database
+            # (uploaded via /api/v1/system/upload-session). This is how we bootstrap
+            # sessions generated on a different (non-blacklisted) IP.
+            if not self.session_file.exists():
+                try:
+                    self._materialize_session_from_db()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to materialize DB session for @{self.username}: "
+                        f"{type(e).__name__}: {e}"
+                    )
+
             # Try to restore saved session first (with decryption)
             if self.session_file.exists():
                 tmp_path = self.session_file.with_suffix(".tmp")
@@ -513,6 +525,58 @@ class IGAccount:
             except Exception as e:
                 logger.warning(f"Failed to save session for @{self.username}: {e}")
         self._save_health()
+
+    def _materialize_session_from_db(self):
+        """If a pre-generated session exists in system_config, write it to disk.
+
+        Used when Instagram blacklists the API/Worker IP but the user has
+        generated a valid session from a different IP and uploaded it via
+        POST /api/v1/system/upload-session.
+        """
+        import asyncio
+        import base64 as _b64
+
+        key = f"ig_session:{self.username.lower()}"
+
+        async def _read():
+            from sqlalchemy import text
+            from app.database import create_worker_session
+
+            async with create_worker_session()() as db:
+                result = await db.execute(
+                    text("SELECT value FROM public.system_config WHERE key = :k"),
+                    {"k": key},
+                )
+                return result.scalar_one_or_none()
+
+        # Mirror the pattern used in _load_accounts_from_db for sync-from-async access
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    b64_value = pool.submit(lambda: asyncio.run(_read())).result(timeout=10)
+            else:
+                b64_value = loop.run_until_complete(_read())
+        except RuntimeError:
+            b64_value = asyncio.run(_read())
+
+        if not b64_value:
+            return
+
+        try:
+            decoded = _b64.b64decode(b64_value)
+        except Exception as e:
+            logger.warning(f"Invalid base64 session for @{self.username}: {e}")
+            return
+
+        # Write to session file, then encrypt if key configured
+        self.session_file.write_bytes(decoded)
+        _encrypt_file(self.session_file)
+        logger.info(
+            f"Materialized pre-generated session for @{self.username} "
+            f"from database ({len(decoded)} bytes)"
+        )
 
     def get_warmup_limit(self) -> int:
         """Calculate daily limit based on account age (warm-up period)."""
