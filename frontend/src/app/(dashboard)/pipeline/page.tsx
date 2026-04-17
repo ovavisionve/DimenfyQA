@@ -370,6 +370,19 @@ export default function PipelinePage() {
     } catch { /* ignore */ }
   };
 
+  const reprocessCampaign = async () => {
+    if (!selected) return;
+    if (!confirm("¿Re-procesar campaña? Se re-puntuarán los leads existentes y se generarán nuevos DMs.")) return;
+    try {
+      await api(`/api/v1/campaigns/${selected.id}/reprocess`, { method: "POST" });
+      const c = await api<Campaign>(`/api/v1/campaigns/${selected.id}`);
+      setSelected(c);
+      loadCampaigns();
+    } catch (err) {
+      setErrorMsg(`Error re-procesando: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    }
+  };
+
   const resetCampaign = async () => {
     if (!selected) return;
     if (!confirm("¿Reiniciar campaña? Se eliminarán todos los leads scrapeados.")) return;
@@ -902,12 +915,26 @@ export default function PipelinePage() {
             </button>
           )}
           {selected?.status === "ready" && (
-            <button
-              onClick={sendDMs}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-            >
-              <Send size={14} /> Enviar DMs
-            </button>
+            <>
+              <button
+                onClick={sendDMs}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+              >
+                <Send size={14} /> Enviar DMs
+              </button>
+              <button
+                onClick={reprocessCampaign}
+                className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
+              >
+                <RefreshCw size={14} /> Re-procesar
+              </button>
+              <button
+                onClick={resetCampaign}
+                className="flex items-center gap-1.5 rounded-lg bg-zinc-700 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-600"
+              >
+                <RotateCcw size={14} /> Reiniciar
+              </button>
+            </>
           )}
           {selected && ["scraping", "scoring", "researching", "writing_dms", "sending"].includes(selected.status) && (
             <button
@@ -917,7 +944,7 @@ export default function PipelinePage() {
               <Square size={14} /> Detener
             </button>
           )}
-          {selected && ["failed", "completed", "paused", "pending"].includes(selected.status) && (
+          {selected && ["failed", "completed", "paused", "pending", "ready"].includes(selected.status) && (
             <button
               onClick={openEditModal}
               className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"

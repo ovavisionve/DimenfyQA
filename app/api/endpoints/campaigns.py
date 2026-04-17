@@ -108,6 +108,56 @@ async def start_campaign_pipeline(
     return {"message": "Pipeline started", "task_id": task_id, "campaign_id": str(campaign_id)}
 
 
+@router.post("/{campaign_id}/reprocess")
+async def reprocess_campaign(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Re-run scoring → research → DM generation for existing leads.
+
+    Useful when a previous run failed mid-pipeline (e.g. no API credits)
+    and the leads are already scraped. Skips the scraping phase entirely.
+    """
+    from app.tasks.pipeline import resume_campaign
+
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status not in ("ready", "failed", "paused", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Campaign is currently '{campaign.status}', cannot reprocess.",
+        )
+
+    lead_count = await db.execute(
+        select(func.count()).where(Lead.campaign_id == campaign_id)
+    )
+    if lead_count.scalar() == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No leads to reprocess. Use 'start' to run the full pipeline.",
+        )
+
+    # Reset lead statuses so scoring picks them up again
+    from sqlalchemy import update
+    await db.execute(
+        update(Lead)
+        .where(Lead.campaign_id == campaign_id)
+        .values(status="scraped", score=None, dm_text=None, dm_variant_b=None)
+    )
+
+    campaign.celery_task_id = None
+    campaign.status = "scoring"
+    await db.commit()
+
+    task_id = resume_campaign(str(campaign_id), "score")
+    if not task_id:
+        raise HTTPException(status_code=500, detail="Failed to start reprocessing")
+
+    return {"message": "Reprocessing started (score → research → DMs)", "task_id": task_id, "campaign_id": str(campaign_id)}
+
+
 @router.post("/{campaign_id}/reset")
 async def reset_campaign(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
