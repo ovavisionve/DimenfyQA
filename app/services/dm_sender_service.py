@@ -1095,6 +1095,37 @@ class DMSenderService:
         )
         return list(result.scalars().all())
 
+    def _get_remaining_window_seconds(self, start: str, end: str, tz_name: str) -> float:
+        """Calculate remaining seconds in the sending window for even DM distribution."""
+        if not start or not end or not tz_name:
+            now_utc = datetime.now(timezone.utc)
+            seconds_left = (now_utc.replace(hour=23, minute=59, second=59) - now_utc).total_seconds()
+            return max(seconds_left, 3600)
+
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(tz_name)
+            now_local = datetime.now(tz)
+            start_h, start_m = map(int, start.split(":"))
+            end_h, end_m = map(int, end.split(":"))
+
+            end_time = now_local.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+            start_minutes = start_h * 60 + start_m
+            end_minutes = end_h * 60 + end_m
+
+            if end_minutes <= start_minutes:
+                current_minutes = now_local.hour * 60 + now_local.minute
+                if current_minutes >= start_minutes or current_minutes < end_minutes:
+                    if now_local.hour >= start_h:
+                        end_time += timedelta(days=1)
+                else:
+                    end_time += timedelta(days=1)
+
+            remaining = (end_time - now_local).total_seconds()
+            return max(remaining, 3600)
+        except Exception:
+            return 24 * 3600
+
     async def send_campaign_dms(
         self,
         campaign_id: str,
@@ -1191,7 +1222,13 @@ class DMSenderService:
             logger.info(f"No leads ready to send for campaign {campaign_id}")
             return {"sent_count": 0, "failed_count": 0, "skipped_count": 0, "paused": False, "reason": "No leads to send"}
 
-        logger.info(f"Sending DMs to {len(leads)} leads (daily: {daily_count}/{daily_limit})")
+        # Even distribution: spread DMs across the remaining sending window
+        window_seconds = self._get_remaining_window_seconds(sending_start, sending_end, sending_tz)
+        even_delay = window_seconds / len(leads) if len(leads) > 1 else 0
+        logger.info(
+            f"Sending DMs to {len(leads)} leads (daily: {daily_count}/{daily_limit}), "
+            f"window={window_seconds/3600:.1f}h, interval={even_delay/60:.1f}min"
+        )
 
         sent_count = 0
         failed_count = 0
@@ -1364,20 +1401,23 @@ class DMSenderService:
                 except Exception:
                     pass
 
-            # Human-like delay between sends (skip after last one)
+            # Distribute DMs evenly across sending window
             if i < len(leads) - 1:
-                # Variable delay: shorter for successful sends, longer after failures
                 base_min = settings.DM_DELAY_MIN
                 base_max = settings.DM_DELAY_MAX
                 if not result["success"]:
-                    # After failure, wait longer (1.5x-2x)
                     base_min = int(base_min * 1.5)
                     base_max = int(base_max * 2)
-                delay = random.uniform(base_min, base_max)
-                # Add small random jitter for more human-like behavior
-                delay += random.uniform(-5, 10)
-                delay = max(15, delay)  # Minimum 15s between any sends
-                logger.debug(f"Waiting {delay:.1f}s before next DM")
+                safety_delay = random.uniform(base_min, base_max)
+                safety_delay += random.uniform(-5, 10)
+                safety_delay = max(15, safety_delay)
+
+                delay = max(safety_delay, even_delay)
+                if even_delay > safety_delay:
+                    jitter = delay * 0.1
+                    delay += random.uniform(-jitter, jitter)
+
+                logger.info(f"Next DM in {delay/60:.1f}min (even={even_delay/60:.1f}min, safety={safety_delay:.0f}s)")
                 await asyncio.sleep(delay)
 
         self.save_sessions()

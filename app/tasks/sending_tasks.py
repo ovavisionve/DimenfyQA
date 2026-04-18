@@ -87,10 +87,11 @@ def send_dms_task(self, lead_ids: list[str]) -> list[str]:
             async def _sending_progress(cur, tot, uname, success):
                 """Async callback for send progress — awaited from send_campaign_dms."""
                 status_text = "sent" if success else "failed"
+                remaining = tot - cur
                 await update_progress(cid, "sending",
                                 f"DM {cur}/{tot}: @{uname} ({status_text})",
                                 current=cur, total=tot,
-                                detail=f"Delay {settings.DM_DELAY_MIN}-{settings.DM_DELAY_MAX}s between sends")
+                                detail=f"Distribuyendo {tot} DMs en la ventana de envío. Faltan {remaining}.")
 
             send_result = await sender.send_campaign_dms(
                 cid, db, progress_callback=_sending_progress
