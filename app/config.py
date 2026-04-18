@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     IG_SESSION_ENCRYPTION_KEY: str = ""
 
     # Security — Pre-send validation
-    PRE_SEND_CHECK_PUBLIC: bool = True  # Verify target is public before sending DM
+    PRE_SEND_CHECK_PUBLIC: bool = False  # Disabled: Railway IP blocked by IG for lookups
     SKIP_PRIVATE_ACCOUNTS: bool = True  # Filter out private accounts during scraping
 
     # Proxy kill-switch — when True, all configured proxies are ignored and
