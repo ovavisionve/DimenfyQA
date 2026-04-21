@@ -323,6 +323,44 @@ async def resume_sending(
     }
 
 
+@router.post("/{campaign_id}/retry-sending")
+async def retry_sending(
+    campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Reset failed leads back to dm_ready so they can be sent again."""
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    failed_leads = await db.execute(
+        select(Lead).where(
+            Lead.campaign_id == campaign_id,
+            Lead.status.in_(["failed", "retry"]),
+            Lead.dm_message.isnot(None),
+        )
+    )
+    leads = failed_leads.scalars().all()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No failed leads to retry")
+
+    for lead in leads:
+        lead.status = "dm_ready"
+        lead.send_attempts = 0
+        lead.send_error = None
+        lead.delivery_status = None
+
+    campaign.status = "ready"
+    await db.commit()
+
+    return {
+        "message": f"Reset {len(leads)} leads to dm_ready",
+        "campaign_id": str(campaign_id),
+        "leads_reset": len(leads),
+    }
+
+
 @router.post("/{campaign_id}/send-dm/{lead_id}")
 async def send_single_dm(
     campaign_id: uuid.UUID, lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)
