@@ -702,6 +702,19 @@ async def check_outbound_ip():
         return {"error": str(e)}
 
 
+@app.get("/api/v1/system/check-proxy")
+async def check_proxy(proxy: str = "http://196.51.94.171:8800"):
+    """Test if a proxy works from Railway by connecting through it."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(proxy=proxy, timeout=10) as client:
+            resp = await client.get("https://api.ipify.org?format=json")
+            data = resp.json()
+            return {"status": "ok", "proxy": proxy, "exit_ip": data.get("ip"), "railway_ip_whitelisted": True}
+    except Exception as e:
+        return {"status": "fail", "proxy": proxy, "error": str(e), "railway_ip_whitelisted": False}
+
+
 @app.post("/api/v1/system/test-login")
 async def test_ig_login(request: Request):
     """Try to login a specific IG account and report the result.
