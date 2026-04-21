@@ -820,23 +820,11 @@ class DMSenderService:
             logger.error("No IG accounts configured (set IG_USERNAME/IG_PASSWORD or IG_ACCOUNTS)")
             return False
 
-        # Security: validate proxies before login. If a proxy fails, actually
-        # clear it on the account so _ensure_client() won't re-apply it and
-        # subsequent Instagram API calls don't keep tunneling through a broken
-        # proxy (which was causing 407 Proxy Authentication Required errors).
+        # Skip proxy validation — validation runs from Railway's IP which may not
+        # match the whitelist timing. The proxy will be tested implicitly on first use.
         for acc in self._accounts:
-            if acc.proxy and not acc.validate_proxy():
-                logger.warning(
-                    f"Proxy failed for @{acc.username}, proceeding without proxy"
-                )
-                acc.proxy = ""
-                # If the instagrapi client was already instantiated, reset its
-                # proxy too so the broken one is removed from the live session.
-                if acc._client is not None:
-                    try:
-                        acc._client.set_proxy(None)
-                    except Exception:
-                        pass
+            if acc.proxy:
+                logger.info(f"Using proxy for @{acc.username}: {acc.proxy.split('@')[-1]}")
 
         success_count = 0
         for acc in self._accounts:
