@@ -824,7 +824,7 @@ class DMSenderService:
         try:
             import httpx
             resp = httpx.get("https://api.ipify.org", timeout=5)
-            logger.info(f"Worker outbound IP: {resp.text}")
+            logger.warning(f"===== WORKER OUTBOUND IP: {resp.text} =====")
         except Exception:
             pass
 
