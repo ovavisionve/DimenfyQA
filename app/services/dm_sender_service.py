@@ -1242,7 +1242,14 @@ class DMSenderService:
                     lead.send_error = "Target account is private"
                     lead.delivery_status = "skipped_private"
                     lead.ig_is_private = True  # Update for future filtering
-                    await db.commit()
+                    try:
+                        await db.commit()
+                    except Exception as e:
+                        logger.warning(f"Commit failed marking @{lead.ig_username} private: {e}")
+                        try:
+                            await db.rollback()
+                        except Exception:
+                            pass
                     skipped_count += 1
                     logger.info(f"Skipped @{lead.ig_username}: private account (pre-send check)")
                     continue
@@ -1281,7 +1288,28 @@ class DMSenderService:
             # Mark as sending
             lead.status = "sending"
             lead.dm_variant_used = variant
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as e:
+                logger.warning(f"Commit failed for @{lead.ig_username} (stale connection?), rolling back: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                # Re-fetch the lead in a fresh state and retry once
+                try:
+                    await db.refresh(lead)
+                    lead.status = "sending"
+                    lead.dm_variant_used = variant
+                    await db.commit()
+                except Exception as e2:
+                    logger.error(f"Retry commit also failed for @{lead.ig_username}: {e2}, skipping lead")
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        pass
+                    failed_count += 1
+                    continue
 
             # Send the DM (uses round-robin account rotation, filtered by
             # campaign.settings.ig_accounts if configured)
@@ -1390,7 +1418,14 @@ class DMSenderService:
                     lead.status = "retry"
                     lead.delivery_status = "retry"
 
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as e:
+                logger.warning(f"Final commit failed for @{lead.ig_username}: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
 
             if progress_callback:
                 try:
