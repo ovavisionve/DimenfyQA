@@ -291,8 +291,12 @@ class IGAccount:
                 finally:
                     tmp_path.unlink(missing_ok=True)
 
-            # Fresh login
+            # Fresh login — create a brand-new Client so stale session
+            # settings from a failed restore don't prevent a real network login.
             try:
+                self._client = None
+                self._ensure_client()
+                logger.info(f"Attempting real fresh login for @{self.username} (proxy: {bool(self.proxy)})")
                 self._client.login(self.username, self.password)
                 # Save and encrypt session
                 self._client.dump_settings(self.session_file)
