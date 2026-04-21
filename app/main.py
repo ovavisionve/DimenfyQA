@@ -690,6 +690,18 @@ async def save_ig_config(request: Request):
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
+@app.get("/api/v1/system/check-ip")
+async def check_outbound_ip():
+    """Return Railway's outbound IP by querying an external service."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get("https://api.ipify.org?format=json")
+            return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/api/v1/system/test-login")
 async def test_ig_login(request: Request):
     """Try to login a specific IG account and report the result.
