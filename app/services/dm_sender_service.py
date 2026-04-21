@@ -820,8 +820,14 @@ class DMSenderService:
             logger.error("No IG accounts configured (set IG_USERNAME/IG_PASSWORD or IG_ACCOUNTS)")
             return False
 
-        # Skip proxy validation — validation runs from Railway's IP which may not
-        # match the whitelist timing. The proxy will be tested implicitly on first use.
+        # Log Worker outbound IP for proxy whitelist debugging
+        try:
+            import httpx
+            resp = httpx.get("https://api.ipify.org", timeout=5)
+            logger.info(f"Worker outbound IP: {resp.text}")
+        except Exception:
+            pass
+
         for acc in self._accounts:
             if acc.proxy:
                 logger.info(f"Using proxy for @{acc.username}: {acc.proxy.split('@')[-1]}")
