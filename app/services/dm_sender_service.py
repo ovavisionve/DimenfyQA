@@ -98,9 +98,10 @@ def _decrypt_file(path: Path) -> bytes | None:
 class IGAccount:
     """Represents a single Instagram account with its own client and state."""
 
-    def __init__(self, username: str, password: str, proxy: str, session_dir: Path):
+    def __init__(self, username: str, password: str, proxy: str, session_dir: Path, login_email: str = ""):
         self.username = username
         self.password = password
+        self.login_email = login_email  # Use email for login if set, otherwise username
         self.proxy = proxy
         self._client = None
         self._logged_in = False
@@ -270,7 +271,8 @@ class IGAccount:
                         # Write decrypted to temp file for instagrapi to load
                         tmp_path.write_bytes(decrypted)
                         self._client.load_settings(tmp_path)
-                        self._client.login(self.username, self.password)
+                        login_id = self.login_email or self.username
+                        self._client.login(login_id, self.password)
                         # Validate session with a lightweight call
                         self._client.get_timeline_feed()
                         self._logged_in = True
@@ -296,8 +298,9 @@ class IGAccount:
             try:
                 self._client = None
                 self._ensure_client()
-                logger.info(f"Attempting real fresh login for @{self.username} (proxy: {bool(self.proxy)})")
-                self._client.login(self.username, self.password)
+                login_id = self.login_email or self.username
+                logger.info(f"Attempting real fresh login for @{self.username} as '{login_id}' (proxy: {bool(self.proxy)})")
+                self._client.login(login_id, self.password)
                 # Save and encrypt session
                 self._client.dump_settings(self.session_file)
                 _encrypt_file(self.session_file)
@@ -733,6 +736,7 @@ class DMSenderService:
                             password=acc["password"],
                             proxy=proxy,
                             session_dir=self._session_path,
+                            login_email=acc.get("login_email", ""),
                         ))
                     logger.info(f"Configured {len(self._accounts)} IG accounts from ig_config.json")
                     return
@@ -806,6 +810,7 @@ class DMSenderService:
                 password=acc["password"],
                 proxy=proxy,
                 session_dir=self._session_path,
+                login_email=acc.get("login_email", ""),
             ))
         if self._accounts:
             if disable_proxies:
