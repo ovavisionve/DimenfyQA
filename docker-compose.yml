@@ -19,8 +19,8 @@ services:
     build: .
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/ig_dm_engine
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://postgres.ywxgezapyttdgrbbwdso:fABLETHE21.@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+      - REDIS_URL=redis://default:ThjHKKcGyWbcSYwVTMTNXPJrnmmyoqYL@centerbeam.proxy.rlwy.net:44753
     depends_on:
       - db
       - redis
