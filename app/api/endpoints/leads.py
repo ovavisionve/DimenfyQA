@@ -81,3 +81,16 @@ async def get_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
+
+
+@router.post("/{lead_id}/mark-sent")
+async def mark_lead_sent(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Mark a lead as manually sent."""
+    result = await db.execute(select(Lead).where(Lead.id == lead_id))
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    lead.status = "sent"
+    lead.delivery_status = "sent"
+    await db.commit()
+    return {"message": f"Lead @{lead.ig_username} marked as sent", "lead_id": str(lead_id)}
