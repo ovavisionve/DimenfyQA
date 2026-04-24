@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const API_BACKEND = process.env.API_BACKEND_URL || "http://localhost:1000";
+const API_BACKEND = process.env.API_BACKEND_URL || "http://192.109.139.71:1000";
 
 const nextConfig: NextConfig = {
   async rewrites() {
