@@ -1,7 +1,22 @@
 version: "3.9"
 services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
   api:
     build: .
+    # Port 1000 is only exposed internally; nginx proxies external traffic.
+    # Remove this mapping once nginx+SSL is confirmed working in production.
     ports:
       - "1000:1000"
     env_file: .env
