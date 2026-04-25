@@ -1,0 +1,10 @@
+dimenfy.duckdns.org {
+    reverse_proxy api:1000
+
+    # WebSocket support for real-time log viewer
+    @ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @ws api:1000
+}
