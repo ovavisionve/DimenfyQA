@@ -1,6 +1,11 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# INTERNAL_API_URL is the backend URL used by the Next.js server for rewrites.
+# In Docker it must be the service name (http://api:1000).
+ARG INTERNAL_API_URL=http://localhost:1000
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
+
 COPY package*.json ./
 RUN npm ci
 
