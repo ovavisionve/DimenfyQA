@@ -1,20 +1,16 @@
 """
-Interactive Instagram account connector with challenge (2FA code) support.
+Two-phase Instagram login connector with challenge support.
 
-Usage (inside the api container):
-    docker compose exec -it api python scripts/connect_ig_account.py
+Phase 1 — attempt login, request verification code:
+    python scripts/connect_ig_account.py phase1 <username> <password>
 
-What it does:
-  1. Logs in to Instagram via instagrapi
-  2. If Instagram sends a verification code (email/SMS), prompts you to enter it
-  3. Saves the session to ig_sessions/<username>_session.json
-  4. The platform's dm_sender_service picks up the session automatically on next use
+Phase 2 — submit verification code, save session:
+    python scripts/connect_ig_account.py phase2 <username> <code>
 """
 
 import sys
 import json
 import time
-from getpass import getpass
 from pathlib import Path
 
 try:
@@ -27,10 +23,9 @@ try:
         LoginRequired,
     )
 except ImportError:
-    print("ERROR: instagrapi not installed. Run this inside the api container.")
-    print("  docker compose exec -it api python scripts/connect_ig_account.py")
+    print("ERROR: instagrapi not installed. Run inside the api container:")
+    print("  docker compose exec -it api python scripts/connect_ig_account.py phase1 USER PASS")
     sys.exit(1)
-
 
 SESSION_DIR = Path("ig_sessions")
 SESSION_DIR.mkdir(exist_ok=True)
@@ -61,211 +56,264 @@ def build_client() -> Client:
     return cl
 
 
-def resolve_challenge(cl: Client) -> bool:
-    """Handle Instagram challenge (email/SMS verification code)."""
-    print()
-    print("Instagram requires verification.")
-
-    last = cl.last_json or {}
-    challenge_info = last.get("challenge", {})
-    api_path = challenge_info.get("api_path", "")
-
-    if not api_path:
-        print(f"No challenge path found. Last response: {json.dumps(last, indent=2)[:500]}")
-        return False
-
-    print(f"Challenge path: {api_path}")
-
-    # Step 1: Get available verification methods
-    try:
-        resp = cl.private.get(
-            f"https://i.instagram.com{api_path}",
-            headers=cl.base_headers,
-        )
-        data = resp.json() if hasattr(resp, "json") else {}
-        print(f"Challenge info: {json.dumps(data, indent=2)[:400]}")
-    except Exception as e:
-        print(f"(Could not fetch challenge info: {e})")
-        data = {}
-
-    # Step 2: Request code — try email (1) first, fall back to SMS (0)
-    choice = "1"  # 1 = email
-    if "step_data" in data:
-        step = data.get("step_data", {})
-        if step.get("phone_number") and not step.get("email"):
-            choice = "0"  # SMS only
-            print("Will send code via SMS")
-        else:
-            print("Will send code via email")
-    else:
-        print("Requesting code via email (choice=1) ...")
-
-    try:
-        resp = cl.private.post(
-            f"https://i.instagram.com{api_path}",
-            data={"choice": choice},
-            headers=cl.base_headers,
-        )
-        print(f"Code request response: {resp.text[:200]}")
-    except Exception as e:
-        print(f"(Code request error: {e} — code may have been sent anyway)")
-
-    # Step 3: Ask user for the code
-    print()
-    code = input("Enter the verification code you received: ").strip()
-    if not code:
-        print("No code entered. Aborting.")
-        return False
-
-    # Step 4: Submit the code
-    try:
-        resp = cl.private.post(
-            f"https://i.instagram.com{api_path}",
-            data={"security_code": code},
-            headers=cl.base_headers,
-        )
-        result = resp.json() if hasattr(resp, "json") else {}
-        print(f"Code submission response: {json.dumps(result, indent=2)[:400]}")
-
-        if result.get("status") == "ok" or result.get("logged_in_user"):
-            print("Challenge resolved successfully!")
-            return True
-        else:
-            print("Challenge resolution may have failed. Trying to continue...")
-            return True  # Sometimes the response is non-standard but login works
-
-    except Exception as e:
-        print(f"Code submission error: {e}")
-        return False
-
-
 def save_session(cl: Client, username: str):
     session_file = SESSION_DIR / f"{username}_session.json"
     cl.dump_settings(session_file)
-    print(f"\nSession saved to {session_file}")
-    print("The platform will use this session automatically for DM sending.")
+    print(f"\n✓ Session saved: {session_file}")
+    print("  The platform will use this session automatically for DM sending.")
 
 
-def main():
-    print("=" * 55)
-    print("  Instagram Account Connector — IG DM Engine")
-    print("=" * 55)
-    print()
-
-    username = input("Instagram username: ").strip()
-    if not username:
-        print("Username required.")
-        sys.exit(1)
-
-    password = getpass("Password: ")
-    if not password:
-        print("Password required.")
-        sys.exit(1)
-
-    proxy = input("Proxy (leave empty for none) [format: http://user:pass@host:port]: ").strip()
-
-    print()
-    print(f"Connecting @{username}...")
-
-    # Check for existing session
-    session_file = SESSION_DIR / f"{username}_session.json"
-    if session_file.exists():
-        print(f"Found existing session at {session_file} — will try to restore it first.")
-
-    cl = build_client()
-    if proxy:
-        cl.set_proxy(proxy)
-        print(f"Using proxy: {proxy}")
-
-    # Attempt 1: restore or fresh login
+def print_account_info(cl: Client):
     try:
-        if session_file.exists():
-            try:
-                cl.load_settings(session_file)
-                cl.login(username, password)
-                print("Session restored successfully!")
-                save_session(cl, username)
-                _print_account_info(cl)
-                return
-            except (LoginRequired, Exception) as e:
-                print(f"Session restore failed ({type(e).__name__}), doing fresh login...")
-                session_file.unlink(missing_ok=True)
-                cl = build_client()
-                if proxy:
-                    cl.set_proxy(proxy)
+        info = cl.account_info()
+        print(f"\n  @{info.username} — {info.full_name}")
+        print(f"  Followers: {info.follower_count:,}  |  Following: {info.following_count:,}")
+        print(f"  Private: {info.is_private}")
+    except Exception as e:
+        print(f"  (Could not fetch account info: {e})")
 
+
+# ---------------------------------------------------------------------------
+# Phase 1: attempt login, trigger challenge, request code
+# ---------------------------------------------------------------------------
+
+def phase1(username: str, password: str):
+    print(f"\n=== Phase 1: Login @{username} ===")
+
+    # Restore existing session first if available
+    session_file = SESSION_DIR / f"{username}_session.json"
+    cl = build_client()
+
+    if session_file.exists():
+        print(f"Existing session found — trying to restore...")
+        try:
+            cl.load_settings(session_file)
+            cl.login(username, password)
+            print("LOGIN RESTORED — no challenge needed!")
+            save_session(cl, username)
+            print_account_info(cl)
+            return
+        except Exception as e:
+            print(f"Session restore failed ({type(e).__name__}), doing fresh login...")
+            session_file.unlink(missing_ok=True)
+            cl = build_client()
+
+    try:
         cl.login(username, password)
-        print("LOGIN SUCCESSFUL!")
+        print("LOGIN SUCCESSFUL — no challenge needed!")
         save_session(cl, username)
-        _print_account_info(cl)
+        print_account_info(cl)
 
     except ChallengeRequired:
-        print()
-        print("Instagram sent a verification challenge.")
-        if resolve_challenge(cl):
-            time.sleep(2)
-            # Retry login after challenge
-            try:
-                cl.login(username, password)
-            except Exception:
-                pass  # Sometimes login state is already set after challenge
-            try:
-                save_session(cl, username)
-                _print_account_info(cl)
-            except Exception as e:
-                print(f"(Could not verify account info: {e})")
-                # Save session anyway — it might still work
-                save_session(cl, username)
-        else:
-            print("Could not resolve challenge. Try again or contact Instagram support.")
+        print("\n⚠ Instagram requires verification.")
+
+        # Save full client state (cookies, device, tokens) for phase 2
+        state_file = SESSION_DIR / f".challenge_{username}.json"
+        cl.dump_settings(state_file)
+
+        last = cl.last_json or {}
+        challenge = last.get("challenge", {})
+        api_path = challenge.get("api_path", "")
+
+        # Save api_path + password for phase 2
+        meta_file = SESSION_DIR / f".challenge_{username}_meta.json"
+        meta_file.write_text(json.dumps({
+            "api_path": api_path,
+            "password": password,
+            "last_json": last,
+        }))
+
+        print(f"  Challenge path: {api_path}")
+
+        if not api_path:
+            print("\nERROR: No challenge api_path. Full response:")
+            print(json.dumps(last, indent=2)[:800])
             sys.exit(1)
+
+        # Fetch challenge info (may show email/phone options)
+        try:
+            resp = cl.private.get(
+                f"https://i.instagram.com{api_path}",
+                headers=cl.base_headers,
+            )
+            info = resp.json() if hasattr(resp, "json") else {}
+            step = info.get("step_data", {})
+            if step.get("contact_point"):
+                print(f"  Contact: {step['contact_point']}")
+            elif step.get("email"):
+                print(f"  Email: {step['email']}")
+            elif step.get("phone_number"):
+                print(f"  Phone: {step['phone_number']}")
+        except Exception as e:
+            print(f"  (Could not fetch challenge details: {e})")
+            info = {}
+
+        # Determine delivery method
+        step = info.get("step_data", {}) if "info" in dir() else {}
+        choice = "0" if step.get("phone_number") and not step.get("email") else "1"
+        method = "SMS" if choice == "0" else "email"
+
+        print(f"\nRequesting verification code via {method}...")
+        try:
+            resp = cl.private.post(
+                f"https://i.instagram.com{api_path}",
+                data={"choice": choice},
+                headers=cl.base_headers,
+            )
+            print(f"  Response: {resp.text[:200]}")
+        except Exception as e:
+            print(f"  (Request error — code may have been sent anyway: {e})")
+
+        print()
+        print("=" * 50)
+        print(f"  Check your {method} for the Instagram code.")
+        print(f"  Then run:")
+        print(f"    docker compose exec api python scripts/connect_ig_account.py phase2 {username} <CODE>")
+        print("=" * 50)
 
     except TwoFactorRequired:
-        print()
-        print("Two-factor authentication required.")
-        code = input("Enter your 2FA code (TOTP/authenticator app): ").strip()
-        try:
-            cl.login(username, password, verification_code=code)
-            print("2FA login successful!")
-            save_session(cl, username)
-            _print_account_info(cl)
-        except Exception as e:
-            print(f"2FA login failed: {e}")
-            sys.exit(1)
+        print("\n⚠ Two-factor authentication required.")
+        print("Run phase2 with your TOTP/authenticator code:")
+        print(f"  docker compose exec api python scripts/connect_ig_account.py phase2 {username} <2FA_CODE> --2fa")
+        # Save state for phase2
+        state_file = SESSION_DIR / f".challenge_{username}.json"
+        cl.dump_settings(state_file)
+        meta_file = SESSION_DIR / f".challenge_{username}_meta.json"
+        meta_file.write_text(json.dumps({"api_path": "", "password": password, "mode": "2fa"}))
 
     except BadPassword:
-        print("ERROR: Wrong password.")
+        print("\nERROR: Incorrect password.")
         sys.exit(1)
 
     except ReloginAttemptExceeded:
-        print("ERROR: Too many login attempts. Wait before retrying.")
+        print("\nERROR: Too many login attempts. Wait a while and try again.")
         sys.exit(1)
 
     except Exception as e:
-        print(f"LOGIN FAILED: {type(e).__name__}: {e}")
+        print(f"\nLOGIN FAILED: {type(e).__name__}: {e}")
         sys.exit(1)
 
 
-def _print_account_info(cl: Client):
+# ---------------------------------------------------------------------------
+# Phase 2: submit code, complete login, save session
+# ---------------------------------------------------------------------------
+
+def phase2(username: str, code: str, is_2fa: bool = False):
+    print(f"\n=== Phase 2: Submit code for @{username} ===")
+
+    state_file = SESSION_DIR / f".challenge_{username}.json"
+    meta_file = SESSION_DIR / f".challenge_{username}_meta.json"
+
+    if not state_file.exists():
+        print("ERROR: No challenge state found. Run phase1 first.")
+        sys.exit(1)
+
+    meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
+    password = meta.get("password", "")
+    api_path = meta.get("api_path", "")
+    mode = meta.get("mode", "challenge")
+
+    cl = build_client()
+    cl.load_settings(state_file)
+
+    if is_2fa or mode == "2fa":
+        # 2FA login
+        try:
+            cl.login(username, password, verification_code=code)
+            print("2FA LOGIN SUCCESSFUL!")
+            save_session(cl, username)
+            print_account_info(cl)
+            _cleanup_challenge_files(username)
+        except Exception as e:
+            print(f"2FA failed: {type(e).__name__}: {e}")
+            sys.exit(1)
+        return
+
+    if not api_path:
+        print("ERROR: No challenge api_path in saved state.")
+        sys.exit(1)
+
+    print(f"Submitting code '{code}' to {api_path}...")
+
     try:
-        info = cl.account_info()
-        print()
-        print("Account info:")
-        print(f"  Username  : @{info.username}")
-        print(f"  Full name : {info.full_name}")
-        print(f"  Followers : {info.follower_count:,}")
-        print(f"  Following : {info.following_count:,}")
-        print(f"  Posts     : {info.media_count}")
-        print(f"  Private   : {info.is_private}")
+        resp = cl.private.post(
+            f"https://i.instagram.com{api_path}",
+            data={"security_code": code.strip()},
+            headers=cl.base_headers,
+        )
+        result = resp.json() if hasattr(resp, "json") else {}
+        print(f"Response: {json.dumps(result, indent=2)[:400]}")
     except Exception as e:
-        print(f"(Could not fetch account info: {e})")
+        print(f"Code submission error: {type(e).__name__}: {e}")
+        sys.exit(1)
 
-    print()
-    print("Next steps:")
-    print("  1. Go to Settings → 'Cuentas y Proxies' in the dashboard")
-    print("  2. Add the account there if not already listed")
-    print("  3. Start a campaign and click 'Enviar DMs'")
+    # Check result
+    logged_in = (
+        result.get("logged_in_user")
+        or result.get("status") == "ok"
+        or "user_id" in result
+    )
 
+    if not logged_in and result.get("action") == "close":
+        logged_in = True  # Instagram sometimes returns {"action":"close","status":"ok"}
+
+    if logged_in:
+        print("\n✓ Challenge resolved!")
+    else:
+        print("\nWarning: unexpected response, attempting login anyway...")
+
+    # Attempt to finalize session
+    time.sleep(1)
+    try:
+        cl.login(username, password)
+    except ChallengeRequired:
+        print("Still getting challenge — code may be wrong or expired.")
+        sys.exit(1)
+    except LoginRequired:
+        pass  # Normal after challenge resolution
+    except Exception:
+        pass  # Try to save session anyway
+
+    save_session(cl, username)
+    print_account_info(cl)
+    _cleanup_challenge_files(username)
+
+
+def _cleanup_challenge_files(username: str):
+    for f in [
+        SESSION_DIR / f".challenge_{username}.json",
+        SESSION_DIR / f".challenge_{username}_meta.json",
+    ]:
+        f.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    main()
+    args = sys.argv[1:]
+
+    if not args or args[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        sys.exit(0)
+
+    cmd = args[0].lower()
+
+    if cmd == "phase1":
+        if len(args) < 3:
+            print("Usage: phase1 <username> <password>")
+            sys.exit(1)
+        phase1(args[1], args[2])
+
+    elif cmd == "phase2":
+        if len(args) < 3:
+            print("Usage: phase2 <username> <code> [--2fa]")
+            sys.exit(1)
+        is_2fa = "--2fa" in args
+        phase2(args[1], args[2], is_2fa)
+
+    else:
+        print(f"Unknown command: {cmd}")
+        print("Use: phase1 <user> <pass>  OR  phase2 <user> <code>")
+        sys.exit(1)
