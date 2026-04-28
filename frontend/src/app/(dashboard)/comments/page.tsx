@@ -27,6 +27,7 @@ export default function CommentsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showVariantB, setShowVariantB] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   useEffect(() => {
     api<Array<{ id: string; name: string }>>("/api/v1/campaigns/")
@@ -71,14 +72,21 @@ export default function CommentsPage() {
   };
 
   const sendComment = async (leadId: string) => {
-    await api(
-      `/api/v1/campaigns/${selectedCampaign}/send-comments?lead_id=${leadId}`,
-      { method: "POST" }
-    );
-    const data = await api<Lead[]>(
-      `/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`
-    );
-    setLeads(data);
+    setSendingId(leadId);
+    try {
+      await api(
+        `/api/v1/campaigns/${selectedCampaign}/send-comments?lead_id=${leadId}`,
+        { method: "POST" }
+      );
+      const data = await api<Lead[]>(
+        `/api/v1/leads/?campaign_id=${selectedCampaign}&limit=500`
+      );
+      setLeads(data);
+    } catch {
+      /* ignore — API errors don't crash the page */
+    } finally {
+      setSendingId(null);
+    }
   };
 
   const bulkSend = async () => {
@@ -323,9 +331,15 @@ export default function CommentsPage() {
               {lead.comment_status !== "sent" && (
                 <button
                   onClick={() => sendComment(lead.id)}
-                  className="ml-auto flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+                  disabled={sendingId === lead.id}
+                  className="ml-auto flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
                 >
-                  <Send size={12} /> Enviar
+                  {sendingId === lead.id ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Send size={12} />
+                  )}
+                  Enviar
                 </button>
               )}
             </div>

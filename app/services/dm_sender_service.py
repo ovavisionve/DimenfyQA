@@ -1067,7 +1067,7 @@ class DMSenderService:
                 if start_minutes <= end_minutes:
                     outside_hours = current_minutes < start_minutes or current_minutes >= end_minutes
                 else:
-                    # Overnight schedule (e.g., 22:00 - 06:00)
+                    # Overnight schedule (e.g., 22:00-06:00): outside = before start AND after/at end
                     outside_hours = current_minutes < start_minutes and current_minutes >= end_minutes
 
                 if outside_hours:
