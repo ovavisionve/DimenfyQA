@@ -61,8 +61,6 @@ interface ClientAnalytics {
 
 type CampaignRow = Campaign & { stats_detail?: CampaignStatsRow };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000";
-
 export default function ReportsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("");
@@ -130,7 +128,7 @@ export default function ReportsPage() {
       typeof window !== "undefined"
         ? localStorage.getItem("access_token")
         : null;
-    const url = `${API_BASE}/api/v1/export/${campaignId}/${format}`;
+    const url = `/api/v1/export/${campaignId}/${format}`;
     try {
       const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,

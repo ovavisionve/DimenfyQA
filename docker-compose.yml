@@ -1,5 +1,15 @@
-version: "3.9"
 services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      INTERNAL_API_URL: http://api:1000
+    depends_on:
+      - api
+    restart: unless-stopped
+
   api:
     build: .
     ports:

@@ -68,10 +68,9 @@ export default function ImportPage() {
       formData.append("file", file);
 
       const token = localStorage.getItem("access_token");
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000";
 
       const res = await fetch(
-        `${API_BASE}/api/v1/lead-import/upload-csv?campaign_id=${selectedCampaign}`,
+        `/api/v1/lead-import/upload-csv?campaign_id=${selectedCampaign}`,
         {
           method: "POST",
           headers: {

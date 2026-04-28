@@ -453,7 +453,7 @@ export default function PipelinePage() {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000"}/api/v1/export/${selected.id}/${format}`,
+        `/api/v1/export/${selected.id}/${format}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);

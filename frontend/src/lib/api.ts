@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface FetchOptions extends RequestInit {
   noAuth?: boolean;
@@ -81,6 +81,10 @@ export function invalidateCache(pathPrefix?: string) {
 }
 
 export function wsUrl(path: string): string {
-  const base = API_BASE.replace(/^http/, "ws");
+  if (!API_BASE && typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.hostname}:1000${path}`;
+  }
+  const base = (API_BASE || "http://localhost:1000").replace(/^http/, "ws");
   return `${base}${path}`;
 }
