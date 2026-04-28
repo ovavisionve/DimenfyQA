@@ -288,6 +288,24 @@ def _cleanup_challenge_files(username: str):
 
 
 # ---------------------------------------------------------------------------
+# Session ID login (bypass API login entirely — use browser session)
+# ---------------------------------------------------------------------------
+
+def login_by_sessionid(username: str, session_id: str):
+    """Import an existing Instagram web session without triggering any login."""
+    print(f"\n=== Session ID login for @{username} ===")
+    cl = build_client()
+    try:
+        cl.login_by_sessionid(session_id)
+        print("SESSION IMPORTED SUCCESSFULLY!")
+        save_session(cl, username)
+        print_account_info(cl)
+    except Exception as e:
+        print(f"FAILED: {type(e).__name__}: {e}")
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
@@ -312,6 +330,12 @@ if __name__ == "__main__":
             sys.exit(1)
         is_2fa = "--2fa" in args
         phase2(args[1], args[2], is_2fa)
+
+    elif cmd == "sessionid":
+        if len(args) < 3:
+            print("Usage: sessionid <username> <session_id_value>")
+            sys.exit(1)
+        login_by_sessionid(args[1], args[2])
 
     else:
         print(f"Unknown command: {cmd}")
