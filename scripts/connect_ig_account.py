@@ -293,7 +293,10 @@ def _cleanup_challenge_files(username: str):
 
 def login_by_sessionid(username: str, session_id: str):
     """Import an existing Instagram web session without triggering any login."""
+    from urllib.parse import unquote
+    session_id = unquote(session_id)
     print(f"\n=== Session ID login for @{username} ===")
+    print(f"  Session ID: {session_id[:20]}...")
     cl = build_client()
     try:
         cl.login_by_sessionid(session_id)
