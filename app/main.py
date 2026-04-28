@@ -11,7 +11,6 @@ from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-
 from app.api.router import api_router, auth_router
 from app.logging_config import request_id_var, setup_logging
 
@@ -57,31 +56,7 @@ class Utf8Middleware(BaseHTTPMiddleware):
         return response
 
 
-class RelativeRedirectMiddleware(BaseHTTPMiddleware):
-    """Convert absolute Location headers on 3xx responses to relative paths.
-
-    When the API runs behind a Next.js reverse-proxy, FastAPI's trailing-slash
-    redirects produce Location: http://api:1000/... — an internal Docker host
-    the browser cannot reach. Making it relative lets the browser follow the
-    redirect through the same Next.js proxy that served the original request.
-    """
-
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        if response.status_code in (301, 302, 307, 308):
-            location = response.headers.get("location", "")
-            if "://" in location:
-                from urllib.parse import urlparse
-                parsed = urlparse(location)
-                relative = parsed.path
-                if parsed.query:
-                    relative += "?" + parsed.query
-                response.headers["location"] = relative
-        return response
-
-
 app.add_middleware(Utf8Middleware)
-app.add_middleware(RelativeRedirectMiddleware)
 
 
 @app.on_event("startup")

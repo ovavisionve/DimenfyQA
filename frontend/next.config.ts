@@ -6,10 +6,6 @@ const nextConfig: NextConfig = {
     const apiBase = process.env.INTERNAL_API_URL || "http://localhost:1000";
     return [
       {
-        source: "/api/:path*",
-        destination: `${apiBase}/api/:path*`,
-      },
-      {
         source: "/ws/:path*",
         destination: `${apiBase}/ws/:path*`,
       },
