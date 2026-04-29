@@ -241,6 +241,7 @@ export default function PipelinePage() {
 
   // New campaign form
   const [showNew, setShowNew] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
   const [newCampaign, setNewCampaign] = useState({
     name: "",
@@ -477,6 +478,10 @@ export default function PipelinePage() {
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newCampaign.name.trim()) { setErrorMsg("El nombre es requerido"); return; }
+    if (!newCampaign.client_id) { setErrorMsg("Selecciona un cliente"); return; }
+    if (!newCampaign.source_value.trim()) { setErrorMsg("La fuente (URL / hashtag / username) es requerida"); return; }
+    setCreating(true);
     const campaignSettings: Record<string, unknown> = {};
     if (bioKeywords.length > 0) campaignSettings.bio_keywords = bioKeywords;
     if (scheduleEnabled) {
@@ -507,6 +512,8 @@ export default function PipelinePage() {
       setSelectedAccounts([]);
     } catch (err) {
       setErrorMsg(`Error creando campaña: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -572,10 +579,10 @@ export default function PipelinePage() {
 
       {/* New Campaign Modal */}
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form
             onSubmit={createCampaign}
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4"
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4 overflow-y-auto max-h-[90vh]"
           >
             <h2 className="text-lg font-semibold">Nueva Campaña</h2>
 
@@ -859,9 +866,11 @@ export default function PipelinePage() {
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400"
+                disabled={creating}
+                className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black hover:bg-amber-400 disabled:opacity-50"
               >
-                Crear
+                {creating && <Loader2 size={14} className="animate-spin" />}
+                {creating ? "Creando..." : "Crear"}
               </button>
             </div>
           </form>
