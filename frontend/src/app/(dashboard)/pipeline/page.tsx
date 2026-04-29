@@ -292,7 +292,12 @@ export default function PipelinePage() {
     setLoading(true);
     loadCampaigns().finally(() => setLoading(false));
     api<Array<{ id: string; name: string }>>("/api/v1/clients/", { cache_ttl: 60000 })
-      .then(setClients)
+      .then((data) => {
+        setClients(data);
+        if (data.length > 0) {
+          setNewCampaign((prev) => ({ ...prev, client_id: prev.client_id || data[0].id }));
+        }
+      })
       .catch(() => {});
   }, [loadCampaigns]);
 
@@ -627,6 +632,11 @@ export default function PipelinePage() {
               required
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
+            {clients.length === 0 && (
+              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+                No tienes clientes creados. Ve a <a href="/clients" className="underline font-medium">Clientes</a> y crea uno primero.
+              </p>
+            )}
             <select
               value={newCampaign.client_id}
               onChange={(e) => setNewCampaign({ ...newCampaign, client_id: e.target.value })}
