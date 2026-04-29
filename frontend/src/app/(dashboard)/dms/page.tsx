@@ -36,6 +36,7 @@ export default function DMsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   useEffect(() => {
     api<Array<{ id: string; name: string }>>("/api/v1/campaigns/")
@@ -66,6 +67,20 @@ export default function DMsPage() {
     navigator.clipboard.writeText(allDMs);
     setCopiedId("all");
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const markAllSent = async () => {
+    if (!selectedCampaign) return;
+    setMarkingAll(true);
+    try {
+      await api(`/api/v1/campaigns/${selectedCampaign}/mark-sent`, { method: "POST" });
+      setLeads((prev) =>
+        prev.map((l) => ({ ...l, status: "sent", delivery_status: "sent" }))
+      );
+    } catch {
+      /* ignore */
+    }
+    setMarkingAll(false);
   };
 
   const sendDM = async (lead: Lead) => {
@@ -107,18 +122,28 @@ export default function DMsPage() {
             {filtered.length} DMs listos para enviar
           </p>
         </div>
-        <button
-          onClick={copyAll}
-          disabled={filtered.length === 0}
-          className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
-        >
-          {copiedId === "all" ? (
-            <Check size={14} className="text-emerald-500" />
-          ) : (
-            <ClipboardList size={14} />
-          )}
-          {copiedId === "all" ? "Copiados!" : "Copiar Todos"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={markAllSent}
+            disabled={markingAll || filtered.filter(l => l.status !== "sent").length === 0}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {markingAll ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Marcar todos como enviados
+          </button>
+          <button
+            onClick={copyAll}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {copiedId === "all" ? (
+              <Check size={14} className="text-emerald-500" />
+            ) : (
+              <ClipboardList size={14} />
+            )}
+            {copiedId === "all" ? "Copiados!" : "Copiar Todos"}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
