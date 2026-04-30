@@ -100,6 +100,57 @@ Responde SOLO un JSON array válido, sin markdown ni backticks. Para cada lead g
 IMPORTANTE: Devuelve EXACTAMENTE {lead_count} elementos, uno por cada lead."""
 
 
+CUSTOM_BATCH_DM_PROMPT = """{client_dm_prompt}
+
+{content_analysis_context}
+
+## Leads para generar DMs:
+{leads_json}
+
+## Reglas de output (NO MODIFICABLES — sigue las reglas de tono/estructura del brief de arriba):
+- Genera 2 variantes (A/B test) por lead, con ángulos distintos
+- Tono adicional: {tone_instruction}
+- SOLO texto plano, sin emojis, sin paréntesis, sin comillas dobles
+- Personaliza cada DM con datos reales del lead (nombre, bio, research)
+- Si el lead no encaja con el target descrito en el brief, devuélvelo igual con dm_a/dm_b en null
+
+Responde SOLO un JSON array válido, sin markdown ni backticks:
+[
+  {{
+    "username": "<ig_username exacto>",
+    "dm_a": "<texto del DM variante A o null si no encaja>",
+    "dm_b": "<texto del DM variante B con ángulo diferente o null>"
+  }}
+]
+
+IMPORTANTE: Devuelve EXACTAMENTE {lead_count} elementos, uno por cada lead."""
+
+
+CUSTOM_SINGLE_DM_PROMPT = """{client_dm_prompt}
+
+## Información del lead:
+- Nombre: {full_name}
+- Username: {username}
+- Bio: {bio}
+- Categoría: {category}
+- Website: {website}
+- Research: {research_data}
+
+{content_analysis_context}
+
+## Reglas de output (NO MODIFICABLES — sigue las reglas de tono/estructura del brief de arriba):
+- Genera 2 variantes (A/B test), con ángulos distintos
+- Tono adicional: {tone_instruction}
+- SOLO texto plano, sin emojis, sin paréntesis, sin comillas dobles
+- Si el lead no encaja con el target descrito en el brief, devuelve dm_a y dm_b en null
+
+Responde SOLO en JSON válido, sin markdown ni backticks:
+{{
+  "dm_a": "<texto del DM variante A o null si no encaja>",
+  "dm_b": "<texto del DM variante B con ángulo diferente o null>"
+}}"""
+
+
 def _strip_code_fences(text: str) -> str:
     """Remove markdown code fences from API response."""
     text = text.strip()
@@ -185,21 +236,35 @@ class CopywritingService:
         """Generate DM for a single lead. Returns (dm_a, dm_b) or (None, None) on failure."""
         username = lead_data.get("ig_username", "unknown")
         content_context, tone = self._build_content_context(client_config)
+        client_dm_prompt = (client_config.get("dm_prompt") or "").strip()
         try:
-            prompt = SINGLE_DM_PROMPT.format(
-                full_name=lead_data.get("ig_full_name", ""),
-                username=username,
-                bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
-                category=lead_data.get("lead_category", ""),
-                website=lead_data.get("ig_website", ""),
-                research_data=lead_data.get("research_data", "No research available"),
-                client_business_type=client_config.get("business_type", "B2B automation"),
-                client_service_description=client_config.get(
-                    "service_description", "B2B lead generation and automation services"
-                ),
-                content_analysis_context=content_context,
-                tone_instruction=tone,
-            )
+            if client_dm_prompt:
+                prompt = CUSTOM_SINGLE_DM_PROMPT.format(
+                    client_dm_prompt=client_dm_prompt,
+                    full_name=lead_data.get("ig_full_name", ""),
+                    username=username,
+                    bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
+                    category=lead_data.get("lead_category", ""),
+                    website=lead_data.get("ig_website", ""),
+                    research_data=lead_data.get("research_data", "No research available"),
+                    content_analysis_context=content_context,
+                    tone_instruction=tone,
+                )
+            else:
+                prompt = SINGLE_DM_PROMPT.format(
+                    full_name=lead_data.get("ig_full_name", ""),
+                    username=username,
+                    bio=lead_data.get("ig_bio_clean") or lead_data.get("ig_bio", ""),
+                    category=lead_data.get("lead_category", ""),
+                    website=lead_data.get("ig_website", ""),
+                    research_data=lead_data.get("research_data", "No research available"),
+                    client_business_type=client_config.get("business_type", "B2B automation"),
+                    client_service_description=client_config.get(
+                        "service_description", "B2B lead generation and automation services"
+                    ),
+                    content_analysis_context=content_context,
+                    tone_instruction=tone,
+                )
             raw = self._call_claude(prompt, max_tokens=1024)
             result = json.loads(_strip_code_fences(raw))
             dm_a = result.get("dm_a")
@@ -214,6 +279,7 @@ class CopywritingService:
     def generate_dms_batch(self, leads_data: list[dict], client_config: dict) -> list[dict]:
         """Generate DMs for a batch of leads in a single API call."""
         content_context, tone = self._build_content_context(client_config)
+        client_dm_prompt = (client_config.get("dm_prompt") or "").strip()
 
         leads_for_prompt = []
         for ld in leads_data:
@@ -226,16 +292,25 @@ class CopywritingService:
                 "research": ld.get("research_data", "No research available"),
             })
 
-        prompt = BATCH_DM_PROMPT.format(
-            leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
-            lead_count=len(leads_data),
-            client_business_type=client_config.get("business_type", "B2B automation"),
-            client_service_description=client_config.get(
-                "service_description", "B2B lead generation and automation services"
-            ),
-            content_analysis_context=content_context,
-            tone_instruction=tone,
-        )
+        if client_dm_prompt:
+            prompt = CUSTOM_BATCH_DM_PROMPT.format(
+                client_dm_prompt=client_dm_prompt,
+                leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
+                lead_count=len(leads_data),
+                content_analysis_context=content_context,
+                tone_instruction=tone,
+            )
+        else:
+            prompt = BATCH_DM_PROMPT.format(
+                leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
+                lead_count=len(leads_data),
+                client_business_type=client_config.get("business_type", "B2B automation"),
+                client_service_description=client_config.get(
+                    "service_description", "B2B lead generation and automation services"
+                ),
+                content_analysis_context=content_context,
+                tone_instruction=tone,
+            )
 
         raw = self._call_claude(prompt, max_tokens=8192)
         results = json.loads(_strip_code_fences(raw))
@@ -315,14 +390,18 @@ class CopywritingService:
         campaign = campaign_result.scalar_one_or_none()
         content_analysis = (campaign.settings or {}).get("content_analysis") if campaign else None
 
+        client_settings = (client.settings or {}) if client else {}
         client_config = {
             "business_type": client.business_type if client else "B2B automation",
-            "service_description": (client.settings or {}).get(
+            "service_description": client_settings.get(
                 "service_description",
                 "B2B lead generation and automation services",
-            ) if client else "B2B lead generation and automation services",
+            ),
+            "dm_prompt": client_settings.get("dm_prompt", ""),
             "content_analysis": content_analysis,
         }
+        if client_config["dm_prompt"]:
+            logger.info(f"Using custom dm_prompt from client {client.id if client else '?'} ({len(client_config['dm_prompt'])} chars)")
 
         if content_analysis:
             logger.info("Using campaign content analysis for enriched DM generation")

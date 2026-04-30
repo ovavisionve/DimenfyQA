@@ -53,11 +53,41 @@ Responde SOLO un JSON array válido, sin markdown ni backticks. Cada elemento de
 IMPORTANTE: Devuelve EXACTAMENTE un resultado por cada lead de la lista. El JSON array debe tener {lead_count} elementos."""
 
 
+CUSTOM_BATCH_SCORING_PROMPT = """{client_scoring_prompt}
+
+## REGLA CRÍTICA NO MODIFICABLE:
+- Si is_private=true → score DEBE ser 0. No se puede enviar DM a cuentas privadas.
+
+{content_context}
+
+## Leads a evaluar:
+{leads_json}
+
+## Output (NO MODIFICABLE):
+Responde SOLO un JSON array válido, sin markdown ni backticks. Cada elemento debe tener:
+[
+  {{
+    "username": "<ig_username exacto>",
+    "score": <número 0-100 según la rúbrica del brief>,
+    "reason": "<explicación de 1-2 oraciones según el brief>",
+    "category": "<una de: coach, ecommerce, saas, agency, creator, local_business, other>",
+    "bio_clean": "<bio limpia sin emojis ni line breaks>"
+  }}
+]
+
+IMPORTANTE: Devuelve EXACTAMENTE {lead_count} elementos, uno por cada lead. Aplica la rúbrica del brief de arriba — sé estricto con los descalificadores automáticos si están definidos."""
+
+
 class ScoringService:
     def __init__(self):
         self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    def score_batch(self, leads_data: list[dict], content_context: str = "") -> list[dict]:
+    def score_batch(
+        self,
+        leads_data: list[dict],
+        content_context: str = "",
+        client_scoring_prompt: str = "",
+    ) -> list[dict]:
         """Score a batch of leads in a single API call. Returns list of score dicts."""
         leads_for_prompt = []
         for ld in leads_data:
@@ -72,11 +102,20 @@ class ScoringService:
                 "is_private": ld.get("ig_is_private", False),
             })
 
-        prompt = BATCH_SCORING_PROMPT.format(
-            leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
-            lead_count=len(leads_data),
-            content_context=content_context,
-        )
+        client_scoring_prompt = (client_scoring_prompt or "").strip()
+        if client_scoring_prompt:
+            prompt = CUSTOM_BATCH_SCORING_PROMPT.format(
+                client_scoring_prompt=client_scoring_prompt,
+                leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
+                lead_count=len(leads_data),
+                content_context=content_context,
+            )
+        else:
+            prompt = BATCH_SCORING_PROMPT.format(
+                leads_json=json.dumps(leads_for_prompt, ensure_ascii=False, indent=1),
+                lead_count=len(leads_data),
+                content_context=content_context,
+            )
 
         message = self.client.messages.create(
             model="claude-sonnet-4-6",
@@ -96,11 +135,20 @@ class ScoringService:
             raise ValueError(f"Expected JSON array, got {type(results).__name__}")
         return results
 
-    def _score_batch_safe(self, leads_data: list[dict], content_context: str = "") -> list[tuple[str, dict | None]]:
+    def _score_batch_safe(
+        self,
+        leads_data: list[dict],
+        content_context: str = "",
+        client_scoring_prompt: str = "",
+    ) -> list[tuple[str, dict | None]]:
         """Thread-safe batch scoring. Returns list of (username, result_or_None)."""
         usernames = [ld.get("ig_username", "unknown") for ld in leads_data]
         try:
-            results = self.score_batch(leads_data, content_context=content_context)
+            results = self.score_batch(
+                leads_data,
+                content_context=content_context,
+                client_scoring_prompt=client_scoring_prompt,
+            )
             # Map results by username
             result_map = {r.get("username", ""): r for r in results}
             output = []
@@ -134,6 +182,19 @@ class ScoringService:
             return []
 
         logger.info(f"Found {len(leads)} scraped leads to score out of {len(lead_ids)} IDs")
+
+        # Load client custom scoring prompt (if configured) — overrides the generic rubric
+        client_scoring_prompt = ""
+        if leads:
+            from app.models.client import Client
+            client_result = await db.execute(
+                select(Client).where(Client.id == leads[0].client_id)
+            )
+            client = client_result.scalar_one_or_none()
+            if client:
+                client_scoring_prompt = (client.settings or {}).get("scoring_prompt", "") or ""
+                if client_scoring_prompt.strip():
+                    logger.info(f"Using custom scoring_prompt from client {client.id} ({len(client_scoring_prompt)} chars)")
 
         # Load campaign content analysis for context-aware scoring
         content_context = ""
@@ -212,7 +273,7 @@ class ScoringService:
 
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_BATCHES) as executor:
             futures = {
-                executor.submit(self._score_batch_safe, batch, content_context): i
+                executor.submit(self._score_batch_safe, batch, content_context, client_scoring_prompt): i
                 for i, batch in enumerate(batches)
             }
             for future in as_completed(futures):
