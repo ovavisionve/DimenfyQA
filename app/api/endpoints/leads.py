@@ -12,7 +12,8 @@ from app.schemas.lead import LeadDMReady, LeadDetail, LeadRead, LeadScored
 router = APIRouter()
 
 
-@router.get("/", response_model=list[LeadRead])
+@router.get("", response_model=list[LeadRead])
+@router.get("/", response_model=list[LeadRead], include_in_schema=False)
 async def list_leads(
     campaign_id: uuid.UUID | None = None,
     client_id: uuid.UUID | None = None,

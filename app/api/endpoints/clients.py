@@ -12,7 +12,8 @@ from app.schemas.client import ClientCreate, ClientRead, ClientUpdate
 router = APIRouter()
 
 
-@router.post("/", response_model=ClientRead, status_code=201)
+@router.post("", response_model=ClientRead, status_code=201)
+@router.post("/", response_model=ClientRead, status_code=201, include_in_schema=False)
 async def create_client(data: ClientCreate, db: AsyncSession = Depends(get_db)):
     client = Client(
         name=data.name,
@@ -26,7 +27,8 @@ async def create_client(data: ClientCreate, db: AsyncSession = Depends(get_db)):
     return client
 
 
-@router.get("/", response_model=list[ClientRead])
+@router.get("", response_model=list[ClientRead])
+@router.get("/", response_model=list[ClientRead], include_in_schema=False)
 async def list_clients(
     is_active: bool | None = None,
     db: AsyncSession = Depends(get_db),
