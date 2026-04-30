@@ -22,10 +22,10 @@ APIFY_BASE_URL = "https://api.apify.com/v2"
 #   $2.30/1K results. Use resultsType to control what to scrape.
 # instagram-profile-scraper: dedicated profile scraper ($2.60/1K results)
 ACTORS = {
-    "followers": "apify~instagram-profile-scraper",  # fallback to profile scraper
-    "comments": "apify~instagram-scraper",            # main scraper with resultsType=comments
-    "profiles": "apify~instagram-profile-scraper",    # dedicated profile scraper
-    "hashtag": "apify~instagram-scraper",             # main scraper with search=hashtag
+    "followers": "apify~instagram-profile-scraper",           # fallback to profile scraper
+    "comments": "louisdeconinck~instagram-comments-scraper",  # $0.50/1K — 4.6x cheaper than instagram-scraper
+    "profiles": "apify~instagram-profile-scraper",            # dedicated profile scraper
+    "hashtag": "apify~instagram-scraper",                     # main scraper with search=hashtag
 }
 
 
@@ -125,21 +125,21 @@ class ApifyService:
         self, source_value: str, max_leads: int = 0,
         progress_callback=None,
     ) -> list[dict]:
-        """Scrape comments from an Instagram post using the main instagram-scraper actor.
+        """Scrape comments from an Instagram post using louisdeconinck/instagram-comments-scraper.
 
-        Uses apify/instagram-scraper with resultsType="comments" which properly
-        respects the resultsLimit parameter on paid plans.
+        Uses louisdeconinck~instagram-comments-scraper ($0.50/1K) instead of
+        apify~instagram-scraper ($2.30/1K) — 4.6x cheaper at scale.
+        Input: postUrls + maxComments (actor-specific params).
         """
-        actor_id = ACTORS["comments"]  # apify~instagram-scraper
-        input_data = {
-            "directUrls": [source_value],
-            "resultsType": "comments",
+        actor_id = ACTORS["comments"]  # louisdeconinck~instagram-comments-scraper
+        input_data: dict = {
+            "postUrls": [source_value],
         }
         if max_leads > 0:
-            # Cap at 100 — Instagram paginates above ~100 comments which triggers anti-bot and causes hangs
-            input_data["resultsLimit"] = min(max_leads, 100)
+            # Cap at 100 — Instagram paginates above ~100 which triggers anti-bot
+            input_data["maxComments"] = min(max_leads, 100)
 
-        logger.info(f"[Comments] Starting apify/instagram-scraper with input: {input_data}")
+        logger.info(f"[Comments] Starting louisdeconinck/instagram-comments-scraper with input: {input_data}")
         if progress_callback:
             target = max_leads if max_leads > 0 else "all"
             await progress_callback(f"Scraping up to {target} comments from post...")
@@ -434,14 +434,12 @@ class ApifyService:
                 usernames = [source_value]
             return {"usernames": usernames}
         elif source_type == "comments":
-            # apify~instagram-scraper with resultsType=comments
+            # louisdeconinck~instagram-comments-scraper ($0.50/1K)
             data: dict = {
-                "directUrls": [source_value],
-                "resultsType": "comments",
-                "searchLimit": 1,
+                "postUrls": [source_value],
             }
             if max_leads > 0:
-                data["resultsLimit"] = max_leads
+                data["maxComments"] = max_leads
             return data
         elif source_type == "profiles":
             usernames = [u.strip() for u in source_value.split(",") if u.strip()]
