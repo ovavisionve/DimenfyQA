@@ -129,11 +129,11 @@ class ApifyService:
 
         Uses louisdeconinck~instagram-comments-scraper ($0.50/1K) instead of
         apify~instagram-scraper ($2.30/1K) — 4.6x cheaper at scale.
-        Input: directUrls + maxComments (actor-specific params).
+        Input: urls + maxComments (actor-specific params).
         """
         actor_id = ACTORS["comments"]  # louisdeconinck~instagram-comments-scraper
         input_data: dict = {
-            "directUrls": [source_value],
+            "urls": [source_value],
         }
         if max_leads > 0:
             # Cap at 100 — Instagram paginates above ~100 which triggers anti-bot
@@ -436,7 +436,7 @@ class ApifyService:
         elif source_type == "comments":
             # louisdeconinck~instagram-comments-scraper ($0.50/1K)
             data: dict = {
-                "directUrls": [source_value],
+                "urls": [source_value],
             }
             if max_leads > 0:
                 data["maxComments"] = max_leads
