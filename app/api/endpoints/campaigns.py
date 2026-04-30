@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,21 +14,33 @@ from app.schemas.analytics import CampaignAnalytics
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignStats, CampaignUpdate
 from app.tasks.pipeline import run_campaign_pipeline
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
 @router.post("/", response_model=CampaignRead, status_code=201)
 async def create_campaign(data: CampaignCreate, db: AsyncSession = Depends(get_db)):
+    # Merge max_leads into settings so the scraping task picks it up
+    settings = dict(data.settings)
+    if data.max_leads and data.max_leads > 0:
+        settings.setdefault("max_leads", data.max_leads)
+
     campaign = Campaign(
         client_id=data.client_id,
         name=data.name,
-        source_type=data.source_type,
+        source_type=str(data.source_type),
         source_value=data.source_value,
-        settings=data.settings,
+        settings=settings,
     )
     db.add(campaign)
-    await db.flush()
-    await db.refresh(campaign)
+    try:
+        await db.commit()
+        await db.refresh(campaign)
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Failed to create campaign: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to create campaign: {exc}") from exc
     return campaign
 
 

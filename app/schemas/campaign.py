@@ -13,6 +13,7 @@ class CampaignCreate(BaseModel):
     source_type: SourceType
     source_value: str
     settings: dict = {}
+    max_leads: Optional[int] = None
 
 
 class CampaignUpdate(BaseModel):
