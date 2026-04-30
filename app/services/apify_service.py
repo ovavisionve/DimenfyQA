@@ -136,7 +136,8 @@ class ApifyService:
             "resultsType": "comments",
         }
         if max_leads > 0:
-            input_data["resultsLimit"] = max_leads
+            # Cap at 100 — Instagram paginates above ~100 comments which triggers anti-bot and causes hangs
+            input_data["resultsLimit"] = min(max_leads, 100)
 
         logger.info(f"[Comments] Starting apify/instagram-scraper with input: {input_data}")
         if progress_callback:
