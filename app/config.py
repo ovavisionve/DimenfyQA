@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     DEFAULT_SCORE_THRESHOLD: int = 60
-    RESEARCH_SCORE_THRESHOLD: int = 60
-    DM_SCORE_THRESHOLD: int = 70
+    RESEARCH_SCORE_THRESHOLD: int = 55
+    DM_SCORE_THRESHOLD: int = 60
 
     # Phase 2 — Instagram DM Sending
     IG_USERNAME: str = ""
