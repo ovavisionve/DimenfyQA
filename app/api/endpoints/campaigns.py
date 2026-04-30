@@ -310,6 +310,35 @@ async def send_single_dm(
     }
 
 
+@router.post("/{campaign_id}/mark-sent")
+async def mark_leads_sent(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark all dm_ready leads in a campaign as manually sent."""
+    from datetime import datetime, timezone
+
+    q = select(Lead).where(
+        Lead.campaign_id == campaign_id,
+        Lead.dm_message.isnot(None),
+        Lead.status.in_(["dm_ready", "researched", "scored"]),
+    )
+    result = await db.execute(q)
+    leads = result.scalars().all()
+    if not leads:
+        raise HTTPException(status_code=404, detail="No leads found to mark")
+
+    now = datetime.now(timezone.utc)
+    for lead in leads:
+        lead.status = "sent"
+        lead.delivery_status = "sent"
+        if hasattr(lead, "sent_at"):
+            lead.sent_at = now
+
+    await db.commit()
+    return {"marked": len(leads), "message": f"{len(leads)} leads marcados como enviados"}
+
+
 @router.post("/{campaign_id}/check-inbox")
 async def check_campaign_inbox(
     campaign_id: uuid.UUID, db: AsyncSession = Depends(get_db)
