@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/", response_model=CampaignRead, status_code=201)
+@router.post("", response_model=CampaignRead, status_code=201)
+@router.post("/", response_model=CampaignRead, status_code=201, include_in_schema=False)
 async def create_campaign(data: CampaignCreate, db: AsyncSession = Depends(get_db)):
     # Merge max_leads into settings so the scraping task picks it up
     settings = dict(data.settings)
@@ -44,7 +45,8 @@ async def create_campaign(data: CampaignCreate, db: AsyncSession = Depends(get_d
     return campaign
 
 
-@router.get("/", response_model=list[CampaignRead])
+@router.get("", response_model=list[CampaignRead])
+@router.get("/", response_model=list[CampaignRead], include_in_schema=False)
 async def list_campaigns(
     client_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
