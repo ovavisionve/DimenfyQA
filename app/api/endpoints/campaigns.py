@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,21 +14,33 @@ from app.schemas.analytics import CampaignAnalytics
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignStats, CampaignUpdate
 from app.tasks.pipeline import run_campaign_pipeline
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
 @router.post("/", response_model=CampaignRead, status_code=201)
 async def create_campaign(data: CampaignCreate, db: AsyncSession = Depends(get_db)):
+    # Merge max_leads into settings so the scraping task picks it up
+    settings = dict(data.settings)
+    if data.max_leads and data.max_leads > 0:
+        settings.setdefault("max_leads", data.max_leads)
+
     campaign = Campaign(
         client_id=data.client_id,
         name=data.name,
-        source_type=data.source_type,
+        source_type=str(data.source_type),
         source_value=data.source_value,
-        settings=data.settings,
+        settings=settings,
     )
     db.add(campaign)
-    await db.flush()
-    await db.refresh(campaign)
+    try:
+        await db.commit()
+        await db.refresh(campaign)
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Failed to create campaign: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to create campaign: {exc}") from exc
     return campaign
 
 
@@ -295,6 +308,35 @@ async def send_single_dm(
         "lead_id": str(lead_id),
         "task_id": task_result.id,
     }
+
+
+@router.post("/{campaign_id}/mark-sent")
+async def mark_leads_sent(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark all dm_ready leads in a campaign as manually sent."""
+    from datetime import datetime, timezone
+
+    q = select(Lead).where(
+        Lead.campaign_id == campaign_id,
+        Lead.dm_message.isnot(None),
+        Lead.status.in_(["dm_ready", "researched", "scored"]),
+    )
+    result = await db.execute(q)
+    leads = result.scalars().all()
+    if not leads:
+        raise HTTPException(status_code=404, detail="No leads found to mark")
+
+    now = datetime.now(timezone.utc)
+    for lead in leads:
+        lead.status = "sent"
+        lead.delivery_status = "sent"
+        if hasattr(lead, "sent_at"):
+            lead.sent_at = now
+
+    await db.commit()
+    return {"marked": len(leads), "message": f"{len(leads)} leads marcados como enviados"}
 
 
 @router.post("/{campaign_id}/check-inbox")
