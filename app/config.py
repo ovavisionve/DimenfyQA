@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     PW_BROWSER_DATA_DIR: str = "./pw_sessions"  # Persistent browser profiles
 
     # Phase 3 — Inbox Monitoring
+    INBOX_CHECK_ENABLED: bool = False  # Disabled while IG login is blocked / IP not whitelisted
     INBOX_CHECK_INTERVAL: int = 300  # seconds between inbox checks (default 5 min)
 
     # Phase 3 — A/B Testing
@@ -87,6 +88,7 @@ class Settings(BaseSettings):
     AB_TEST_SPLIT: float = 0.5  # Ratio of leads that get variant A (0.0-1.0)
 
     # Phase 3 — Follow-up Automation
+    FOLLOWUP_CHECK_ENABLED: bool = False  # Disabled while IG login is blocked / IP not whitelisted
     FOLLOWUP_CHECK_INTERVAL: int = 3600  # seconds between follow-up checks (default 1 hour)
     MAX_FOLLOW_UP_STEPS: int = 3  # maximum number of follow-up steps per campaign
 
