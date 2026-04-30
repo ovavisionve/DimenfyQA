@@ -157,9 +157,9 @@ class ApifyService:
                 run_id = run_data["id"]
                 logger.info(f"[Comments] Run started: {run_id}")
 
-            # Poll until complete (up to 15 min for large scrapes)
+            # Poll until complete (up to 5 min — fail fast if Apify hangs)
             poll_interval = 5
-            max_poll_attempts = 180  # 15 minutes
+            max_poll_attempts = 60  # 5 minutes
             for attempt in range(max_poll_attempts):
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
@@ -224,7 +224,7 @@ class ApifyService:
 
                 await asyncio.sleep(poll_interval)
 
-            logger.warning(f"[Comments] Timed out after 15min of polling")
+            logger.warning(f"[Comments] Timed out after 5min of polling")
             return []
 
         except Exception as e:

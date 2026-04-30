@@ -18,18 +18,22 @@ celery_app.config_from_object({
     "broker_transport_options": {
         "visibility_timeout": 43200,  # 12h — re-queue unacked tasks
     },
-    # Celery Beat — periodic task schedule
-    "beat_schedule": {
-        "check-all-inboxes": {
-            "task": "check_all_inboxes",
-            "schedule": settings.INBOX_CHECK_INTERVAL,  # default 300s (5 min)
-        },
-        "check-all-follow-ups": {
-            "task": "check_all_follow_ups",
-            "schedule": settings.FOLLOWUP_CHECK_INTERVAL,  # default 3600s (1 hour)
-        },
-    },
+    # Celery Beat — periodic task schedule (built conditionally below)
+    "beat_schedule": {},
 })
+
+_beat_schedule: dict = {}
+if settings.INBOX_CHECK_ENABLED:
+    _beat_schedule["check-all-inboxes"] = {
+        "task": "check_all_inboxes",
+        "schedule": settings.INBOX_CHECK_INTERVAL,
+    }
+if settings.FOLLOWUP_CHECK_ENABLED:
+    _beat_schedule["check-all-follow-ups"] = {
+        "task": "check_all_follow_ups",
+        "schedule": settings.FOLLOWUP_CHECK_INTERVAL,
+    }
+celery_app.conf.beat_schedule = _beat_schedule
 
 # Auto-discover tasks in the tasks package
 celery_app.autodiscover_tasks([
