@@ -24,6 +24,7 @@ app = FastAPI(
     title="IG DM Engine",
     description="AI-powered Instagram DM lead generation and personalization platform",
     version="0.2.0",
+    redirect_slashes=False,
 )
 
 # CORS — allow Next.js frontend (dev + production)
