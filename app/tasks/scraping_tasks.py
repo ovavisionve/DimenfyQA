@@ -363,6 +363,7 @@ async def _scrape_comments_with_quality_filter(
                 p.get("username")
                 or p.get("ownerUsername")
                 or p.get("owner", {}).get("username", "")
+                or (p.get("user") or {}).get("username", "")
                 or ""
             )
             if uname and uname not in seen_usernames:
@@ -373,6 +374,7 @@ async def _scrape_comments_with_quality_filter(
                     reply.get("ownerUsername")
                     or reply.get("username")
                     or reply.get("owner", {}).get("username", "")
+                    or (reply.get("user") or {}).get("username", "")
                     or ""
                 )
                 if reply_uname and reply_uname not in seen_usernames:

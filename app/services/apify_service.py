@@ -244,6 +244,7 @@ class ApifyService:
                 comment.get("ownerUsername")
                 or comment.get("username")
                 or comment.get("owner", {}).get("username", "")
+                or (comment.get("user") or {}).get("username", "")
                 or ""
             )
             if uname and uname not in seen_usernames:
